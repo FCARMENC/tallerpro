@@ -112,6 +112,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-compat.js"></script>
 
 <script>
   if (typeof React === 'undefined' || typeof ReactDOM === 'undefined') {
@@ -162,6 +163,21 @@ const { useState, useMemo, useEffect, useRef } = React;
  *   6. Vuelve a alojar este archivo donde ya lo tengas publicado. Todos —tu equipo y tus clientes—
  *      quedarán conectados a la misma base de datos en tiempo real.
  */
+/*
+ * ---------------------------------- AVISOS PUSH (funcionan con la app cerrada) ----------------------------------
+ * Esto es opcional y aparte de Firestore. Permite que tu celular reciba una notificacion del sistema
+ * (como cualquier app) apenas un cliente aprueba o rechaza, incluso si Expert esta totalmente cerrado.
+ * Como Firebase Cloud Functions requiere el plan pago (Blaze), la funcion que dispara el aviso vive
+ * gratis en Vercel en vez de en Firebase. Pasos (ver guia completa aparte):
+ *   1. En Firebase: Configuracion del proyecto > Cloud Messaging > "Certificados push web" > genera un
+ *      par de claves. Copia esa clave en VAPID_KEY abajo.
+ *   2. Despliega la carpeta /vercel-push (que te entrego aparte) en vercel.com. Copia la URL que te
+ *      da Vercel en NOTIFY_ENDPOINT, y el secreto que elijas en NOTIFY_SECRET (debe ser el MISMO valor
+ *      que configures como variable de entorno NOTIFY_SECRET en Vercel).
+ */
+const VAPID_KEY = "";
+const NOTIFY_ENDPOINT = "";
+const NOTIFY_SECRET = "";
 const FIREBASE_CONFIG = {
   apiKey: "AIzaSyAsYsXARi9G1NXGI3RXmoe19yYuzSVaoKY",
   authDomain: "taller-fc741.firebaseapp.com",
@@ -594,6 +610,23 @@ const emptyCheckin = () => ({
     completed: false,
 });
 const money = (n) => `S/ ${n.toFixed(2)}`;
+const timeAgo = (iso) => {
+    if (!iso)
+        return "";
+    const diffMs = Date.now() - new Date(iso).getTime();
+    const min = Math.floor(diffMs / 60000);
+    if (min < 1)
+        return "ahora";
+    if (min < 60)
+        return `hace ${min} min`;
+    const hr = Math.floor(min / 60);
+    if (hr < 24)
+        return `hace ${hr} h`;
+    const days = Math.floor(hr / 24);
+    if (days < 7)
+        return `hace ${days} d`;
+    return new Date(iso).toLocaleDateString("es-PE", { day: "2-digit", month: "short" });
+};
 const orderTotal = (o) => (o.services || []).reduce((s, x) => s + x.price, 0) +
     (o.parts || []).reduce((s, x) => s + x.price * x.qty, 0);
 const orderAbonado = (o) => (o.pagos || []).reduce((s, p) => s + p.amount, 0);
@@ -903,6 +936,18 @@ function downloadReceptionPDF(order, client, vehicle, settings) {
 // desde el celular del cliente se refleje en el equipo del taller (dos dispositivos distintos)
 // hace falta configurar FIREBASE_CONFIG arriba y alojar el archivo en una URL pública.
 const proformaApprovalLink = (pf) => `${window.location.origin}${window.location.pathname}#aprobar-${pf.id}`;
+// Llama a la funcion gratuita en Vercel (fuera de Firebase) para que envie el push al celular del
+// taller. Si no se configuro NOTIFY_ENDPOINT todavia, simplemente no hace nada (no rompe el flujo
+// de aprobacion normal, que sigue funcionando por Firestore de todas formas).
+function triggerPushNotification(proformaId) {
+    if (!NOTIFY_ENDPOINT)
+        return;
+    fetch(NOTIFY_ENDPOINT, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ proformaId: proformaId, secret: NOTIFY_SECRET }),
+    }).catch((e) => console.error("No se pudo avisar por push", e));
+}
 function shareApprovalRequestWhatsApp(pf, client, settings) {
     const link = proformaApprovalLink(pf);
     const text = `Hola ${(client === null || client === void 0 ? void 0 : client.name) || ""}, te comparto el presupuesto ${pf.code} de ${settings.tallerNombre || "nuestro taller"} por un total de ${money(proformaTotal(pf))}. Puedes revisarlo y responder (aprobar o rechazar) con un clic aquí:\n${link}`;
@@ -2655,9 +2700,11 @@ function ClientApprovalPage({ pf, client, vehicle, settings, onApprove, onReject
     const isExpired = !alreadyApproved && !alreadyRejected && new Date() > new Date(`${proformaValidUntil(pf)}T23:59:59`);
     const confirmApproval = () => {
         onApprove(name || (client === null || client === void 0 ? void 0 : client.name) || "Cliente");
+        triggerPushNotification(pf.id);
     };
     const confirmRejection = () => {
         onReject(name || (client === null || client === void 0 ? void 0 : client.name) || "Cliente", reason);
+        triggerPushNotification(pf.id);
     };
     return (React.createElement("div", { style: { background: `radial-gradient(1200px 600px at 15% -10%, ${C.accentSoft} 0%, transparent 55%), ${C.bg}`, color: C.text, minHeight: "100vh", fontFamily: "Inter, sans-serif" }, className: "p-5 sm:p-8" },
         React.createElement("style", null, FONTS),
@@ -2849,6 +2896,82 @@ function useCloudSync(key, initialValue, db) {
     }, [state, db, key]);
     return [state, setState];
 }
+/* ---------------------------------- NOTIFICACIONES DE APROBACION ---------------------------------- */
+// Las notificaciones se derivan directamente de las proformas que el cliente respondio desde el
+// enlace publico (method === "cliente_web"), asi que no hace falta guardarlas aparte en Firestore.
+// Que esta "leido" vive solo en este dispositivo (usePersistentState), porque cada celular/PC
+// revisa sus propias notificaciones por separado.
+function NotificationsBell({ proformas, clients, onEnablePush, pushReady }) {
+    const [open, setOpen] = useState(false);
+    const [readIds, setReadIds] = usePersistentState("expertTaller.notifRead", []);
+    const [permission, setPermission] = useState(() => (typeof Notification !== "undefined" ? Notification.permission : "unsupported"));
+    const items = useMemo(() => {
+        return proformas
+            .filter((pf) => pf.clientApproval && pf.clientApproval.method === "cliente_web")
+            .map((pf) => {
+                const ca = pf.clientApproval;
+                const client = clients.find((c) => c.id === pf.clientId);
+                return {
+                    id: pf.id,
+                    ts: ca.approved ? ca.approvedAt : ca.rejectedAt,
+                    approved: ca.approved,
+                    code: pf.code,
+                    clientName: ca.approved ? ca.approvedBy : ca.rejectedBy,
+                    clientPhone: client ? client.phone : "",
+                    reason: ca.reason || "",
+                    total: proformaTotal(pf),
+                };
+            })
+            .sort((a, b) => new Date(b.ts) - new Date(a.ts));
+    }, [proformas, clients]);
+    const unread = items.filter((it) => readIds.indexOf(it.id) === -1);
+    const requestPermission = async () => {
+        if (typeof Notification === "undefined")
+            return;
+        const res = await Notification.requestPermission();
+        setPermission(res);
+        if (res === "granted" && onEnablePush)
+            onEnablePush();
+    };
+    const toggleOpen = () => {
+        setOpen((v) => {
+            const next = !v;
+            if (next && unread.length > 0) {
+                setReadIds((prev) => Array.from(new Set(prev.concat(items.map((it) => it.id)))));
+            }
+            return next;
+        });
+    };
+    return (React.createElement("div", { className: "relative" },
+        open && (React.createElement("div", { className: "fixed inset-0 z-10", onClick: () => setOpen(false) })),
+        React.createElement("button", { onClick: toggleOpen, className: "w-9 h-9 rounded-xl flex items-center justify-center relative transition-colors hover:bg-white/5 active:scale-95", style: { background: C.surfaceHi, border: `1px solid ${C.borderSoft}` } },
+            React.createElement(Bell, { size: 16 }),
+            unread.length > 0 && (React.createElement("span", { className: "absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full flex items-center justify-center text-[10px] font-semibold", style: { background: C.accent, color: "#1A0D05", boxShadow: `0 0 6px ${C.accent}` } }, unread.length > 9 ? "9+" : unread.length))),
+        open && (React.createElement("div", { className: "absolute top-full right-0 mt-2 w-80 max-w-[90vw] z-20 rounded-xl overflow-hidden anim-in", style: { background: C.surfaceHi, border: `1px solid ${C.border}`, boxShadow: C.shadowLg } },
+            React.createElement("div", { className: "px-4 py-3 flex items-center justify-between", style: { borderBottom: `1px solid ${C.borderSoft}` } },
+                React.createElement("span", { className: "text-sm font-semibold" }, "Aprobaciones de clientes"),
+                React.createElement("span", { className: "text-xs", style: { color: C.textMute } }, items.length, " total")),
+            permission !== "granted" && permission !== "unsupported" && (React.createElement("button", { onClick: requestPermission, className: "w-full text-left px-4 py-2.5 text-xs flex items-center gap-2", style: { background: C.accentSoft, color: C.accentText, borderBottom: `1px solid ${C.borderSoft}` } },
+                React.createElement(Bell, { size: 13 }),
+                permission === "denied"
+                    ? "Notificaciones bloqueadas en este navegador, activalas en Ajustes del sitio."
+                    : "Activar avisos en este celular/PC cuando un cliente responda")),
+            permission === "granted" && (React.createElement("div", { className: "px-4 py-2 text-[11px] flex items-center gap-2", style: { color: pushReady ? C.success : C.textMute, borderBottom: `1px solid ${C.borderSoft}` } },
+                React.createElement(CheckCircle2, { size: 12 }),
+                pushReady ? "Avisos activos en este dispositivo, incluso con la app cerrada." : "Avisos activos mientras la app este abierta.")),
+            React.createElement("div", { className: "max-h-80 overflow-y-auto" }, items.length === 0 ? (React.createElement("div", { className: "px-4 py-8 text-center text-xs", style: { color: C.textMute } }, "Todavia no hay respuestas de clientes.")) : (items.slice(0, 20).map((it) => (React.createElement("div", { key: it.id, className: "px-4 py-3 flex items-start gap-3", style: { borderBottom: `1px solid ${C.borderSoft}` } },
+                React.createElement("div", { className: "w-7 h-7 rounded-full flex items-center justify-center shrink-0 mt-0.5", style: { background: it.approved ? C.successSoft : C.dangerSoft, color: it.approved ? C.success : C.danger } }, it.approved ? React.createElement(CheckCircle2, { size: 14 }) : React.createElement(X, { size: 14 })),
+                React.createElement("div", { className: "min-w-0 flex-1" },
+                    React.createElement("div", { className: "text-xs leading-snug" },
+                        React.createElement("span", { className: "font-semibold" }, it.clientName || "Cliente"),
+                        " ",
+                        it.approved ? "aprobo" : "rechazo",
+                        " la proforma ",
+                        React.createElement("span", { className: "font-mono" }, it.code)),
+                    it.approved && (React.createElement("div", { className: "text-xs mt-0.5", style: { color: C.textSoft } }, money(it.total))),
+                    !it.approved && it.reason && (React.createElement("div", { className: "text-xs mt-0.5 italic", style: { color: C.textSoft } }, "\u201C", it.reason, "\u201D")),
+                    React.createElement("div", { className: "text-[10px] mt-1", style: { color: C.textMute } }, timeAgo(it.ts))))))))))));
+}
 /* ---------------------------------- APP ---------------------------------- */
 function App() {
     var _a;
@@ -2871,6 +2994,35 @@ function App() {
     const [proformas, setProformas] = useCloudSync("expertTaller.proformas", initialProformas, db);
     const [users, setUsers] = useCloudSync("expertTaller.users", initialUsers, db);
     const [roles, setRoles] = useCloudSync("expertTaller.roles", initialRoles, db);
+    const [fcmTokens, setFcmTokens] = useCloudSync("expertTaller.fcmTokens", [], db);
+    // Pide el "token" de este dispositivo para Firebase Cloud Messaging y lo guarda en Firestore, para
+    // que la funcion de Vercel sepa a que celulares/PCs avisar cuando un cliente responda.
+    const [pushReady, setPushReady] = useState(false);
+    const ensurePushToken = async () => {
+        try {
+            if (!VAPID_KEY || !window.firebase || !firebase.messaging)
+                return;
+            if (!("serviceWorker" in navigator))
+                return;
+            const reg = await navigator.serviceWorker.register("firebase-messaging-sw.js");
+            const messaging = firebase.messaging();
+            const token = await messaging.getToken({ vapidKey: VAPID_KEY, serviceWorkerRegistration: reg });
+            if (token) {
+                setFcmTokens((prev) => (prev.indexOf(token) === -1 ? [...prev, token] : prev));
+                setPushReady(true);
+            }
+        }
+        catch (e) {
+            console.error("No se pudo activar el aviso push en este dispositivo", e);
+        }
+    };
+    useEffect(() => {
+        const isClientRoute = window.location.hash && window.location.hash.indexOf("#aprobar-") === 0;
+        if (!isClientRoute && typeof Notification !== "undefined" && Notification.permission === "granted") {
+            ensurePushToken();
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
     // La sesión vive solo en este dispositivo (no se sincroniza a la nube): cada equipo/celular
     // inicia sesión por separado, aunque compartan los mismos datos del taller.
     const [session, setSession] = usePersistentState("expertTaller.session", null);
@@ -2970,6 +3122,45 @@ function App() {
             setCaja((prev) => prev.filter((m) => !(m.orderId === order.id && m.source === "cobro_final")));
         }
     };
+    // Avisa en este dispositivo (mientras la pestana/PWA este abierta) apenas un cliente aprueba o
+    // rechaza una proforma desde el enlace publico. No corre en la propia pagina de aprobacion del
+    // cliente (esa vive en la ruta #aprobar-...), para no pedirle permisos de notificacion a el.
+    const prevApprovalsRef = useRef(null);
+    useEffect(() => {
+        const isClientRoute = hashRoute && hashRoute.indexOf("#aprobar-") === 0;
+        if (isClientRoute)
+            return;
+        const current = {};
+        proformas.forEach((pf) => {
+            const ca = pf.clientApproval;
+            if (ca && ca.method === "cliente_web") {
+                current[pf.id] = ca.approved ? ca.approvedAt : ca.rejectedAt;
+            }
+        });
+        const prev = prevApprovalsRef.current;
+        if (prev) {
+            proformas.forEach((pf) => {
+                const ca = pf.clientApproval;
+                if (!ca || ca.method !== "cliente_web")
+                    return;
+                const ts = ca.approved ? ca.approvedAt : ca.rejectedAt;
+                if (prev[pf.id] === ts)
+                    return;
+                const client = clients.find((c) => c.id === pf.clientId);
+                const title = ca.approved ? `${pf.code} aprobada` : `${pf.code} rechazada`;
+                const body = ca.approved
+                    ? `${ca.approvedBy || (client && client.name) || "Cliente"} aprobo por ${money(proformaTotal(pf))}.`
+                    : `${ca.rejectedBy || (client && client.name) || "Cliente"} rechazo la proforma.${ca.reason ? " Motivo: " + ca.reason : ""}`;
+                if (typeof Notification !== "undefined" && Notification.permission === "granted") {
+                    try {
+                        new Notification(title, { body: body, tag: "proforma-" + pf.id });
+                    }
+                    catch (e) { /* algunos navegadores restringen Notification fuera de un gesto del usuario */ }
+                }
+            });
+        }
+        prevApprovalsRef.current = current;
+    }, [proformas, clients, hashRoute]);
     const approvalMatch = hashRoute && hashRoute.match(/^#aprobar-(.+)$/);
     if (approvalMatch) {
         const approvalPf = proformas.find((p) => p.id === approvalMatch[1]);
@@ -3022,9 +3213,7 @@ function App() {
                                 cloudStatus === "connecting" ? "Conectando a la nube…" :
                                     cloudStatus === "error" ? `Error de conexión: ${cloudError}` :
                                         "Trabajando solo en este navegador", className: "hidden sm:flex w-9 h-9 rounded-xl items-center justify-center transition-colors hover:bg-white/5 active:scale-95", style: { background: C.surfaceHi, border: `1px solid ${C.borderSoft}`, color: cloudStatus === "connected" ? C.success : cloudStatus === "error" ? C.danger : C.textMute } }, cloudStatus === "offline" ? React.createElement(CloudOff, { size: 16 }) : React.createElement(CloudIcon, { size: 16 })),
-                        React.createElement("button", { className: "w-9 h-9 rounded-xl flex items-center justify-center relative transition-colors hover:bg-white/5 active:scale-95", style: { background: C.surfaceHi, border: `1px solid ${C.borderSoft}` } },
-                            React.createElement(Bell, { size: 16 }),
-                            React.createElement("span", { className: "absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full", style: { background: C.accent, boxShadow: `0 0 6px ${C.accent}` } })),
+                        React.createElement(NotificationsBell, { proformas: proformas, clients: clients, onEnablePush: ensurePushToken, pushReady: pushReady }),
                         React.createElement("button", { onClick: lockNow, title: "Bloquear pantalla", className: "w-9 h-9 rounded-xl flex items-center justify-center transition-colors hover:bg-white/5 active:scale-95", style: { background: C.surfaceHi, border: `1px solid ${C.borderSoft}`, color: C.textMute } },
                             React.createElement(KeyRound, { size: 16 })),
                         React.createElement("button", { onClick: () => setActive("ajustes"), className: "hidden sm:flex items-center gap-2 pl-1 pr-3 h-9 rounded-xl transition-colors hover:bg-white/5 active:scale-95", style: { background: C.surfaceHi, border: `1px solid ${C.borderSoft}` } },
