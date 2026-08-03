@@ -2942,35 +2942,32 @@ function NotificationsBell({ proformas, clients, onEnablePush, pushReady }) {
             return next;
         });
     };
-    return (React.createElement("div", { className: "relative" },
-        open && (React.createElement("div", { className: "fixed inset-0 z-10", onClick: () => setOpen(false) })),
+    const panel = open && (React.createElement(Modal, { title: `Aprobaciones de clientes (${items.length})`, onClose: () => setOpen(false) },
+        permission !== "granted" && permission !== "unsupported" && (React.createElement("button", { onClick: requestPermission, className: "w-full text-left px-3 py-2.5 text-xs rounded-lg flex items-center gap-2 mb-3", style: { background: C.accentSoft, color: C.accentText } },
+            React.createElement(Bell, { size: 13 }),
+            permission === "denied"
+                ? "Notificaciones bloqueadas en este navegador, activalas en Ajustes del sitio."
+                : "Activar avisos en este celular/PC cuando un cliente responda")),
+        permission === "granted" && (React.createElement("div", { className: "px-3 py-2 text-[11px] rounded-lg flex items-center gap-2 mb-3", style: { color: pushReady ? C.success : C.textMute, background: C.surfaceHi } },
+            React.createElement(CheckCircle2, { size: 12 }),
+            pushReady ? "Avisos activos en este dispositivo, incluso con la app cerrada." : "Avisos activos mientras la app este abierta.")),
+        items.length === 0 ? (React.createElement("div", { className: "py-8 text-center text-xs", style: { color: C.textMute } }, "Todavia no hay respuestas de clientes.")) : (React.createElement("div", { className: "-mx-6" }, items.slice(0, 20).map((it) => (React.createElement("div", { key: it.id, className: "px-6 py-3 flex items-start gap-3", style: { borderBottom: `1px solid ${C.borderSoft}` } },
+            React.createElement("div", { className: "w-7 h-7 rounded-full flex items-center justify-center shrink-0 mt-0.5", style: { background: it.approved ? C.successSoft : C.dangerSoft, color: it.approved ? C.success : C.danger } }, it.approved ? React.createElement(CheckCircle2, { size: 14 }) : React.createElement(X, { size: 14 })),
+            React.createElement("div", { className: "min-w-0 flex-1" },
+                React.createElement("div", { className: "text-xs leading-snug" },
+                    React.createElement("span", { className: "font-semibold" }, it.clientName || "Cliente"),
+                    " ",
+                    it.approved ? "aprobo" : "rechazo",
+                    " la proforma ",
+                    React.createElement("span", { className: "font-mono" }, it.code)),
+                it.approved && (React.createElement("div", { className: "text-xs mt-0.5", style: { color: C.textSoft } }, money(it.total))),
+                !it.approved && it.reason && (React.createElement("div", { className: "text-xs mt-0.5 italic", style: { color: C.textSoft } }, "\u201C", it.reason, "\u201D")),
+                React.createElement("div", { className: "text-[10px] mt-1", style: { color: C.textMute } }, timeAgo(it.ts))))))))));
+    return (React.createElement(React.Fragment, null,
         React.createElement("button", { onClick: toggleOpen, className: "w-9 h-9 rounded-xl flex items-center justify-center relative transition-colors hover:bg-white/5 active:scale-95", style: { background: C.surfaceHi, border: `1px solid ${C.borderSoft}` } },
             React.createElement(Bell, { size: 16 }),
             unread.length > 0 && (React.createElement("span", { className: "absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full flex items-center justify-center text-[10px] font-semibold", style: { background: C.accent, color: "#1A0D05", boxShadow: `0 0 6px ${C.accent}` } }, unread.length > 9 ? "9+" : unread.length))),
-        open && (React.createElement("div", { className: "absolute top-full right-0 mt-2 w-80 max-w-[90vw] z-20 rounded-xl overflow-hidden anim-in", style: { background: C.surfaceHi, border: `1px solid ${C.border}`, boxShadow: C.shadowLg } },
-            React.createElement("div", { className: "px-4 py-3 flex items-center justify-between", style: { borderBottom: `1px solid ${C.borderSoft}` } },
-                React.createElement("span", { className: "text-sm font-semibold" }, "Aprobaciones de clientes"),
-                React.createElement("span", { className: "text-xs", style: { color: C.textMute } }, items.length, " total")),
-            permission !== "granted" && permission !== "unsupported" && (React.createElement("button", { onClick: requestPermission, className: "w-full text-left px-4 py-2.5 text-xs flex items-center gap-2", style: { background: C.accentSoft, color: C.accentText, borderBottom: `1px solid ${C.borderSoft}` } },
-                React.createElement(Bell, { size: 13 }),
-                permission === "denied"
-                    ? "Notificaciones bloqueadas en este navegador, activalas en Ajustes del sitio."
-                    : "Activar avisos en este celular/PC cuando un cliente responda")),
-            permission === "granted" && (React.createElement("div", { className: "px-4 py-2 text-[11px] flex items-center gap-2", style: { color: pushReady ? C.success : C.textMute, borderBottom: `1px solid ${C.borderSoft}` } },
-                React.createElement(CheckCircle2, { size: 12 }),
-                pushReady ? "Avisos activos en este dispositivo, incluso con la app cerrada." : "Avisos activos mientras la app este abierta.")),
-            React.createElement("div", { className: "max-h-80 overflow-y-auto" }, items.length === 0 ? (React.createElement("div", { className: "px-4 py-8 text-center text-xs", style: { color: C.textMute } }, "Todavia no hay respuestas de clientes.")) : (items.slice(0, 20).map((it) => (React.createElement("div", { key: it.id, className: "px-4 py-3 flex items-start gap-3", style: { borderBottom: `1px solid ${C.borderSoft}` } },
-                React.createElement("div", { className: "w-7 h-7 rounded-full flex items-center justify-center shrink-0 mt-0.5", style: { background: it.approved ? C.successSoft : C.dangerSoft, color: it.approved ? C.success : C.danger } }, it.approved ? React.createElement(CheckCircle2, { size: 14 }) : React.createElement(X, { size: 14 })),
-                React.createElement("div", { className: "min-w-0 flex-1" },
-                    React.createElement("div", { className: "text-xs leading-snug" },
-                        React.createElement("span", { className: "font-semibold" }, it.clientName || "Cliente"),
-                        " ",
-                        it.approved ? "aprobo" : "rechazo",
-                        " la proforma ",
-                        React.createElement("span", { className: "font-mono" }, it.code)),
-                    it.approved && (React.createElement("div", { className: "text-xs mt-0.5", style: { color: C.textSoft } }, money(it.total))),
-                    !it.approved && it.reason && (React.createElement("div", { className: "text-xs mt-0.5 italic", style: { color: C.textSoft } }, "\u201C", it.reason, "\u201D")),
-                    React.createElement("div", { className: "text-[10px] mt-1", style: { color: C.textMute } }, timeAgo(it.ts))))))))))));
+        panel));
 }
 /* ---------------------------------- APP ---------------------------------- */
 function App() {
