@@ -2574,18 +2574,42 @@ async function applyBackupSnapshot(data, db) {
         await Promise.all(writes);
     }
 }
-async function wipeAllTallerData(db) {
+// Los datos "de fábrica" del sistema (initialClients, initialOrders, etc.) traen registros de
+// ejemplo para que el taller no se vea vacío la primera vez. Por eso reiniciar NO puede limitarse a
+// borrar la clave de localStorage: si se borra la clave, el sistema vuelve a caer en esos datos de
+// ejemplo (usePersistentState usa initialValue como respaldo). Para dejar todo realmente en blanco,
+// hay que escribir arreglos vacíos explícitos.
+const EMPTY_SETTINGS = { tallerNombre: "", ownerName: "", ownerRole: "", phone: "", address: "", ruc: "", email: "", security: { autoLockMinutes: 20 } };
+const BUSINESS_DATA_EMPTY = { clients: [], vehicles: [], parts: [], orders: [], appointments: [], caja: [], proformas: [], fcmTokens: [] };
+async function writeLocalAndCloud(values, db) {
+    Object.keys(values).forEach((k) => {
+        try {
+            window.localStorage.setItem(BACKUP_PREFIX + k, JSON.stringify(values[k]));
+        }
+        catch (e) {
+            /* no se pudo escribir esta clave; se continúa con las demás */
+        }
+    });
     if (db) {
-        const deletes = CLOUD_SYNCED_KEYS.map((fullKey) => db.collection("tallerData").doc(fullKey).delete().catch((e) => console.error("Firestore reset delete error", fullKey, e)));
-        await Promise.all(deletes);
+        const writes = Object.keys(values)
+            .filter((k) => CLOUD_SYNCED_KEYS.indexOf(BACKUP_PREFIX + k) !== -1)
+            .map((k) => db.collection("tallerData").doc(BACKUP_PREFIX + k).set({ value: values[k], updatedAt: Date.now() }).catch((e) => console.error("Firestore reset write error", k, e)));
+        await Promise.all(writes);
     }
-    const keys = [];
-    for (let i = 0; i < window.localStorage.length; i++) {
-        const key = window.localStorage.key(i);
-        if (key && key.indexOf(BACKUP_PREFIX) === 0)
-            keys.push(key);
-    }
-    keys.forEach((k) => window.localStorage.removeItem(k));
+}
+// "Reiniciar solo datos": borra clientes, vehículos, órdenes, caja, proformas, repuestos, citas,
+// notificaciones — pero conserva tu cuenta, los demás usuarios, roles y los datos del taller en Ajustes.
+async function resetBusinessData(db) {
+    await writeLocalAndCloud(BUSINESS_DATA_EMPTY, db);
+    window.localStorage.removeItem("expertTaller.notifRead");
+}
+// "Reiniciar sistema completo": deja el sistema como recién instalado (sin usuarios, sin datos, sin
+// nombre de taller), por lo que al recargar aparece el asistente de primer uso ("Primer acceso").
+async function resetFullSystem(db) {
+    await writeLocalAndCloud({ ...BUSINESS_DATA_EMPTY, settings: EMPTY_SETTINGS, users: [], roles: initialRoles }, db);
+    window.localStorage.removeItem("expertTaller.notifRead");
+    window.localStorage.removeItem("expertTaller.theme");
+    window.localStorage.removeItem("expertTaller.session");
 }
 // Modal que pide el PIN del usuario actual antes de exportar, importar o reiniciar los datos.
 function ConfirmPinModal({ title, description, confirmLabel, danger, currentUser, onCancel, onConfirmed }) {
@@ -2641,7 +2665,7 @@ function AjustesView({ settings, setSettings, cloudStatus, cloudError, cloudProj
     const [exportOk, setExportOk] = useState(false);
     const [importMsg, setImportMsg] = useState(null); // { type: 'error'|'ok', text }
     const [pendingImport, setPendingImport] = useState(null); // datos parseados a la espera de confirmación
-    const [showResetModal, setShowResetModal] = useState(false);
+    const [resetMode, setResetMode] = useState(null); // 'data' | 'full' | null
     const [busyAction, setBusyAction] = useState(null); // 'import' | 'reset' | null
     const canManageData = !readOnly;
     const doExport = () => {
@@ -2687,10 +2711,13 @@ function AjustesView({ settings, setSettings, cloudStatus, cloudError, cloudProj
     const confirmReset = async () => {
         setBusyAction("reset");
         try {
-            await wipeAllTallerData(db);
+            if (resetMode === "full")
+                await resetFullSystem(db);
+            else
+                await resetBusinessData(db);
         }
         finally {
-            setShowResetModal(false);
+            setResetMode(null);
             window.location.reload();
         }
     };
@@ -2787,10 +2814,17 @@ function AjustesView({ settings, setSettings, cloudStatus, cloudError, cloudProj
                 React.createElement("div", { className: "text-xs uppercase tracking-wide flex items-center gap-1.5", style: { color: C.danger } },
                     React.createElement(AlertTriangle, { size: 13 }),
                     " Zona de peligro"),
-                React.createElement("p", { className: "text-sm", style: { color: C.textSoft } }, "Esto borra permanentemente todos los datos guardados en este dispositivo (clientes, veh\u00EDculos, \u00F3rdenes, caja, proformas, usuarios y ajustes) y regresa el sistema al primer uso. No se puede deshacer \u2014 exporta una copia de seguridad antes si no est\u00E1s seguro."),
-                React.createElement(Button, { variant: "danger", onClick: () => setShowResetModal(true) },
-                    React.createElement(Trash2, { size: 15 }),
-                    " Reiniciar todos los datos del sistema"))),
+                React.createElement("div", { className: "space-y-3" },
+                    React.createElement("div", null,
+                        React.createElement("p", { className: "text-sm mb-2", style: { color: C.textSoft } }, "Borra clientes, veh\u00EDculos, \u00F3rdenes, caja, proformas, repuestos y citas. Conserva tu cuenta, los dem\u00E1s usuarios y los datos del taller en Ajustes."),
+                        React.createElement(Button, { variant: "danger", onClick: () => setResetMode("data") },
+                            React.createElement(Trash2, { size: 15 }),
+                            " Reiniciar solo datos")),
+                    React.createElement("div", { className: "pt-3", style: { borderTop: `1px solid ${C.borderSoft}` } },
+                        React.createElement("p", { className: "text-sm mb-2 mt-3", style: { color: C.textSoft } }, "Borra absolutamente todo: datos, usuarios, roles y el perfil del taller. El sistema queda como reci\u00E9n instalado y al recargar pedir\u00E1 crear la cuenta de Administrador desde cero, igual que la primera vez."),
+                        React.createElement(Button, { variant: "danger", onClick: () => setResetMode("full") },
+                            React.createElement(AlertTriangle, { size: 15 }),
+                            " Reiniciar sistema completo"))))),
             pendingImport && (React.createElement(Modal, { title: "Confirmar importaci\u00F3n", onClose: busyAction === "import" ? () => { } : () => setPendingImport(null) },
                 React.createElement("div", { className: "space-y-4" },
                     busyAction === "import" ? (React.createElement("p", { className: "text-sm text-center", style: { color: C.textSoft } }, "Importando datos\u2026 un momento.")) : (React.createElement(React.Fragment, null,
@@ -2804,7 +2838,8 @@ function AjustesView({ settings, setSettings, cloudStatus, cloudError, cloudProj
                         React.createElement("div", { className: "flex gap-2" },
                             React.createElement(Button, { variant: "ghost", className: "flex-1", onClick: () => setPendingImport(null) }, "Cancelar"),
                             React.createElement(Button, { variant: "danger", className: "flex-1", onClick: confirmImport }, "S\u00ED, reemplazar mis datos"))))))),
-            showResetModal && (React.createElement(ConfirmPinModal, { title: "Reiniciar todos los datos", description: "Se borrar\u00E1n permanentemente todos los datos del taller guardados en este dispositivo. Esta acci\u00F3n no se puede deshacer.", currentUser: currentUser, onCancel: () => setShowResetModal(false), onConfirmed: confirmReset }))))));
+            resetMode && (React.createElement(ConfirmPinModal, { title: resetMode === "full" ? "Reiniciar sistema completo" : "Reiniciar solo datos", description: resetMode === "full" ? "Se borrar\u00E1n permanentemente todos los datos, usuarios, roles y el perfil del taller. El sistema quedar\u00E1 como reci\u00E9n instalado. Esta acci\u00F3n no se puede deshacer." : "Se borrar\u00E1n permanentemente clientes, veh\u00EDculos, \u00F3rdenes, caja, proformas, repuestos y citas. Tu cuenta y los usuarios se conservan. Esta acci\u00F3n no se puede deshacer.", currentUser: currentUser, onCancel: () => setResetMode(null), onConfirmed: confirmReset }))))));
+
 }
 /* ---------------------------------- AUTENTICACIÓN ---------------------------------- */
 function AuthShell({ children, footer }) {
