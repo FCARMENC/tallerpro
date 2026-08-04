@@ -8,6 +8,13 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500&display=swap" />
 <meta name="theme-color" id="meta-theme-color" content="#15171A" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Expert" />
+<link rel="manifest" href="manifest.json" />
+<link rel="apple-touch-icon" href="icon-180.png" />
+<link rel="icon" href="icon-192.png" type="image/png" />
 <script>
   // Aplica el tema guardado (o el del sistema) antes del primer pintado, para evitar
   // un parpadeo del tema incorrecto mientras cargan React y el resto de librer\u00EDas.
@@ -104,6 +111,21 @@
     margin: 16px; border-radius: 12px; border: 1px solid var(--boot-error-border);
   }
 </style>
+<script>
+  // Instalación como app (PWA): guarda el evento de instalación de Chrome/Android para
+  // poder dispararlo luego desde el botón "Instalar" en Ajustes. Chrome y Edge ya no
+  // exigen un service worker para permitir instalar la app, solo el manifest.json y los
+  // íconos (evitamos registrar un service worker propio aquí para no interferir con el
+  // que ya usa el sistema para los avisos push de WhatsApp/Firebase).
+  window.addEventListener("beforeinstallprompt", function (e) {
+    e.preventDefault();
+    window.__expertInstallPrompt = e;
+    window.dispatchEvent(new Event("expertTaller:installAvailable"));
+  });
+  window.addEventListener("appinstalled", function () {
+    window.__expertInstallPrompt = null;
+  });
+</script>
 </head>
 <body>
 <div id="boot-status">
@@ -316,6 +338,15 @@ function Circle(p) { return (React.createElement(IconBase, { ...p },
 function KeyRound(p) { return (React.createElement(IconBase, { ...p },
     React.createElement("path", { d: "M2 18v3c0 .6.4 1 1 1h4v-3h3v-3h2l1.4-1.4a6.5 6.5 0 1 0-4-4Z" }),
     React.createElement("circle", { cx: "16.5", cy: "7.5", r: ".5", fill: "currentColor" }))); }
+function Fingerprint(p) { return (React.createElement(IconBase, { ...p },
+    React.createElement("path", { d: "M2 12a10 10 0 0 1 20 0" }),
+    React.createElement("path", { d: "M6.7 20.3c1.5-1.5 2.3-3.4 2.3-5.3v-2a3 3 0 0 1 6 0" }),
+    React.createElement("path", { d: "M17.6 21a9 9 0 0 0 .4-2.6V15a6 6 0 0 0-.6-2.6" }),
+    React.createElement("path", { d: "M14 20.4a4 4 0 0 1-2-3.4V15a2 2 0 0 0-4 0v2" }),
+    React.createElement("path", { d: "M12.5 8.5a2.5 2.5 0 0 1 2.5 2.5v3.5" }))); }
+function Smartphone(p) { return (React.createElement(IconBase, { ...p },
+    React.createElement("rect", { width: "14", height: "20", x: "5", y: "2", rx: "2", ry: "2" }),
+    React.createElement("path", { d: "M12 18h.01" }))); }
 function Gauge(p) { return (React.createElement(IconBase, { ...p },
     React.createElement("path", { d: "m12 14 4-4" }),
     React.createElement("path", { d: "M3.34 19a10 10 0 1 1 17.32 0" }))); }
@@ -561,7 +592,7 @@ const initialSettings = {
     address: "",
     ruc: "",
     email: "",
-    security: { autoLockMinutes: 20 },
+    security: { autoLockMinutes: 20, lockOnOpen: true },
 };
 /* ---------------------------------- USUARIOS Y PERMISOS ---------------------------------- */
 // Cada módulo del sistema tiene un nivel de acceso por rol: "none" (oculto), "ver" (solo lectura)
@@ -623,6 +654,92 @@ async function hashPin(pin) {
     for (let i = 0; i < s.length; i++)
         h = (h * 31 + s.charCodeAt(i)) | 0;
     return "fb" + Math.abs(h).toString(16);
+}
+/* ---------------------------------- HUELLA / FACE ID (WEBAUTHN) ----------------------------------
+   La credencial biométrica se guarda SOLO en este dispositivo (localStorage, igual que el tema y la
+   sesión) porque una huella/Face ID registrada en un celular no sirve en otro. El navegador/SO ya
+   valida la huella antes de devolver la credencial; no es una verificación criptográfica de nivel
+   bancario, pero es igual de razonable que el PIN de 4 dígitos que ya usa el sistema. */
+function biometricStorageKey(userId) {
+    return "expertTaller.biometric." + userId;
+}
+function isBiometricSupported() {
+    return !!(window.PublicKeyCredential && navigator.credentials && navigator.credentials.create);
+}
+async function isBiometricAvailableOnDevice() {
+    try {
+        if (!isBiometricSupported())
+            return false;
+        return await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
+    }
+    catch (e) {
+        return false;
+    }
+}
+function hasBiometricEnrolled(userId) {
+    try {
+        return !!window.localStorage.getItem(biometricStorageKey(userId));
+    }
+    catch (e) {
+        return false;
+    }
+}
+function bufToBase64Url(buf) {
+    const bytes = new Uint8Array(buf);
+    let str = "";
+    for (let i = 0; i < bytes.length; i++)
+        str += String.fromCharCode(bytes[i]);
+    return window.btoa(str).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+function base64UrlToBuf(b64url) {
+    const b64 = b64url.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((b64url.length + 3) % 4);
+    const str = window.atob(b64);
+    const bytes = new Uint8Array(str.length);
+    for (let i = 0; i < str.length; i++)
+        bytes[i] = str.charCodeAt(i);
+    return bytes.buffer;
+}
+async function enrollBiometric(user) {
+    const challenge = window.crypto.getRandomValues(new Uint8Array(32));
+    const credential = await navigator.credentials.create({
+        publicKey: {
+            challenge,
+            rp: { name: "Expert · Gestión de taller" },
+            user: {
+                id: new TextEncoder().encode(String(user.id)),
+                name: user.name || "Usuario",
+                displayName: user.name || "Usuario",
+            },
+            pubKeyCredParams: [
+                { type: "public-key", alg: -7 },
+                { type: "public-key", alg: -257 },
+            ],
+            authenticatorSelection: { authenticatorAttachment: "platform", userVerification: "required", residentKey: "preferred" },
+            timeout: 60000,
+            attestation: "none",
+        },
+    });
+    if (!credential)
+        throw new Error("No se pudo crear la credencial.");
+    window.localStorage.setItem(biometricStorageKey(user.id), bufToBase64Url(credential.rawId));
+}
+function removeBiometric(userId) {
+    window.localStorage.removeItem(biometricStorageKey(userId));
+}
+async function verifyBiometric(userId) {
+    const credIdB64 = window.localStorage.getItem(biometricStorageKey(userId));
+    if (!credIdB64)
+        throw new Error("No hay huella registrada en este dispositivo.");
+    const challenge = window.crypto.getRandomValues(new Uint8Array(32));
+    const assertion = await navigator.credentials.get({
+        publicKey: {
+            challenge,
+            allowCredentials: [{ id: base64UrlToBuf(credIdB64), type: "public-key" }],
+            userVerification: "required",
+            timeout: 60000,
+        },
+    });
+    return !!assertion;
 }
 function getRole(roles, roleId) {
     return (roles || []).find((r) => r.id === roleId) || null;
@@ -706,6 +823,28 @@ const emptyCheckin = () => ({
     completed: false,
 });
 const money = (n) => `S/ ${n.toFixed(2)}`;
+// Saludo según la hora del día, con un par de variantes por franja para que no suene siempre
+// igual (como hacen Notion, HubSpot, etc. con su "Good morning / afternoon / evening").
+const GREETINGS_BY_PERIOD = {
+    morning: ["Buenos días", "Buen día", "Muy buenos días"],
+    afternoon: ["Buenas tardes", "Buena tarde"],
+    evening: ["Buenas noches", "Buena noche"],
+    night: ["Buenas noches", "Qué tal esa noche"],
+};
+function greetingPeriod(hour) {
+    if (hour >= 5 && hour < 12)
+        return "morning";
+    if (hour >= 12 && hour < 19)
+        return "afternoon";
+    if (hour >= 19 && hour < 23)
+        return "evening";
+    return "night";
+}
+function randomGreeting(hour) {
+    const period = greetingPeriod(hour !== null && hour !== void 0 ? hour : new Date().getHours());
+    const options = GREETINGS_BY_PERIOD[period];
+    return options[Math.floor(Math.random() * options.length)];
+}
 const timeAgo = (iso) => {
     if (!iso)
         return "";
@@ -1215,6 +1354,7 @@ function MobileTabBar({ active, setActive, mobileOpen, setMobileOpen, role }) {
 }
 /* ---------------------------------- DASHBOARD ---------------------------------- */
 function Dashboard({ orders, clients, vehicles, parts, appointments, goTo, settings, verMontos = true }) {
+    const greeting = useMemo(() => randomGreeting(), []);
     const active = orders.filter((o) => o.status !== "entregado");
     const inShop = orders.filter((o) => !["listo", "entregado"].includes(o.status));
     const monthRevenue = orders.reduce((s, o) => s + orderTotal(o), 0);
@@ -1232,7 +1372,8 @@ function Dashboard({ orders, clients, vehicles, parts, appointments, goTo, setti
     return (React.createElement("div", { className: "space-y-6" },
         React.createElement("div", null,
             React.createElement("h1", { style: { fontFamily: "Oswald, sans-serif" }, className: "text-2xl tracking-wide" },
-                "Buenos d\u00EDas, ",
+                greeting,
+                ", ",
                 (settings.ownerName || "").trim().split(/\s+/)[0] || ""),
             React.createElement("p", { className: "text-sm mt-1", style: { color: C.textMute } }, "Esto es lo que est\u00E1 pasando hoy en el taller.")),
         React.createElement("div", { className: "grid grid-cols-2 lg:grid-cols-4 gap-4" }, kpis.map((k, i) => {
@@ -2411,8 +2552,73 @@ function RoleFormModal({ role, onSave, onClose }) {
                 React.createElement(Button, { onClick: submit, className: "flex-1" }, "Guardar rol"))))));
 }
 function UsersRolesView({ users, setUsers, roles, setRoles, currentUser, settings, setSettings }) {
-    var _a, _b;
+    var _a, _b, _a2;
     const [showUserForm, setShowUserForm] = useState(false);
+    // --- Huella / Face ID (solo este dispositivo) ---
+    const [bioAvailable, setBioAvailable] = useState(false);
+    const [bioEnrolled, setBioEnrolled] = useState(() => currentUser ? hasBiometricEnrolled(currentUser.id) : false);
+    const [bioBusy, setBioBusy] = useState(false);
+    const [bioMsg, setBioMsg] = useState(null); // { type: 'error'|'ok', text }
+    useEffect(() => {
+        let cancelled = false;
+        isBiometricAvailableOnDevice().then((ok) => { if (!cancelled) setBioAvailable(ok); });
+        return () => { cancelled = true; };
+    }, []);
+    useEffect(() => {
+        setBioEnrolled(currentUser ? hasBiometricEnrolled(currentUser.id) : false);
+    }, [currentUser === null || currentUser === void 0 ? void 0 : currentUser.id]);
+    const activarHuella = async () => {
+        if (!currentUser)
+            return;
+        setBioBusy(true);
+        setBioMsg(null);
+        try {
+            await enrollBiometric(currentUser);
+            setBioEnrolled(true);
+            setBioMsg({ type: "ok", text: "Huella / Face ID activada en este dispositivo." });
+        }
+        catch (e) {
+            setBioMsg({ type: "error", text: "No se pudo activar. Verifica que tu celular tenga huella o Face ID configurado." });
+        }
+        finally {
+            setBioBusy(false);
+        }
+    };
+    const desactivarHuella = () => {
+        if (!currentUser)
+            return;
+        removeBiometric(currentUser.id);
+        setBioEnrolled(false);
+        setBioMsg({ type: "ok", text: "Huella desactivada en este dispositivo." });
+    };
+    // --- Instalar como app (PWA) ---
+    const [installState, setInstallState] = useState("idle"); // idle | available | installed | ios
+    useEffect(() => {
+        if (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches) {
+            setInstallState("installed");
+            return;
+        }
+        const isIOS = /iphone|ipad|ipod/i.test(window.navigator.userAgent);
+        const onAvailable = () => setInstallState("available");
+        window.addEventListener("expertTaller:installAvailable", onAvailable);
+        if (window.__expertInstallPrompt)
+            setInstallState("available");
+        else if (isIOS)
+            setInstallState("ios");
+        window.addEventListener("appinstalled", () => setInstallState("installed"));
+        return () => window.removeEventListener("expertTaller:installAvailable", onAvailable);
+    }, []);
+    const instalarApp = async () => {
+        const promptEvent = window.__expertInstallPrompt;
+        if (!promptEvent)
+            return;
+        promptEvent.prompt();
+        try {
+            await promptEvent.userChoice;
+        }
+        catch (e) { }
+        window.__expertInstallPrompt = null;
+    };
     const [editUser, setEditUser] = useState(null);
     const [editRole, setEditRole] = useState(null);
     const [confirmDelete, setConfirmDelete] = useState(null);
@@ -2488,7 +2694,27 @@ function UsersRolesView({ users, setUsers, roles, setRoles, currentUser, setting
             React.createElement("div", { className: "text-xs uppercase tracking-wide", style: { color: C.textMute } }, "Seguridad"),
             React.createElement(Field, { label: "Bloqueo autom\u00E1tico por inactividad" },
                 React.createElement(Select, { value: (_b = (_a = settings.security) === null || _a === void 0 ? void 0 : _a.autoLockMinutes) !== null && _b !== void 0 ? _b : 20, onChange: (e) => setSettings({ ...settings, security: { ...settings.security, autoLockMinutes: Number(e.target.value) } }) }, autoLockOptions.map((o) => React.createElement("option", { key: o.v, value: o.v }, o.l)))),
-            React.createElement("p", { className: "text-xs", style: { color: C.textMute } }, "Si el dispositivo queda inactivo, se pedir\u00E1 el PIN nuevamente sin cerrar la sesi\u00F3n.")),
+            React.createElement("p", { className: "text-xs", style: { color: C.textMute } }, "Si el dispositivo queda inactivo, se pedir\u00E1 el PIN nuevamente sin cerrar la sesi\u00F3n."),
+            React.createElement("div", { className: "flex items-center justify-between gap-3 pt-1", style: { borderTop: `1px solid ${C.border}` } },
+                React.createElement("div", null,
+                    React.createElement("div", { className: "text-sm font-medium" }, "Pedir clave al abrir la app"),
+                    React.createElement("div", { className: "text-xs", style: { color: C.textMute } }, "Si est\u00E1 activo, siempre pedir\u00E1 PIN o huella al abrir la app, aunque ya hab\u00EDas iniciado sesi\u00F3n antes.")),
+                React.createElement("button", { onClick: () => { var _c; const cur = (_c = settings.security) === null || _c === void 0 ? void 0 : _c.lockOnOpen; setSettings({ ...settings, security: { ...settings.security, lockOnOpen: cur === false ? true : false } }); }, className: "shrink-0 w-11 h-6 rounded-full relative transition-colors", style: { background: ((_a2 = settings.security) === null || _a2 === void 0 ? void 0 : _a2.lockOnOpen) === false ? C.border : C.accent } },
+                    React.createElement("span", { className: "absolute top-0.5 w-5 h-5 rounded-full bg-white transition-all", style: { left: ((_a2 = settings.security) === null || _a2 === void 0 ? void 0 : _a2.lockOnOpen) === false ? "2px" : "22px" } }))),
+            currentUser && (React.createElement("div", { className: "flex items-center justify-between gap-3 pt-3", style: { borderTop: `1px solid ${C.border}` } },
+                React.createElement("div", { className: "min-w-0" },
+                    React.createElement("div", { className: "text-sm font-medium flex items-center gap-1.5" }, React.createElement(Fingerprint, { size: 15 }), " Huella digital / Face ID"),
+                    React.createElement("div", { className: "text-xs", style: { color: C.textMute } }, bioAvailable ? "Configura tu huella para desbloquear sin escribir el PIN, solo en este dispositivo." : "Este dispositivo o navegador no tiene huella / Face ID disponible.")),
+                bioAvailable && (bioEnrolled ? (React.createElement(Button, { variant: "subtle", onClick: desactivarHuella }, "Desactivar")) : (React.createElement(Button, { variant: "subtle", disabled: bioBusy, onClick: activarHuella }, bioBusy ? "Configurando\u2026" : "Activar"))))),
+            bioMsg && (React.createElement("p", { className: "text-xs", style: { color: bioMsg.type === "error" ? C.danger : C.textMute } }, bioMsg.text)),
+            React.createElement("div", { className: "flex items-center justify-between gap-3 pt-3", style: { borderTop: `1px solid ${C.border}` } },
+                React.createElement("div", { className: "min-w-0" },
+                    React.createElement("div", { className: "text-sm font-medium flex items-center gap-1.5" }, React.createElement(Smartphone, { size: 15 }), " Instalar como app"),
+                    React.createElement("div", { className: "text-xs", style: { color: C.textMute } },
+                        installState === "installed" ? "Ya est\u00E1 instalada en este dispositivo." :
+                            installState === "ios" ? "En iPhone: toca Compartir (\u2191) en Safari y elige \"Agregar a pantalla de inicio\"." :
+                                "Instala Expert como app para abrirla desde tu pantalla de inicio, a pantalla completa.")),
+                installState === "available" && React.createElement(Button, { onClick: instalarApp }, "Instalar"))),
         showUserForm && (React.createElement(UserFormModal, { user: editUser, roles: roles, users: users, onSave: saveUser, onClose: () => { setShowUserForm(false); setEditUser(null); } })),
         editRole && React.createElement(RoleFormModal, { role: editRole, onSave: saveRole, onClose: () => setEditRole(null) }),
         confirmDelete && (React.createElement(Modal, { title: "Eliminar usuario", onClose: () => setConfirmDelete(null) },
@@ -2579,7 +2805,7 @@ async function applyBackupSnapshot(data, db) {
 // borrar la clave de localStorage: si se borra la clave, el sistema vuelve a caer en esos datos de
 // ejemplo (usePersistentState usa initialValue como respaldo). Para dejar todo realmente en blanco,
 // hay que escribir arreglos vacíos explícitos.
-const EMPTY_SETTINGS = { tallerNombre: "", ownerName: "", ownerRole: "", phone: "", address: "", ruc: "", email: "", security: { autoLockMinutes: 20 } };
+const EMPTY_SETTINGS = { tallerNombre: "", ownerName: "", ownerRole: "", phone: "", address: "", ruc: "", email: "", security: { autoLockMinutes: 20, lockOnOpen: true } };
 const BUSINESS_DATA_EMPTY = { clients: [], vehicles: [], parts: [], orders: [], appointments: [], caja: [], proformas: [], fcmTokens: [] };
 async function writeLocalAndCloud(values, db) {
     Object.keys(values).forEach((k) => {
@@ -2648,7 +2874,7 @@ function ConfirmPinModal({ title, description, confirmLabel, danger, currentUser
                 React.createElement(PinPad, { disabled: busy, onDigit: onDigit, onBackspace: () => setPin(pin.slice(0, -1)) }),
                 React.createElement(Button, { variant: "ghost", className: "w-full", onClick: onCancel }, "Cancelar"))))));
 }
-function AjustesView({ settings, setSettings, cloudStatus, cloudError, cloudProjectId, db, users, setUsers, roles, setRoles, currentUser, currentRole, themeMode, setThemeMode }) {
+function AjustesView({ settings, setSettings, cloudStatus, cloudError, cloudProjectId, db, users, setUsers, roles, setRoles, currentUser, currentRole, themeMode, setThemeMode, onLock }) {
     const [form, setForm] = useState(settings);
     const [saved, setSaved] = useState(false);
     const [tab, setTab] = useState("general");
@@ -2722,7 +2948,11 @@ function AjustesView({ settings, setSettings, cloudStatus, cloudError, cloudProj
         }
     };
     return (React.createElement("div", { className: "space-y-5 max-w-2xl" },
-        React.createElement("h1", { style: { fontFamily: "Oswald, sans-serif" }, className: "text-2xl tracking-wide" }, "Ajustes"),
+        React.createElement("div", { className: "flex items-center justify-between gap-3" },
+            React.createElement("h1", { style: { fontFamily: "Oswald, sans-serif" }, className: "text-2xl tracking-wide" }, "Ajustes"),
+            onLock && (React.createElement(Button, { variant: "ghost", onClick: onLock },
+                React.createElement(KeyRound, { size: 15 }),
+                " Bloquear pantalla"))),
         showUsersTab && (React.createElement("div", { className: "flex gap-2" }, [{ key: "general", label: "General" }, { key: "usuarios", label: "Usuarios y permisos" }].map((t) => (React.createElement("button", { key: t.key, onClick: () => setTab(t.key), className: "px-4 py-2 rounded-xl text-sm font-medium transition-colors", style: {
                 background: tab === t.key ? C.accentSoft : C.surfaceHi,
                 color: tab === t.key ? C.accentText : C.textSoft,
@@ -2971,6 +3201,25 @@ function LoginScreen({ users, roles, settings, onLogin }) {
         return () => clearInterval(t);
     }, [lockedUntil]);
     const locked = lockedUntil > now;
+    const [bioBusy, setBioBusy] = useState(false);
+    const [bioError, setBioError] = useState(false);
+    const tryBiometric = async (u) => {
+        if (!u || !hasBiometricEnrolled(u.id))
+            return;
+        setBioBusy(true);
+        setBioError(false);
+        try {
+            const ok = await verifyBiometric(u.id);
+            if (ok) {
+                onLogin(u.id);
+                return;
+            }
+        }
+        catch (e) {
+            setBioError(true);
+        }
+        setBioBusy(false);
+    };
     const tryLogin = async (fullPin) => {
         setBusy(true);
         const hash = await hashPin(fullPin);
@@ -3004,7 +3253,7 @@ function LoginScreen({ users, roles, settings, onLogin }) {
                 React.createElement("p", { className: "text-xs", style: { color: C.textMute } }, "Toca tu perfil para ingresar")),
             React.createElement("div", { className: "grid grid-cols-2 gap-3" }, activeUsers.map((u) => {
                 const role = getRole(roles, u.roleId);
-                return (React.createElement("button", { key: u.id, onClick: () => { setSelected(u); setPin(""); setAttempts(0); }, className: "flex flex-col items-center gap-2.5 p-4 rounded-2xl transition-all active:scale-95 hover:-translate-y-0.5", style: { background: C.surface, border: `1px solid ${C.border}`, boxShadow: C.shadow } },
+                return (React.createElement("button", { key: u.id, onClick: () => { setSelected(u); setPin(""); setAttempts(0); if (hasBiometricEnrolled(u.id)) tryBiometric(u); }, className: "flex flex-col items-center gap-2.5 p-4 rounded-2xl transition-all active:scale-95 hover:-translate-y-0.5", style: { background: C.surface, border: `1px solid ${C.border}`, boxShadow: C.shadow } },
                     React.createElement(UserAvatar, { user: u, role: role, size: 52 }),
                     React.createElement("div", { className: "text-center min-w-0 w-full" },
                         React.createElement("div", { className: "text-sm font-medium truncate" }, u.name),
@@ -3025,7 +3274,10 @@ function LoginScreen({ users, roles, settings, onLogin }) {
                 Math.ceil((lockedUntil - now) / 1000),
                 "s.")) : (React.createElement(React.Fragment, null,
                 React.createElement(PinDots, { length: 4, filled: pin.length, error: error }),
-                React.createElement(PinPad, { disabled: busy, onDigit: onDigit, onBackspace: () => setPin(pin.slice(0, -1)) }))),
+                React.createElement(PinPad, { disabled: busy, onDigit: onDigit, onBackspace: () => setPin(pin.slice(0, -1)) }),
+                hasBiometricEnrolled(selected.id) && (React.createElement("button", { onClick: () => tryBiometric(selected), disabled: bioBusy, className: "w-full flex items-center justify-center gap-2 text-xs py-2.5 rounded-xl", style: { background: C.surface, border: `1px solid ${C.border}`, color: bioError ? C.danger : C.textSoft } },
+                    React.createElement(Fingerprint, { size: 15 }),
+                    bioBusy ? "Verificando\u2026" : bioError ? "No se reconoci\u00F3. Toca para reintentar." : "Usar huella / Face ID")))),
             React.createElement("button", { onClick: () => { setSelected(null); setPin(""); }, className: "w-full text-center text-xs py-2", style: { color: C.textMute } }, "\u2190 Cambiar de usuario"))));
 }
 // Pantalla de bloqueo rápido (inactividad): pide el PIN del usuario ya conectado sin cerrar sesión.
@@ -3033,6 +3285,31 @@ function LockScreen({ user, role, onUnlock, onSwitchUser }) {
     const [pin, setPin] = useState("");
     const [error, setError] = useState(false);
     const [busy, setBusy] = useState(false);
+    const [bioBusy, setBioBusy] = useState(false);
+    const [bioError, setBioError] = useState(false);
+    const bioEnrolled = user ? hasBiometricEnrolled(user.id) : false;
+    const tryBiometric = async () => {
+        if (!user)
+            return;
+        setBioBusy(true);
+        setBioError(false);
+        try {
+            const ok = await verifyBiometric(user.id);
+            if (ok) {
+                onUnlock();
+                return;
+            }
+        }
+        catch (e) {
+            setBioError(true);
+        }
+        setBioBusy(false);
+    };
+    useEffect(() => {
+        if (bioEnrolled)
+            tryBiometric();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
     const onDigit = async (d) => {
         if (busy)
             return;
@@ -3063,6 +3340,9 @@ function LockScreen({ user, role, onUnlock, onSwitchUser }) {
         React.createElement("div", { className: "space-y-5" },
             React.createElement(PinDots, { length: 4, filled: pin.length, error: error }),
             React.createElement(PinPad, { disabled: busy, onDigit: onDigit, onBackspace: () => setPin(pin.slice(0, -1)) }),
+            bioEnrolled && (React.createElement("button", { onClick: tryBiometric, disabled: bioBusy, className: "w-full flex items-center justify-center gap-2 text-xs py-2.5 rounded-xl", style: { background: C.surface, border: `1px solid ${C.border}`, color: bioError ? C.danger : C.textSoft } },
+                React.createElement(Fingerprint, { size: 15 }),
+                bioBusy ? "Verificando\u2026" : bioError ? "No se reconoci\u00F3. Toca para reintentar." : "Usar huella / Face ID")),
             React.createElement("button", { onClick: onSwitchUser, className: "w-full text-center text-xs py-2", style: { color: C.textMute } }, "\u2190 Cambiar de usuario / cerrar sesi\u00F3n"))));
 }
 /* ---------------------------------- PÁGINA PÚBLICA · APROBACIÓN DEL CLIENTE ---------------------------------- */
@@ -3445,7 +3725,13 @@ function App() {
     // La sesión vive solo en este dispositivo (no se sincroniza a la nube): cada equipo/celular
     // inicia sesión por separado, aunque compartan los mismos datos del taller.
     const [session, setSession] = usePersistentState("expertTaller.session", null);
-    const [locked, setLocked] = useState(false);
+    // Si "Pedir clave al abrir la app" está activo (por defecto sí), la app arranca bloqueada
+    // aunque ya haya una sesión guardada, para que siempre pida PIN o huella al abrirla.
+    const [locked, setLocked] = useState(() => {
+        var _a;
+        const lockOnOpen = (_a = settings === null || settings === void 0 ? void 0 : settings.security) === null || _a === void 0 ? void 0 : _a.lockOnOpen;
+        return !!session && lockOnOpen !== false;
+    });
     const lastActivityRef = useRef(Date.now());
     const currentUser = (session && users.find((u) => u.id === session.userId && u.active !== false)) || null;
     const currentRole = currentUser ? getRole(roles, currentUser.roleId) : null;
@@ -3634,8 +3920,6 @@ function App() {
                                     cloudStatus === "error" ? `Error de conexión: ${cloudError}` :
                                         "Trabajando solo en este navegador", className: "hidden sm:flex w-9 h-9 rounded-xl items-center justify-center transition-colors hover:bg-white/5 active:scale-95", style: { background: C.surfaceHi, border: `1px solid ${C.borderSoft}`, color: cloudStatus === "connected" ? C.success : cloudStatus === "error" ? C.danger : C.textMute } }, cloudStatus === "offline" ? React.createElement(CloudOff, { size: 16 }) : React.createElement(CloudIcon, { size: 16 })),
                         React.createElement(NotificationsBell, { proformas: proformas, clients: clients, onEnablePush: ensurePushToken, pushReady: pushReady, onOpenProforma: openProformaFromNotification }),
-                        React.createElement("button", { onClick: lockNow, title: "Bloquear pantalla", className: "w-9 h-9 rounded-xl flex items-center justify-center transition-colors hover:bg-white/5 active:scale-95", style: { background: C.surfaceHi, border: `1px solid ${C.borderSoft}`, color: C.textMute } },
-                            React.createElement(KeyRound, { size: 16 })),
                         React.createElement("button", { onClick: () => setActive("ajustes"), className: "hidden sm:flex items-center gap-2 pl-1 pr-3 h-9 rounded-xl transition-colors hover:bg-white/5 active:scale-95", style: { background: C.surfaceHi, border: `1px solid ${C.borderSoft}` } },
                             React.createElement(UserAvatar, { user: currentUser, role: currentRole, size: 26 }),
                             React.createElement("span", { className: "text-xs font-medium max-w-[110px] truncate" }, currentUser === null || currentUser === void 0 ? void 0 : currentUser.name)))),
@@ -3654,7 +3938,7 @@ function App() {
                     active === "inventario" && React.createElement(InventarioView, { parts: parts, setParts: setParts }),
                     active === "agenda" && React.createElement(AgendaView, { appointments: appointments, setAppointments: setAppointments }),
                     active === "caja" && (React.createElement(CajaView, { caja: caja, onAddMovement: addCajaMovement, onRemoveMovement: removeCajaMovement, orders: orders, clients: clients, vehicles: vehicles, onChangeStatus: changeOrderStatus, onRegistrarAbono: registrarAbono })),
-                    active === "ajustes" && (React.createElement(AjustesView, { settings: settings, setSettings: setSettings, cloudStatus: cloudStatus, cloudError: cloudError, cloudProjectId: cloudProjectId, db: db, users: users, setUsers: setUsers, roles: roles, setRoles: setRoles, currentUser: currentUser, currentRole: currentRole, themeMode: themeMode, setThemeMode: setThemeMode })))))))));
+                    active === "ajustes" && (React.createElement(AjustesView, { settings: settings, setSettings: setSettings, cloudStatus: cloudStatus, cloudError: cloudError, cloudProjectId: cloudProjectId, db: db, users: users, setUsers: setUsers, roles: roles, setRoles: setRoles, currentUser: currentUser, currentRole: currentRole, themeMode: themeMode, setThemeMode: setThemeMode, onLock: lockNow })))))))));
 }
 </script>
 
