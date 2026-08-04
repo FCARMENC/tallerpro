@@ -7,8 +7,41 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500&display=swap" />
+<meta name="theme-color" id="meta-theme-color" content="#15171A" />
+<script>
+  // Aplica el tema guardado (o el del sistema) antes del primer pintado, para evitar
+  // un parpadeo del tema incorrecto mientras cargan React y el resto de librer\u00EDas.
+  (function () {
+    try {
+      var raw = window.localStorage.getItem("expertTaller.theme");
+      var mode = raw ? JSON.parse(raw) : "system";
+      var dark = mode === "dark" || (mode !== "light" && window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches);
+      document.documentElement.setAttribute("data-theme", dark ? "dark" : "light");
+    } catch (e) {
+      document.documentElement.setAttribute("data-theme", "dark");
+    }
+  })();
+</script>
 <style>
-  html, body { background: #15171A; margin: 0; color: #F3F1EC; font-family: 'Inter', -apple-system, sans-serif; }
+  :root {
+    --boot-bg: #15171A;
+    --boot-text: #F3F1EC;
+    --boot-muted: #6C7278;
+    --boot-bar-bg: #262A2F;
+    --boot-error-bg: #1D2024;
+    --boot-error-border: #31363C;
+    --boot-error-text: #F0546B;
+  }
+  html[data-theme="light"] {
+    --boot-bg: #F6F3EE;
+    --boot-text: #221D17;
+    --boot-muted: #8B8272;
+    --boot-bar-bg: #EFEAE0;
+    --boot-error-bg: #FFFFFF;
+    --boot-error-border: #E2DACB;
+    --boot-error-text: #CC2E51;
+  }
+  html, body { background: var(--boot-bg); margin: 0; color: var(--boot-text); font-family: 'Inter', -apple-system, sans-serif; }
 
   #boot-status {
     position: fixed; inset: 0; z-index: 9999;
@@ -16,7 +49,7 @@
     gap: 22px;
     background:
       radial-gradient(60% 50% at 50% 40%, rgba(255,106,26,0.10), transparent 70%),
-      #15171A;
+      var(--boot-bg);
     animation: bootFadeIn 0.3s ease-out both;
   }
   #boot-status.boot-hide { opacity: 0; pointer-events: none; transition: opacity 0.35s ease; }
@@ -35,19 +68,19 @@
     font-family: 'Oswald', sans-serif;
     font-size: 26px;
     letter-spacing: 0.14em;
-    color: #F3F1EC;
+    color: var(--boot-text);
     text-transform: uppercase;
   }
   .boot-brand span { color: #FF6A1A; }
 
   .boot-sub {
-    font-size: 13px; color: #6C7278; letter-spacing: 0.02em;
+    font-size: 13px; color: var(--boot-muted); letter-spacing: 0.02em;
     margin-top: -14px;
   }
 
   .boot-bar {
     width: 140px; height: 3px; border-radius: 999px;
-    background: #262A2F; overflow: hidden;
+    background: var(--boot-bar-bg); overflow: hidden;
   }
   .boot-bar-fill {
     height: 100%; width: 40%; border-radius: 999px;
@@ -67,8 +100,8 @@
 
   #boot-error {
     display:none; padding: 24px; white-space: pre-wrap; font-family: ui-monospace, monospace;
-    font-size: 13px; line-height: 1.6; color: #F0546B; background: #1D2024;
-    margin: 16px; border-radius: 12px; border: 1px solid #31363C;
+    font-size: 13px; line-height: 1.6; color: var(--boot-error-text); background: var(--boot-error-bg);
+    margin: 16px; border-radius: 12px; border: 1px solid var(--boot-error-border);
   }
 </style>
 </head>
@@ -195,6 +228,10 @@ function LayoutDashboard(p) { return (React.createElement(IconBase, { ...p },
     React.createElement("rect", { width: "7", height: "5", x: "14", y: "3", rx: "1" }),
     React.createElement("rect", { width: "7", height: "9", x: "14", y: "12", rx: "1" }),
     React.createElement("rect", { width: "7", height: "5", x: "3", y: "16", rx: "1" }))); }
+function MoreHorizontal(p) { return (React.createElement(IconBase, { ...p },
+    React.createElement("circle", { cx: "12", cy: "12", r: "1" }),
+    React.createElement("circle", { cx: "19", cy: "12", r: "1" }),
+    React.createElement("circle", { cx: "5", cy: "12", r: "1" }))); }
 function ClipboardList(p) { return (React.createElement(IconBase, { ...p },
     React.createElement("rect", { width: "8", height: "4", x: "8", y: "2", rx: "1" }),
     React.createElement("path", { d: "M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" }),
@@ -289,6 +326,22 @@ function Wallet(p) { return (React.createElement(IconBase, { ...p },
 function SettingsIcon(p) { return (React.createElement(IconBase, { ...p },
     React.createElement("circle", { cx: "12", cy: "12", r: "3" }),
     React.createElement("path", { d: "M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" }))); }
+function SunIcon(p) { return (React.createElement(IconBase, { ...p },
+    React.createElement("circle", { cx: "12", cy: "12", r: "4" }),
+    React.createElement("path", { d: "M12 2v2" }),
+    React.createElement("path", { d: "M12 20v2" }),
+    React.createElement("path", { d: "m4.93 4.93 1.41 1.41" }),
+    React.createElement("path", { d: "m17.66 17.66 1.41 1.41" }),
+    React.createElement("path", { d: "M2 12h2" }),
+    React.createElement("path", { d: "M20 12h2" }),
+    React.createElement("path", { d: "m6.34 17.66-1.41 1.41" }),
+    React.createElement("path", { d: "m19.07 4.93-1.41 1.41" }))); }
+function MoonIcon(p) { return (React.createElement(IconBase, { ...p },
+    React.createElement("path", { d: "M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" }))); }
+function MonitorIcon(p) { return (React.createElement(IconBase, { ...p },
+    React.createElement("rect", { width: "20", height: "14", x: "2", y: "3", rx: "2" }),
+    React.createElement("line", { x1: "8", x2: "16", y1: "21", y2: "21" }),
+    React.createElement("line", { x1: "12", x2: "12", y1: "17", y2: "21" }))); }
 function TrendingDown(p) { return (React.createElement(IconBase, { ...p },
     React.createElement("polyline", { points: "22 17 13.5 8.5 8.5 13.5 2 7" }),
     React.createElement("polyline", { points: "16 17 22 17 22 11" }))); }
@@ -302,6 +355,14 @@ function Download(p) { return (React.createElement(IconBase, { ...p },
     React.createElement("path", { d: "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" }),
     React.createElement("polyline", { points: "7 10 12 15 17 10" }),
     React.createElement("line", { x1: "12", y1: "15", x2: "12", y2: "3" }))); }
+function Upload(p) { return (React.createElement(IconBase, { ...p },
+    React.createElement("path", { d: "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" }),
+    React.createElement("polyline", { points: "17 8 12 3 7 8" }),
+    React.createElement("line", { x1: "12", y1: "3", x2: "12", y2: "15" }))); }
+function DatabaseIcon(p) { return (React.createElement(IconBase, { ...p },
+    React.createElement("ellipse", { cx: "12", cy: "5", rx: "9", ry: "3" }),
+    React.createElement("path", { d: "M3 5v14a9 3 0 0 0 18 0V5" }),
+    React.createElement("path", { d: "M3 12a9 3 0 0 0 18 0" }))); }
 function MessageCircle(p) { return (React.createElement(IconBase, { ...p },
     React.createElement("path", { d: "M7.9 20A9 9 0 1 0 4 16.1L2 22Z" }))); }
 function Copy(p) { return (React.createElement(IconBase, { ...p },
@@ -320,33 +381,68 @@ function CloudOff(p) { return (React.createElement(IconBase, { ...p },
     React.createElement("path", { d: "M5.782 5.782A7 7 0 0 0 9 19h8.5a4.5 4.5 0 0 0 1.307-8.81" }),
     React.createElement("path", { d: "M9.828 4.152A7 7 0 0 1 16.71 10H17.5a4.5 4.5 0 0 1 2.828 7.997" }))); }
 /* ---------------------------------- TOKENS ---------------------------------- */
-const C = {
-    bg: "#15171A",
-    surface: "#1D2024",
-    surfaceHi: "#262A2F",
-    border: "#31363C",
-    borderSoft: "#282C31",
-    text: "#F3F1EC",
-    textSoft: "#ABB1B8",
-    textMute: "#6C7278",
-    accent: "#FF6A1A",
-    accentSoft: "rgba(255,106,26,0.14)",
-    accentText: "#FFB380",
-    success: "#3ECF8E",
-    successSoft: "rgba(62,207,142,0.14)",
-    warning: "#F5B942",
-    warningSoft: "rgba(245,185,66,0.14)",
-    danger: "#F0546B",
-    dangerSoft: "rgba(240,84,107,0.14)",
-    purple: "#B48CF2",
-    purpleSoft: "rgba(180,140,242,0.14)",
-    info: "#4FA3E3",
-    infoSoft: "rgba(79,163,227,0.14)",
-    shadow: "0 1px 2px rgba(0,0,0,0.3), 0 8px 24px -8px rgba(0,0,0,0.45)",
-    shadowLg: "0 4px 12px rgba(0,0,0,0.35), 0 24px 48px -16px rgba(0,0,0,0.55)",
-    shadowGlow: "0 8px 24px -8px rgba(255,106,26,0.35)",
+// Dos paletas (oscura y clara). "C" es el objeto que consume el resto de la app: se
+// mantiene mutable a prop\u00F3sito para poder actualizar sus valores en sitio cuando el
+// usuario cambia de tema (ver useThemeMode / App), sin tener que reescribir cada
+// componente para leerlo de un Context.
+const THEMES = {
+    dark: {
+        bg: "#15171A",
+        surface: "#1D2024",
+        surfaceHi: "#262A2F",
+        border: "#31363C",
+        borderSoft: "#282C31",
+        text: "#F3F1EC",
+        textSoft: "#ABB1B8",
+        textMute: "#6C7278",
+        textMuteSoft: "rgba(108,114,120,0.14)",
+        accent: "#FF6A1A",
+        accentSoft: "rgba(255,106,26,0.14)",
+        accentText: "#FFB380",
+        success: "#3ECF8E",
+        successSoft: "rgba(62,207,142,0.14)",
+        warning: "#F5B942",
+        warningSoft: "rgba(245,185,66,0.14)",
+        danger: "#F0546B",
+        dangerSoft: "rgba(240,84,107,0.14)",
+        purple: "#B48CF2",
+        purpleSoft: "rgba(180,140,242,0.14)",
+        info: "#4FA3E3",
+        infoSoft: "rgba(79,163,227,0.14)",
+        shadow: "0 1px 2px rgba(0,0,0,0.3), 0 8px 24px -8px rgba(0,0,0,0.45)",
+        shadowLg: "0 4px 12px rgba(0,0,0,0.35), 0 24px 48px -16px rgba(0,0,0,0.55)",
+        shadowGlow: "0 8px 24px -8px rgba(255,106,26,0.35)",
+    },
+    light: {
+        bg: "#F6F3EE",
+        surface: "#FFFFFF",
+        surfaceHi: "#EFEAE0",
+        border: "#E2DACB",
+        borderSoft: "#EAE3D6",
+        text: "#221D17",
+        textSoft: "#5C5548",
+        textMute: "#8B8272",
+        textMuteSoft: "rgba(139,130,114,0.14)",
+        accent: "#FF6A1A",
+        accentSoft: "rgba(255,106,26,0.14)",
+        accentText: "#C2450C",
+        success: "#1F8F5F",
+        successSoft: "rgba(31,143,95,0.12)",
+        warning: "#A8670A",
+        warningSoft: "rgba(168,103,10,0.12)",
+        danger: "#CC2E51",
+        dangerSoft: "rgba(204,46,81,0.12)",
+        purple: "#7A49CE",
+        purpleSoft: "rgba(122,73,206,0.12)",
+        info: "#1B76B4",
+        infoSoft: "rgba(27,118,180,0.12)",
+        shadow: "0 1px 2px rgba(30,22,12,0.06), 0 8px 24px -8px rgba(30,22,12,0.10)",
+        shadowLg: "0 4px 14px rgba(30,22,12,0.08), 0 24px 48px -16px rgba(30,22,12,0.14)",
+        shadowGlow: "0 8px 24px -8px rgba(255,106,26,0.30)",
+    },
 };
-const FONTS = `
+const C = { ...THEMES.dark };
+const getFonts = () => `
 @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
 
 *{ -webkit-tap-highlight-color: transparent; }
@@ -371,15 +467,15 @@ html{ scrollbar-color: ${C.surfaceHi} transparent; }
   *{ animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
 }
 `;
-const STATUS = [
+const getStatus = () => [
     { key: "recibido", label: "Recibido", color: C.info, soft: C.infoSoft },
     { key: "diagnostico", label: "Diagnóstico", color: C.warning, soft: C.warningSoft },
     { key: "reparacion", label: "En reparación", color: C.accent, soft: C.accentSoft },
     { key: "espera_repuesto", label: "Esperando repuesto", color: C.purple, soft: C.purpleSoft },
     { key: "listo", label: "Listo para entrega", color: C.success, soft: C.successSoft },
-    { key: "entregado", label: "Entregado", color: C.textMute, soft: "rgba(108,114,120,0.14)" },
+    { key: "entregado", label: "Entregado", color: C.textMute, soft: C.textMuteSoft },
 ];
-const statusOf = (key) => STATUS.find((s) => s.key === key) || STATUS[0];
+const statusOf = (key) => getStatus().find((s) => s.key === key) || getStatus()[0];
 /* ---------------------------------- MOCK DATA ---------------------------------- */
 const initialClients = [
     { id: "c1", name: "Renzo Salazar", phone: "987 654 321", email: "renzo.salazar@mail.com", address: "Av. Brasil 452, Magdalena" },
@@ -556,12 +652,12 @@ function firstAllowedModule(role) {
     const found = NAV.find((item) => canView(role, item.key));
     return found ? found.key : "dashboard";
 }
-const STATUS_PROFORMA = [
+const getStatusProforma = () => [
     { key: "pendiente", label: "Pendiente", color: C.warning, soft: C.warningSoft },
     { key: "aprobada", label: "Aprobada", color: C.success, soft: C.successSoft },
     { key: "rechazada", label: "Rechazada", color: C.danger, soft: C.dangerSoft },
 ];
-const statusProformaOf = (key) => STATUS_PROFORMA.find((s) => s.key === key) || STATUS_PROFORMA[0];
+const statusProformaOf = (key) => getStatusProforma().find((s) => s.key === key) || getStatusProforma()[0];
 const initialProformas = [
     {
         id: "pf1", code: "PRO-0001", clientId: "c1", vehicleId: "v1", status: "pendiente",
@@ -963,8 +1059,8 @@ function Badge({ color, soft, children }) {
         React.createElement("span", { className: "w-1.5 h-1.5 rounded-full shrink-0", style: { background: color, boxShadow: `0 0 6px ${color}` } }),
         children));
 }
-function Card({ children, className = "", style = {}, hover = false }) {
-    return (React.createElement("div", { className: `rounded-2xl transition-all duration-300 ${hover ? "hover:-translate-y-0.5" : ""} ${className}`, style: {
+function Card({ children, className = "", style = {}, hover = false, onClick }) {
+    return (React.createElement("div", { onClick: onClick, className: `rounded-2xl transition-all duration-300 ${hover ? "hover:-translate-y-0.5" : ""} ${onClick ? "cursor-pointer" : ""} ${className}`, style: {
             background: `linear-gradient(180deg, ${C.surfaceHi}55 0%, ${C.surface} 14%)`,
             border: `1px solid ${C.border}`,
             boxShadow: C.shadow,
@@ -986,22 +1082,22 @@ function Field({ label, children }) {
         React.createElement("span", { style: { color: C.textSoft } }, label),
         children));
 }
-const inputStyle = {
+const getInputStyle = () => ({
     background: C.bg,
     border: `1px solid ${C.border}`,
     color: C.text,
     boxShadow: "inset 0 1px 2px rgba(0,0,0,0.25)",
-};
+});
 const inputClass = "px-3 py-2.5 rounded-xl text-sm outline-none transition-all duration-150 focus:ring-2 focus:ring-offset-0 w-full placeholder:text-[13px]";
-const inputRingStyle = { "--tw-ring-color": C.accent };
+const getInputRingStyle = () => ({ "--tw-ring-color": C.accent });
 function Input(props) {
-    return React.createElement("input", { ...props, className: `${inputClass} ${props.className || ""}`, style: { ...inputStyle, ...inputRingStyle, ...props.style } });
+    return React.createElement("input", { ...props, className: `${inputClass} ${props.className || ""}`, style: { ...getInputStyle(), ...getInputRingStyle(), ...props.style } });
 }
 function Select(props) {
-    return React.createElement("select", { ...props, className: `${inputClass} ${props.className || ""}`, style: { ...inputStyle, ...inputRingStyle, ...props.style } });
+    return React.createElement("select", { ...props, className: `${inputClass} ${props.className || ""}`, style: { ...getInputStyle(), ...getInputRingStyle(), ...props.style } });
 }
 function TextArea(props) {
-    return React.createElement("textarea", { ...props, className: `${inputClass} ${props.className || ""}`, style: { ...inputStyle, ...inputRingStyle, ...props.style, resize: "none" } });
+    return React.createElement("textarea", { ...props, className: `${inputClass} ${props.className || ""}`, style: { ...getInputStyle(), ...getInputRingStyle(), ...props.style, resize: "none" } });
 }
 function Modal({ title, onClose, children, wide }) {
     return ReactDOM.createPortal(React.createElement("div", { className: "fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6", style: { background: "rgba(10,11,12,0.75)", backdropFilter: "blur(3px)" }, onClick: onClose },
@@ -1099,6 +1195,24 @@ function Sidebar({ active, setActive, mobileOpen, setMobileOpen, settings, role,
                         React.createElement("div", { className: "text-xs truncate", style: { color: C.textMute } }, (role === null || role === void 0 ? void 0 : role.name) || settings.ownerRole || "Jefe de taller")),
                     React.createElement(ChevronRight, { size: 14, style: { color: C.textMute, transform: menuOpen ? "rotate(-90deg)" : "rotate(90deg)" }, className: "transition-transform shrink-0" }))))));
 }
+const MOBILE_TAB_KEYS = ["dashboard", "ordenes", "clientes", "caja"];
+function MobileTabBar({ active, setActive, mobileOpen, setMobileOpen, role }) {
+    const tabs = MOBILE_TAB_KEYS.map((k) => NAV.find((n) => n.key === k)).filter((item) => item && canView(role, item.key));
+    return (React.createElement("nav", { className: "fixed bottom-0 inset-x-0 z-30 sm:hidden flex items-stretch", style: {
+            background: `${C.surface}F2`, backdropFilter: "blur(8px)", borderTop: `1px solid ${C.border}`,
+            paddingBottom: "env(safe-area-inset-bottom)", boxShadow: "0 -8px 24px -12px rgba(0,0,0,0.5)",
+        } },
+        tabs.map((item) => {
+            const Icon = item.icon;
+            const isActive = !mobileOpen && active === item.key;
+            return (React.createElement("button", { key: item.key, onClick: () => { setActive(item.key); setMobileOpen(false); }, className: "flex-1 flex flex-col items-center justify-center gap-1 py-2.5 transition-colors", style: { color: isActive ? C.accentText : C.textMute } },
+                React.createElement(Icon, { size: 19 }),
+                React.createElement("span", { className: "text-[10px] font-medium truncate max-w-full px-1" }, item.label === "Panel" ? item.label : item.label.split(" ")[0])));
+        }),
+        React.createElement("button", { onClick: () => setMobileOpen(true), className: "flex-1 flex flex-col items-center justify-center gap-1 py-2.5 transition-colors", style: { color: mobileOpen ? C.accentText : C.textMute } },
+            React.createElement(MoreHorizontal, { size: 19 }),
+            React.createElement("span", { className: "text-[10px] font-medium" }, "M\u00E1s"))));
+}
 /* ---------------------------------- DASHBOARD ---------------------------------- */
 function Dashboard({ orders, clients, vehicles, parts, appointments, goTo, settings, verMontos = true }) {
     const active = orders.filter((o) => o.status !== "entregado");
@@ -1108,12 +1222,12 @@ function Dashboard({ orders, clients, vehicles, parts, appointments, goTo, setti
     const findClient = (id) => clients.find((c) => c.id === id);
     const findVehicle = (id) => vehicles.find((v) => v.id === id);
     const kpis = [
-        { label: "Órdenes activas", value: active.length, icon: ClipboardList, color: C.accent, soft: C.accentSoft },
-        { label: "Vehículos en taller", value: inShop.length, icon: Car, color: C.info, soft: C.infoSoft },
+        { label: "Órdenes activas", value: active.length, icon: ClipboardList, color: C.accent, soft: C.accentSoft, goTo: "ordenes" },
+        { label: "Vehículos en taller", value: inShop.length, icon: Car, color: C.info, soft: C.infoSoft, goTo: "vehiculos" },
         verMontos
-            ? { label: "Ingresos (órdenes actuales)", value: money(monthRevenue), icon: TrendingUp, color: C.success, soft: C.successSoft }
-            : { label: "Repuestos bajo stock", value: lowStock.length, icon: AlertTriangle, color: C.danger, soft: C.dangerSoft },
-        verMontos ? { label: "Repuestos bajo stock", value: lowStock.length, icon: AlertTriangle, color: C.danger, soft: C.dangerSoft } : null,
+            ? { label: "Ingresos (órdenes actuales)", value: money(monthRevenue), icon: TrendingUp, color: C.success, soft: C.successSoft, goTo: "caja" }
+            : { label: "Repuestos bajo stock", value: lowStock.length, icon: AlertTriangle, color: C.danger, soft: C.dangerSoft, goTo: "inventario" },
+        verMontos ? { label: "Repuestos bajo stock", value: lowStock.length, icon: AlertTriangle, color: C.danger, soft: C.dangerSoft, goTo: "inventario" } : null,
     ].filter(Boolean);
     return (React.createElement("div", { className: "space-y-6" },
         React.createElement("div", null,
@@ -1123,7 +1237,7 @@ function Dashboard({ orders, clients, vehicles, parts, appointments, goTo, setti
             React.createElement("p", { className: "text-sm mt-1", style: { color: C.textMute } }, "Esto es lo que est\u00E1 pasando hoy en el taller.")),
         React.createElement("div", { className: "grid grid-cols-2 lg:grid-cols-4 gap-4" }, kpis.map((k, i) => {
             const Icon = k.icon;
-            return (React.createElement(Card, { key: k.label, hover: true, className: "anim-in relative overflow-hidden p-5", style: { animationDelay: `${i * 60}ms` } },
+            return (React.createElement(Card, { key: k.label, hover: true, onClick: () => goTo(k.goTo), className: "anim-in relative overflow-hidden p-5", style: { animationDelay: `${i * 60}ms` } },
                 React.createElement("div", { className: "absolute top-0 left-0 right-0 h-[3px]", style: { background: `linear-gradient(90deg, transparent, ${k.color}, transparent)` } }),
                 React.createElement("div", { className: "w-9 h-9 rounded-lg flex items-center justify-center mb-4", style: { background: k.soft, boxShadow: `inset 0 0 0 1px ${k.color}33` } },
                     React.createElement(Icon, { size: 17, style: { color: k.color } })),
@@ -1205,7 +1319,7 @@ function OrdenesView({ orders, setOrders, clients, vehicles, onChangeStatus, onR
                 "Todas (",
                 orders.length,
                 ")"),
-            STATUS.map((s) => (React.createElement("button", { key: s.key, onClick: () => setFilter(s.key), className: "px-3.5 py-1.5 rounded-full text-xs font-medium whitespace-nowrap", style: { background: filter === s.key ? s.soft : C.surfaceHi, color: filter === s.key ? s.color : C.textSoft } },
+            getStatus().map((s) => (React.createElement("button", { key: s.key, onClick: () => setFilter(s.key), className: "px-3.5 py-1.5 rounded-full text-xs font-medium whitespace-nowrap", style: { background: filter === s.key ? s.soft : C.surfaceHi, color: filter === s.key ? s.color : C.textSoft } },
                 s.label,
                 " (",
                 orders.filter((o) => o.status === s.key).length,
@@ -1349,7 +1463,7 @@ function OrderDetail({ order, client, vehicle, onClose, onStatusChange, onRegist
                     React.createElement(Button, { variant: "ghost", onClick: () => setShowReception(true), className: "flex-1" }, "Editar"))))),
         React.createElement("div", null,
             React.createElement("div", { className: "text-xs uppercase tracking-wide mb-2", style: { color: C.textMute } }, "Actualizar estado"),
-            React.createElement("div", { className: "flex flex-wrap gap-2" }, STATUS.map((s) => (React.createElement("button", { key: s.key, onClick: () => onStatusChange(s.key), className: "px-3 py-1.5 rounded-full text-xs font-medium border", style: {
+            React.createElement("div", { className: "flex flex-wrap gap-2" }, getStatus().map((s) => (React.createElement("button", { key: s.key, onClick: () => onStatusChange(s.key), className: "px-3 py-1.5 rounded-full text-xs font-medium border", style: {
                     background: order.status === s.key ? s.soft : "transparent",
                     color: order.status === s.key ? s.color : C.textSoft,
                     borderColor: order.status === s.key ? s.color : C.border,
@@ -1514,11 +1628,15 @@ function ProformaCard({ pf, client, vehicle, onOpen }) {
                     React.createElement(ShieldCheck, { size: 14 }))),
             React.createElement("span", { style: { fontFamily: "JetBrains Mono, monospace", color: C.text }, className: "text-sm font-medium" }, money(proformaTotal(pf))))));
 }
-function ProformasView({ proformas, setProformas, clients, vehicles, settings }) {
+function ProformasView({ proformas, setProformas, clients, vehicles, settings, focusRequest }) {
     const [filter, setFilter] = useState("todas");
     const [query, setQuery] = useState("");
-    const [openId, setOpenId] = useState(null);
+    const [openId, setOpenId] = useState(() => (focusRequest ? focusRequest.id : null));
     const [showNew, setShowNew] = useState(false);
+    useEffect(() => {
+        if (focusRequest && focusRequest.id)
+            setOpenId(focusRequest.id);
+    }, [focusRequest]);
     const findClient = (id) => clients.find((c) => c.id === id);
     const findVehicle = (id) => vehicles.find((v) => v.id === id);
     const filtered = proformas.filter((p) => {
@@ -1553,7 +1671,7 @@ function ProformasView({ proformas, setProformas, clients, vehicles, settings })
                 "Todas (",
                 proformas.length,
                 ")"),
-            STATUS_PROFORMA.map((s) => (React.createElement("button", { key: s.key, onClick: () => setFilter(s.key), className: "px-3.5 py-1.5 rounded-full text-xs font-medium whitespace-nowrap", style: { background: filter === s.key ? s.soft : C.surfaceHi, color: filter === s.key ? s.color : C.textSoft } },
+            getStatusProforma().map((s) => (React.createElement("button", { key: s.key, onClick: () => setFilter(s.key), className: "px-3.5 py-1.5 rounded-full text-xs font-medium whitespace-nowrap", style: { background: filter === s.key ? s.soft : C.surfaceHi, color: filter === s.key ? s.color : C.textSoft } },
                 s.label,
                 " (",
                 proformas.filter((p) => p.status === s.key).length,
@@ -1698,7 +1816,7 @@ function ProformaDetail({ pf, client, vehicle, settings, onClose, onStatusChange
                 React.createElement("button", { onClick: handleManualApproval, className: "text-xs", style: { color: C.textMute } }, "El cliente ya aprob\u00F3 por otro medio (llamada, en persona) \u2192 marcar manualmente")))),
         React.createElement("div", null,
             React.createElement("div", { className: "text-xs uppercase tracking-wide mb-2", style: { color: C.textMute } }, "Actualizar estado"),
-            React.createElement("div", { className: "flex flex-wrap gap-2" }, STATUS_PROFORMA.map((s) => (React.createElement("button", { key: s.key, onClick: () => onStatusChange(s.key), className: "px-3 py-1.5 rounded-full text-xs font-medium border", style: {
+            React.createElement("div", { className: "flex flex-wrap gap-2" }, getStatusProforma().map((s) => (React.createElement("button", { key: s.key, onClick: () => onStatusChange(s.key), className: "px-3 py-1.5 rounded-full text-xs font-medium border", style: {
                     background: pf.status === s.key ? s.soft : "transparent",
                     color: pf.status === s.key ? s.color : C.textSoft,
                     borderColor: pf.status === s.key ? s.color : C.border,
@@ -2384,7 +2502,129 @@ function UsersRolesView({ users, setUsers, roles, setRoles, currentUser, setting
                     React.createElement(Button, { variant: "danger", onClick: () => deleteUser(confirmDelete), className: "flex-1" }, "Eliminar")))))));
 }
 /* ---------------------------------- AJUSTES ---------------------------------- */
-function AjustesView({ settings, setSettings, cloudStatus, cloudError, cloudProjectId, users, setUsers, roles, setRoles, currentUser, currentRole }) {
+const THEME_OPTIONS = [
+    { key: "light", label: "Claro", icon: SunIcon },
+    { key: "dark", label: "Oscuro", icon: MoonIcon },
+    { key: "system", label: "Sistema", icon: MonitorIcon },
+];
+/* ---------------------------------- COPIA DE SEGURIDAD (exportar / importar / reiniciar) ---------------------------------- */
+// Todo lo que el sistema guarda en este navegador vive bajo claves con el prefijo "expertTaller.".
+// Estas funciones leen/escriben esas claves directamente para armar el respaldo, sin depender de
+// tener que enchufar cada estado de React uno por uno.
+const BACKUP_PREFIX = "expertTaller.";
+function readBackupSnapshot() {
+    const data = {};
+    for (let i = 0; i < window.localStorage.length; i++) {
+        const key = window.localStorage.key(i);
+        if (key && key.indexOf(BACKUP_PREFIX) === 0) {
+            try {
+                data[key.slice(BACKUP_PREFIX.length)] = JSON.parse(window.localStorage.getItem(key));
+            }
+            catch (e) {
+                /* clave corrupta, se omite del respaldo */
+            }
+        }
+    }
+    return data;
+}
+function downloadBackupFile(tallerNombre) {
+    const payload = {
+        app: "expertTaller",
+        version: 1,
+        exportedAt: new Date().toISOString(),
+        tallerNombre: tallerNombre || "",
+        data: readBackupSnapshot(),
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    const stamp = new Date().toISOString().slice(0, 10);
+    a.href = url;
+    a.download = `respaldo-expert-taller-${stamp}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+// Estas son las mismas claves que useCloudSync sincroniza contra Firestore (colección "tallerData",
+// un documento por clave). Si el taller está conectado a la nube, hay que tocar también estos
+// documentos al importar o reiniciar; si no, un simple wipeo/escritura del localStorage se
+// sobreescribiría de inmediato con lo que sigue guardado en la nube.
+const CLOUD_SYNCED_KEYS = [
+    "expertTaller.clients", "expertTaller.vehicles", "expertTaller.parts", "expertTaller.orders",
+    "expertTaller.appointments", "expertTaller.settings", "expertTaller.caja", "expertTaller.proformas",
+    "expertTaller.users", "expertTaller.roles", "expertTaller.fcmTokens",
+];
+async function applyBackupSnapshot(data, db) {
+    Object.keys(data).forEach((k) => {
+        try {
+            window.localStorage.setItem(BACKUP_PREFIX + k, JSON.stringify(data[k]));
+        }
+        catch (e) {
+            /* no se pudo escribir esta clave; se continúa con las demás */
+        }
+    });
+    if (db) {
+        const writes = CLOUD_SYNCED_KEYS.map((fullKey) => {
+            const short = fullKey.slice(BACKUP_PREFIX.length);
+            if (!(short in data))
+                return Promise.resolve();
+            return db.collection("tallerData").doc(fullKey).set({ value: data[short], updatedAt: Date.now() }).catch((e) => console.error("Firestore import write error", fullKey, e));
+        });
+        await Promise.all(writes);
+    }
+}
+async function wipeAllTallerData(db) {
+    if (db) {
+        const deletes = CLOUD_SYNCED_KEYS.map((fullKey) => db.collection("tallerData").doc(fullKey).delete().catch((e) => console.error("Firestore reset delete error", fullKey, e)));
+        await Promise.all(deletes);
+    }
+    const keys = [];
+    for (let i = 0; i < window.localStorage.length; i++) {
+        const key = window.localStorage.key(i);
+        if (key && key.indexOf(BACKUP_PREFIX) === 0)
+            keys.push(key);
+    }
+    keys.forEach((k) => window.localStorage.removeItem(k));
+}
+// Modal que pide el PIN del usuario actual antes de exportar, importar o reiniciar los datos.
+function ConfirmPinModal({ title, description, confirmLabel, danger, currentUser, onCancel, onConfirmed }) {
+    const [pin, setPin] = useState("");
+    const [error, setError] = useState("");
+    const [busy, setBusy] = useState(false);
+    const [confirming, setConfirming] = useState(false);
+    const onDigit = async (d) => {
+        if (busy || pin.length >= 4)
+            return;
+        const next = pin + d;
+        setPin(next);
+        if (next.length === 4) {
+            setBusy(true);
+            const hash = await hashPin(next);
+            if (currentUser && hash === currentUser.pinHash) {
+                setConfirming(true);
+                await onConfirmed();
+                return;
+            }
+            setError("PIN incorrecto. Intenta de nuevo.");
+            setPin("");
+            setBusy(false);
+        }
+    };
+    return (React.createElement(Modal, { title: title, onClose: confirming ? () => { } : onCancel },
+        React.createElement("div", { className: "space-y-5" },
+            React.createElement("p", { className: "text-sm", style: { color: C.textSoft } }, description),
+            confirming ? (React.createElement("p", { className: "text-sm text-center", style: { color: C.textSoft } }, "Borrando datos\u2026 un momento.")) : (React.createElement(React.Fragment, null,
+                React.createElement("p", { className: "text-xs text-center", style: { color: C.textMute } },
+                    "Ingresa tu PIN (",
+                    currentUser === null || currentUser === void 0 ? void 0 : currentUser.name,
+                    ") para confirmar"),
+                React.createElement(PinDots, { length: 4, filled: pin.length, error: !!error }),
+                error && React.createElement("div", { className: "text-xs text-center", style: { color: C.danger } }, error),
+                React.createElement(PinPad, { disabled: busy, onDigit: onDigit, onBackspace: () => setPin(pin.slice(0, -1)) }),
+                React.createElement(Button, { variant: "ghost", className: "w-full", onClick: onCancel }, "Cancelar"))))));
+}
+function AjustesView({ settings, setSettings, cloudStatus, cloudError, cloudProjectId, db, users, setUsers, roles, setRoles, currentUser, currentRole, themeMode, setThemeMode }) {
     const [form, setForm] = useState(settings);
     const [saved, setSaved] = useState(false);
     const [tab, setTab] = useState("general");
@@ -2396,6 +2636,64 @@ function AjustesView({ settings, setSettings, cloudStatus, cloudError, cloudProj
         setSaved(true);
         setTimeout(() => setSaved(false), 2000);
     };
+    // --- Copia de seguridad / importar / reiniciar ---
+    const fileInputRef = useRef(null);
+    const [exportOk, setExportOk] = useState(false);
+    const [importMsg, setImportMsg] = useState(null); // { type: 'error'|'ok', text }
+    const [pendingImport, setPendingImport] = useState(null); // datos parseados a la espera de confirmación
+    const [showResetModal, setShowResetModal] = useState(false);
+    const [busyAction, setBusyAction] = useState(null); // 'import' | 'reset' | null
+    const canManageData = !readOnly;
+    const doExport = () => {
+        downloadBackupFile(settings.tallerNombre);
+        setExportOk(true);
+        setTimeout(() => setExportOk(false), 2500);
+    };
+    const pickImportFile = () => { var _a; return (_a = fileInputRef.current) === null || _a === void 0 ? void 0 : _a.click(); };
+    const onImportFileChosen = (e) => {
+        const file = e.target.files && e.target.files[0];
+        e.target.value = "";
+        if (!file)
+            return;
+        setImportMsg(null);
+        const reader = new FileReader();
+        reader.onload = () => {
+            try {
+                const parsed = JSON.parse(String(reader.result));
+                if (!parsed || parsed.app !== "expertTaller" || !parsed.data || typeof parsed.data !== "object") {
+                    setImportMsg({ type: "error", text: "Este archivo no parece ser una copia de seguridad válida de Expert." });
+                    return;
+                }
+                setPendingImport(parsed);
+            }
+            catch (e) {
+                setImportMsg({ type: "error", text: "No se pudo leer el archivo. ¿Seguro que es el .json del respaldo?" });
+            }
+        };
+        reader.readAsText(file);
+    };
+    const confirmImport = async () => {
+        if (!pendingImport)
+            return;
+        setBusyAction("import");
+        try {
+            await applyBackupSnapshot(pendingImport.data, db);
+        }
+        finally {
+            setPendingImport(null);
+            window.location.reload();
+        }
+    };
+    const confirmReset = async () => {
+        setBusyAction("reset");
+        try {
+            await wipeAllTallerData(db);
+        }
+        finally {
+            setShowResetModal(false);
+            window.location.reload();
+        }
+    };
     return (React.createElement("div", { className: "space-y-5 max-w-2xl" },
         React.createElement("h1", { style: { fontFamily: "Oswald, sans-serif" }, className: "text-2xl tracking-wide" }, "Ajustes"),
         showUsersTab && (React.createElement("div", { className: "flex gap-2" }, [{ key: "general", label: "General" }, { key: "usuarios", label: "Usuarios y permisos" }].map((t) => (React.createElement("button", { key: t.key, onClick: () => setTab(t.key), className: "px-4 py-2 rounded-xl text-sm font-medium transition-colors", style: {
@@ -2404,6 +2702,20 @@ function AjustesView({ settings, setSettings, cloudStatus, cloudError, cloudProj
                 border: `1px solid ${tab === t.key ? C.accent + "55" : C.borderSoft}`,
             } }, t.label))))),
         tab === "usuarios" && showUsersTab ? (React.createElement(UsersRolesView, { users: users, setUsers: setUsers, roles: roles, setRoles: setRoles, currentUser: currentUser, settings: settings, setSettings: setSettings })) : (React.createElement(React.Fragment, null,
+            React.createElement(Card, { className: "p-6 space-y-4" },
+                React.createElement("div", { className: "text-xs uppercase tracking-wide", style: { color: C.textMute } }, "Apariencia"),
+                React.createElement("p", { className: "text-sm", style: { color: C.textSoft } }, "Elige c\u00F3mo se ve Expert en este dispositivo. \"Sistema\" sigue el modo de tu celular o computadora."),
+                React.createElement("div", { className: "flex flex-wrap gap-2" }, THEME_OPTIONS.map((opt) => {
+                    const OptIcon = opt.icon;
+                    const isActive = themeMode === opt.key;
+                    return (React.createElement("button", { key: opt.key, onClick: () => setThemeMode(opt.key), className: "flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors", style: {
+                            background: isActive ? C.accentSoft : C.surfaceHi,
+                            color: isActive ? C.accentText : C.textSoft,
+                            border: `1px solid ${isActive ? C.accent + "55" : C.borderSoft}`,
+                        } },
+                        React.createElement(OptIcon, { size: 15 }),
+                        opt.label));
+                }))),
             readOnly && (React.createElement("div", { className: "text-sm px-4 py-2.5 rounded-xl", style: { background: C.warningSoft, color: C.warning } }, "Tu rol solo tiene permiso de lectura en Ajustes.")),
             React.createElement(Card, { className: "p-6 space-y-4" },
                 React.createElement("div", { className: "text-xs uppercase tracking-wide", style: { color: C.textMute } }, "Sincronizaci\u00F3n en la nube"),
@@ -2454,7 +2766,45 @@ function AjustesView({ settings, setSettings, cloudStatus, cloudError, cloudProj
                     React.createElement(Button, { onClick: submit }, "Guardar cambios"),
                     saved && (React.createElement("span", { className: "text-xs flex items-center gap-1.5", style: { color: C.success } },
                         React.createElement(CheckCircle2, { size: 14 }),
-                        " Guardado")))))))));
+                        " Guardado"))))),
+            React.createElement(Card, { className: "p-6 space-y-4" },
+                React.createElement("div", { className: "text-xs uppercase tracking-wide", style: { color: C.textMute } }, "Copia de seguridad"),
+                React.createElement("p", { className: "text-sm", style: { color: C.textSoft } }, "Descarga un archivo con todos los datos del taller (clientes, veh\u00EDculos, \u00F3rdenes, caja, proformas, usuarios, etc.) para guardarlo como respaldo, o para pasarlos a otro celular o computadora."),
+                React.createElement("div", { className: "flex flex-wrap items-center gap-3" },
+                    React.createElement(Button, { variant: "ghost", onClick: doExport },
+                        React.createElement(Download, { size: 15 }),
+                        " Exportar copia de seguridad"),
+                    canManageData && (React.createElement(Button, { variant: "ghost", onClick: pickImportFile },
+                        React.createElement(Upload, { size: 15 }),
+                        " Importar copia de seguridad")),
+                    exportOk && (React.createElement("span", { className: "text-xs flex items-center gap-1.5", style: { color: C.success } },
+                        React.createElement(CheckCircle2, { size: 14 }),
+                        " Archivo descargado"))),
+                React.createElement("input", { ref: fileInputRef, type: "file", accept: "application/json,.json", className: "hidden", onChange: onImportFileChosen }),
+                importMsg && (React.createElement("div", { className: "text-sm px-3 py-2.5 rounded-lg flex items-center gap-2", style: { background: importMsg.type === "error" ? C.dangerSoft : C.successSoft, color: importMsg.type === "error" ? C.danger : C.success } }, importMsg.text)),
+                !canManageData && (React.createElement("p", { className: "text-xs", style: { color: C.textMute } }, "Tu rol solo puede exportar copias de seguridad, no importarlas ni reiniciar datos."))),
+            canManageData && (React.createElement(Card, { className: "p-6 space-y-4", style: { border: `1px solid ${C.danger}55` } },
+                React.createElement("div", { className: "text-xs uppercase tracking-wide flex items-center gap-1.5", style: { color: C.danger } },
+                    React.createElement(AlertTriangle, { size: 13 }),
+                    " Zona de peligro"),
+                React.createElement("p", { className: "text-sm", style: { color: C.textSoft } }, "Esto borra permanentemente todos los datos guardados en este dispositivo (clientes, veh\u00EDculos, \u00F3rdenes, caja, proformas, usuarios y ajustes) y regresa el sistema al primer uso. No se puede deshacer \u2014 exporta una copia de seguridad antes si no est\u00E1s seguro."),
+                React.createElement(Button, { variant: "danger", onClick: () => setShowResetModal(true) },
+                    React.createElement(Trash2, { size: 15 }),
+                    " Reiniciar todos los datos del sistema"))),
+            pendingImport && (React.createElement(Modal, { title: "Confirmar importaci\u00F3n", onClose: busyAction === "import" ? () => { } : () => setPendingImport(null) },
+                React.createElement("div", { className: "space-y-4" },
+                    busyAction === "import" ? (React.createElement("p", { className: "text-sm text-center", style: { color: C.textSoft } }, "Importando datos\u2026 un momento.")) : (React.createElement(React.Fragment, null,
+                        React.createElement("div", { className: "text-sm px-3 py-2.5 rounded-lg flex items-start gap-2", style: { background: C.warningSoft, color: C.warning } },
+                            React.createElement(AlertTriangle, { size: 15, className: "shrink-0 mt-0.5" }),
+                            React.createElement("span", null, "Esto reemplazar\u00E1 TODOS los datos actuales de este dispositivo con los del archivo importado. Esta acci\u00F3n no se puede deshacer.")),
+                        React.createElement("p", { className: "text-sm", style: { color: C.textSoft } },
+                            "Archivo: ",
+                            React.createElement("strong", null, (pendingImport.tallerNombre || "Sin nombre de taller")),
+                            pendingImport.exportedAt ? ` \u2014 exportado el ${fmtDatePE(new Date(pendingImport.exportedAt))}` : ""),
+                        React.createElement("div", { className: "flex gap-2" },
+                            React.createElement(Button, { variant: "ghost", className: "flex-1", onClick: () => setPendingImport(null) }, "Cancelar"),
+                            React.createElement(Button, { variant: "danger", className: "flex-1", onClick: confirmImport }, "S\u00ED, reemplazar mis datos"))))))),
+            showResetModal && (React.createElement(ConfirmPinModal, { title: "Reiniciar todos los datos", description: "Se borrar\u00E1n permanentemente todos los datos del taller guardados en este dispositivo. Esta acci\u00F3n no se puede deshacer.", currentUser: currentUser, onCancel: () => setShowResetModal(false), onConfirmed: confirmReset }))))));
 }
 /* ---------------------------------- AUTENTICACIÓN ---------------------------------- */
 function AuthShell({ children, footer }) {
@@ -2464,7 +2814,7 @@ function AuthShell({ children, footer }) {
             fontFamily: "Inter, sans-serif",
             minHeight: "100vh",
         }, className: "flex flex-col items-center justify-center p-5 sm:p-8" },
-        React.createElement("style", null, FONTS),
+        React.createElement("style", null, getFonts()),
         React.createElement("div", { className: "w-full max-w-sm space-y-6" },
             React.createElement("div", { className: "flex flex-col items-center gap-3 text-center" },
                 React.createElement("div", { className: "w-14 h-14 rounded-2xl flex items-center justify-center", style: { background: `linear-gradient(160deg, ${C.accent} 0%, #C94E0F 100%)`, boxShadow: C.shadowGlow } },
@@ -2687,7 +3037,7 @@ function ClientApprovalPage({ pf, client, vehicle, settings, onApprove, onReject
     const [mode, setMode] = useState(null);
     if (!pf) {
         return (React.createElement("div", { style: { background: C.bg, color: C.text, minHeight: "100vh" }, className: "flex items-center justify-center p-6" },
-            React.createElement("style", null, FONTS),
+            React.createElement("style", null, getFonts()),
             React.createElement(Card, { className: "p-8 max-w-sm text-center" },
                 React.createElement("p", { style: { color: C.textMute } }, "No se encontr\u00F3 el presupuesto. Pide al taller que te reenv\u00EDe el enlace."))));
     }
@@ -2707,7 +3057,7 @@ function ClientApprovalPage({ pf, client, vehicle, settings, onApprove, onReject
         triggerPushNotification(pf.id);
     };
     return (React.createElement("div", { style: { background: `radial-gradient(1200px 600px at 15% -10%, ${C.accentSoft} 0%, transparent 55%), ${C.bg}`, color: C.text, minHeight: "100vh", fontFamily: "Inter, sans-serif" }, className: "p-5 sm:p-8" },
-        React.createElement("style", null, FONTS),
+        React.createElement("style", null, getFonts()),
         React.createElement("div", { className: "max-w-lg mx-auto space-y-5" },
             React.createElement("div", { className: "text-center pt-4" },
                 React.createElement("div", { style: { fontFamily: "Oswald, sans-serif" }, className: "text-xl tracking-wide" }, (settings === null || settings === void 0 ? void 0 : settings.tallerNombre) || "Taller Mecánico"),
@@ -2901,7 +3251,7 @@ function useCloudSync(key, initialValue, db) {
 // enlace publico (method === "cliente_web"), asi que no hace falta guardarlas aparte en Firestore.
 // Que esta "leido" vive solo en este dispositivo (usePersistentState), porque cada celular/PC
 // revisa sus propias notificaciones por separado.
-function NotificationsBell({ proformas, clients, onEnablePush, pushReady }) {
+function NotificationsBell({ proformas, clients, onEnablePush, pushReady, onOpenProforma }) {
     const [open, setOpen] = useState(false);
     const [readIds, setReadIds] = usePersistentState("expertTaller.notifRead", []);
     const [permission, setPermission] = useState(() => (typeof Notification !== "undefined" ? Notification.permission : "unsupported"));
@@ -2951,7 +3301,7 @@ function NotificationsBell({ proformas, clients, onEnablePush, pushReady }) {
         permission === "granted" && (React.createElement("div", { className: "px-3 py-2 text-[11px] rounded-lg flex items-center gap-2 mb-3", style: { color: pushReady ? C.success : C.textMute, background: C.surfaceHi } },
             React.createElement(CheckCircle2, { size: 12 }),
             pushReady ? "Avisos activos en este dispositivo, incluso con la app cerrada." : "Avisos activos mientras la app este abierta.")),
-        items.length === 0 ? (React.createElement("div", { className: "py-8 text-center text-xs", style: { color: C.textMute } }, "Todavia no hay respuestas de clientes.")) : (React.createElement("div", { className: "-mx-6" }, items.slice(0, 20).map((it) => (React.createElement("div", { key: it.id, className: "px-6 py-3 flex items-start gap-3", style: { borderBottom: `1px solid ${C.borderSoft}` } },
+        items.length === 0 ? (React.createElement("div", { className: "py-8 text-center text-xs", style: { color: C.textMute } }, "Todavia no hay respuestas de clientes.")) : (React.createElement("div", { className: "-mx-6" }, items.slice(0, 20).map((it) => (React.createElement("div", { key: it.id, onClick: () => { setOpen(false); onOpenProforma && onOpenProforma(it.id); }, className: "px-6 py-3 flex items-start gap-3 cursor-pointer transition-colors hover:bg-white/5", style: { borderBottom: `1px solid ${C.borderSoft}` } },
             React.createElement("div", { className: "w-7 h-7 rounded-full flex items-center justify-center shrink-0 mt-0.5", style: { background: it.approved ? C.successSoft : C.dangerSoft, color: it.approved ? C.success : C.danger } }, it.approved ? React.createElement(CheckCircle2, { size: 14 }) : React.createElement(X, { size: 14 })),
             React.createElement("div", { className: "min-w-0 flex-1" },
                 React.createElement("div", { className: "text-xs leading-snug" },
@@ -2972,6 +3322,38 @@ function NotificationsBell({ proformas, clients, onEnablePush, pushReady }) {
 /* ---------------------------------- APP ---------------------------------- */
 function App() {
     var _a;
+    // Tema visual (claro / oscuro / autom\u00E1tico seg\u00FAn el sistema). Vive solo en este
+    // dispositivo -no se sincroniza a la nube-, igual que la sesi\u00F3n de inicio de sesi\u00F3n:
+    // cada celular o PC puede elegir el suyo.
+    const [themeMode, setThemeMode] = usePersistentState("expertTaller.theme", "system");
+    const [systemPrefersDark, setSystemPrefersDark] = useState(() => (typeof window !== "undefined" && window.matchMedia ? window.matchMedia("(prefers-color-scheme: dark)").matches : true));
+    useEffect(() => {
+        if (!window.matchMedia)
+            return;
+        const mq = window.matchMedia("(prefers-color-scheme: dark)");
+        const onChange = (e) => setSystemPrefersDark(e.matches);
+        if (mq.addEventListener)
+            mq.addEventListener("change", onChange);
+        else
+            mq.addListener(onChange);
+        return () => {
+            if (mq.removeEventListener)
+                mq.removeEventListener("change", onChange);
+            else
+                mq.removeListener(onChange);
+        };
+    }, []);
+    const resolvedTheme = themeMode === "system" ? (systemPrefersDark ? "dark" : "light") : themeMode;
+    // Se actualiza en sitio (no se reemplaza el objeto) para que todos los componentes, que leen
+    // C.xxx directamente durante su propio render, tomen la paleta nueva en el mismo repintado.
+    Object.assign(C, THEMES[resolvedTheme] || THEMES.dark);
+    useEffect(() => {
+        document.documentElement.setAttribute("data-theme", resolvedTheme);
+        document.documentElement.style.colorScheme = resolvedTheme;
+        const metaTheme = document.getElementById("meta-theme-color");
+        if (metaTheme)
+            metaTheme.setAttribute("content", THEMES[resolvedTheme].bg);
+    }, [resolvedTheme]);
     const [active, setActive] = useState("dashboard");
     const [mobileOpen, setMobileOpen] = useState(false);
     const [hashRoute, setHashRoute] = useState(() => window.location.hash);
@@ -2995,6 +3377,11 @@ function App() {
     // Pide el "token" de este dispositivo para Firebase Cloud Messaging y lo guarda en Firestore, para
     // que la funcion de Vercel sepa a que celulares/PCs avisar cuando un cliente responda.
     const [pushReady, setPushReady] = useState(false);
+    const [proformaFocus, setProformaFocus] = useState(null);
+    const openProformaFromNotification = (id) => {
+        setActive("proformas");
+        setProformaFocus({ id, ts: Date.now() });
+    };
     const ensurePushToken = async () => {
         try {
             if (!VAPID_KEY || !window.firebase || !firebase.messaging)
@@ -3193,11 +3580,12 @@ function App() {
             fontFamily: "Inter, sans-serif",
             minHeight: "100vh",
         } },
-        React.createElement("style", null, FONTS),
+        React.createElement("style", null, getFonts()),
         React.createElement("div", { className: "flex" },
             React.createElement(Sidebar, { active: active, setActive: setActive, mobileOpen: mobileOpen, setMobileOpen: setMobileOpen, settings: settings, role: currentRole, currentUser: currentUser, onLock: lockNow, onLogout: logout }),
+            React.createElement(MobileTabBar, { active: active, setActive: setActive, mobileOpen: mobileOpen, setMobileOpen: setMobileOpen, role: currentRole }),
             React.createElement("div", { className: "flex-1 min-w-0" },
-                React.createElement("header", { className: "sticky top-0 z-30 flex items-center gap-4 px-5 sm:px-8 py-4 backdrop-blur", style: { background: "rgba(21,23,26,0.85)", borderBottom: `1px solid ${C.border}`, boxShadow: "0 1px 0 rgba(255,255,255,0.03), 0 8px 24px -12px rgba(0,0,0,0.5)" } },
+                React.createElement("header", { className: "sticky top-0 z-30 flex items-center gap-4 px-5 sm:px-8 py-4 backdrop-blur", style: { background: `${C.bg}D9`, borderBottom: `1px solid ${C.border}`, boxShadow: "0 1px 0 rgba(255,255,255,0.03), 0 8px 24px -12px rgba(0,0,0,0.5)" } },
                     React.createElement("button", { className: "sm:hidden transition-transform active:scale-90", onClick: () => setMobileOpen(true) },
                         React.createElement(Menu, { size: 20 })),
                     React.createElement("div", { className: "sm:hidden font-medium", style: { fontFamily: "Oswald, sans-serif" } }, titles[active]),
@@ -3210,13 +3598,13 @@ function App() {
                                 cloudStatus === "connecting" ? "Conectando a la nube…" :
                                     cloudStatus === "error" ? `Error de conexión: ${cloudError}` :
                                         "Trabajando solo en este navegador", className: "hidden sm:flex w-9 h-9 rounded-xl items-center justify-center transition-colors hover:bg-white/5 active:scale-95", style: { background: C.surfaceHi, border: `1px solid ${C.borderSoft}`, color: cloudStatus === "connected" ? C.success : cloudStatus === "error" ? C.danger : C.textMute } }, cloudStatus === "offline" ? React.createElement(CloudOff, { size: 16 }) : React.createElement(CloudIcon, { size: 16 })),
-                        React.createElement(NotificationsBell, { proformas: proformas, clients: clients, onEnablePush: ensurePushToken, pushReady: pushReady }),
+                        React.createElement(NotificationsBell, { proformas: proformas, clients: clients, onEnablePush: ensurePushToken, pushReady: pushReady, onOpenProforma: openProformaFromNotification }),
                         React.createElement("button", { onClick: lockNow, title: "Bloquear pantalla", className: "w-9 h-9 rounded-xl flex items-center justify-center transition-colors hover:bg-white/5 active:scale-95", style: { background: C.surfaceHi, border: `1px solid ${C.borderSoft}`, color: C.textMute } },
                             React.createElement(KeyRound, { size: 16 })),
                         React.createElement("button", { onClick: () => setActive("ajustes"), className: "hidden sm:flex items-center gap-2 pl-1 pr-3 h-9 rounded-xl transition-colors hover:bg-white/5 active:scale-95", style: { background: C.surfaceHi, border: `1px solid ${C.borderSoft}` } },
                             React.createElement(UserAvatar, { user: currentUser, role: currentRole, size: 26 }),
                             React.createElement("span", { className: "text-xs font-medium max-w-[110px] truncate" }, currentUser === null || currentUser === void 0 ? void 0 : currentUser.name)))),
-                React.createElement("main", { key: active, className: "anim-in px-5 sm:px-8 py-6 sm:py-8 max-w-7xl" }, !canView(currentRole, active) ? (React.createElement(Card, { className: "p-8 text-center max-w-md mx-auto space-y-2" },
+                React.createElement("main", { key: active, className: "anim-in px-5 sm:px-8 py-6 sm:py-8 pb-24 sm:pb-8 max-w-7xl" }, !canView(currentRole, active) ? (React.createElement(Card, { className: "p-8 text-center max-w-md mx-auto space-y-2" },
                     React.createElement(ShieldCheck, { size: 28, style: { color: C.textMute }, className: "mx-auto" }),
                     React.createElement("div", { style: { fontFamily: "Oswald, sans-serif" }, className: "text-lg tracking-wide" }, "Acceso restringido"),
                     React.createElement("p", { className: "text-sm", style: { color: C.textMute } },
@@ -3225,13 +3613,13 @@ function App() {
                         ") no tiene permiso para ver esta secci\u00F3n."))) : (React.createElement(React.Fragment, null,
                     active === "dashboard" && (React.createElement(Dashboard, { orders: orders, clients: clients, vehicles: vehicles, parts: parts, appointments: appointments, goTo: setActive, settings: settings, verMontos: canSeeMoney(currentRole) })),
                     active === "ordenes" && (React.createElement(OrdenesView, { orders: orders, setOrders: setOrders, clients: clients, vehicles: vehicles, onChangeStatus: changeOrderStatus, onRegistrarAbono: registrarAbono, settings: settings })),
-                    active === "proformas" && (React.createElement(ProformasView, { proformas: proformas, setProformas: setProformas, clients: clients, vehicles: vehicles, settings: settings })),
+                    active === "proformas" && (React.createElement(ProformasView, { proformas: proformas, setProformas: setProformas, clients: clients, vehicles: vehicles, settings: settings, focusRequest: proformaFocus })),
                     active === "clientes" && React.createElement(ClientesView, { clients: clients, setClients: setClients, vehicles: vehicles, orders: orders }),
                     active === "vehiculos" && React.createElement(VehiculosView, { vehicles: vehicles, setVehicles: setVehicles, clients: clients, orders: orders }),
                     active === "inventario" && React.createElement(InventarioView, { parts: parts, setParts: setParts }),
                     active === "agenda" && React.createElement(AgendaView, { appointments: appointments, setAppointments: setAppointments }),
                     active === "caja" && (React.createElement(CajaView, { caja: caja, onAddMovement: addCajaMovement, onRemoveMovement: removeCajaMovement, orders: orders, clients: clients, vehicles: vehicles, onChangeStatus: changeOrderStatus, onRegistrarAbono: registrarAbono })),
-                    active === "ajustes" && (React.createElement(AjustesView, { settings: settings, setSettings: setSettings, cloudStatus: cloudStatus, cloudError: cloudError, cloudProjectId: cloudProjectId, users: users, setUsers: setUsers, roles: roles, setRoles: setRoles, currentUser: currentUser, currentRole: currentRole })))))))));
+                    active === "ajustes" && (React.createElement(AjustesView, { settings: settings, setSettings: setSettings, cloudStatus: cloudStatus, cloudError: cloudError, cloudProjectId: cloudProjectId, db: db, users: users, setUsers: setUsers, roles: roles, setRoles: setRoles, currentUser: currentUser, currentRole: currentRole, themeMode: themeMode, setThemeMode: setThemeMode })))))))));
 }
 </script>
 
