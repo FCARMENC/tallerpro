@@ -230,9 +230,9 @@ const { useState, useMemo, useEffect, useRef } = React;
  *      da Vercel en NOTIFY_ENDPOINT, y el secreto que elijas en NOTIFY_SECRET (debe ser el MISMO valor
  *      que configures como variable de entorno NOTIFY_SECRET en Vercel).
  */
-const VAPID_KEY = "";
-const NOTIFY_ENDPOINT = "";
-const NOTIFY_SECRET = "";
+const VAPID_KEY = "BN3WVEXl0psD6pcuAZNqQQ2K5ZBWqKl5PVVyAhcAcdWIL38d7VIrmoEiHOap64xCqG2Gu2vTZ_kr5SCkWhSqNZw";
+const NOTIFY_ENDPOINT = "https://pushtaller.vercel.app/api/notify";
+const NOTIFY_SECRET = "taller-expert-2026-x7kQ9mPzR4";
 const FIREBASE_CONFIG = {
   apiKey: "AIzaSyAsYsXARi9G1NXGI3RXmoe19yYuzSVaoKY",
   authDomain: "taller-fc741.firebaseapp.com",
@@ -402,6 +402,16 @@ function Copy(p) { return (React.createElement(IconBase, { ...p },
 function Camera(p) { return (React.createElement(IconBase, { ...p },
     React.createElement("path", { d: "M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z" }),
     React.createElement("circle", { cx: "12", cy: "13", r: "3" }))); }
+function ImageIcon(p) { return (React.createElement(IconBase, { ...p },
+    React.createElement("rect", { width: "18", height: "18", x: "3", y: "3", rx: "2" }),
+    React.createElement("circle", { cx: "9", cy: "9", r: "2" }),
+    React.createElement("path", { d: "m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21" }))); }
+function Palette(p) { return (React.createElement(IconBase, { ...p },
+    React.createElement("path", { d: "M12 22a1 1 0 0 1 0-20 10 9 0 0 1 10 9 5 5 0 0 1-5 5h-2.25a1.75 1.75 0 0 0-1.4 2.8l.3.4a1.75 1.75 0 0 1-1.4 2.8z" }),
+    React.createElement("circle", { cx: "13.5", cy: "6.5", r: ".5", fill: "currentColor" }),
+    React.createElement("circle", { cx: "17.5", cy: "10.5", r: ".5", fill: "currentColor" }),
+    React.createElement("circle", { cx: "6.5", cy: "12.5", r: ".5", fill: "currentColor" }),
+    React.createElement("circle", { cx: "8.5", cy: "7.5", r: ".5", fill: "currentColor" }))); }
 function ShieldCheck(p) { return (React.createElement(IconBase, { ...p },
     React.createElement("path", { d: "M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z" }),
     React.createElement("path", { d: "m9 12 2 2 4-4" }))); }
@@ -592,8 +602,96 @@ const initialSettings = {
     address: "",
     ruc: "",
     email: "",
+    logoDataUrl: "",
+    logoAspect: 1,
+    accentColor: "",
     security: { autoLockMinutes: 20, lockOnOpen: true },
 };
+/* ---------------------------------- IMAGEN Y MARCA (logo / color de acento) ---------------------------------- */
+// Paleta de acentos sugerida para que cada taller pueda diferenciarse sin tener que escribir
+// un código de color a mano. "" (vacío) siempre significa "usar el color por defecto del sistema".
+const ACCENT_PRESETS = [
+    { key: "amber", label: "Ámbar", value: "#FF6A1A" },
+    { key: "blue", label: "Azul", value: "#2F80ED" },
+    { key: "teal", label: "Turquesa", value: "#0EA5A5" },
+    { key: "green", label: "Verde", value: "#1F8F5F" },
+    { key: "red", label: "Rojo", value: "#E5484D" },
+    { key: "purple", label: "Morado", value: "#7A49CE" },
+    { key: "pink", label: "Rosa", value: "#E4569E" },
+    { key: "graphite", label: "Grafito", value: "#5C6470" },
+];
+function hexToRgbObj(hex) {
+    const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex || "");
+    if (!m)
+        return null;
+    return { r: parseInt(m[1], 16), g: parseInt(m[2], 16), b: parseInt(m[3], 16) };
+}
+const clampByte = (n) => Math.max(0, Math.min(255, Math.round(n)));
+function accentRgba(hex, alpha) {
+    const rgb = hexToRgbObj(hex);
+    if (!rgb)
+        return null;
+    return `rgba(${rgb.r},${rgb.g},${rgb.b},${alpha})`;
+}
+// Mezcla un color hacia blanco (percent > 0) o hacia negro (percent < 0), útil para derivar
+// una variante clara/oscura de "accentText" a partir del color de acento elegido.
+function shadeHex(hex, percent) {
+    const rgb = hexToRgbObj(hex);
+    if (!rgb)
+        return hex;
+    const target = percent < 0 ? 0 : 255;
+    const p = Math.abs(percent);
+    const toHex = (n) => clampByte(n).toString(16).padStart(2, "0");
+    const r = (target - rgb.r) * p + rgb.r;
+    const g = (target - rgb.g) * p + rgb.g;
+    const b = (target - rgb.b) * p + rgb.b;
+    return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+}
+// Aplica el color de acento personalizado del taller (si tiene uno válido) sobre la paleta C ya
+// resuelta para el tema claro/oscuro actual. Se llama en cada render de App(), igual que el
+// cambio de tema, así todos los componentes toman el color nuevo en el mismo repintado.
+function applyAccentColor(hex, resolvedTheme) {
+    if (!hex || !hexToRgbObj(hex))
+        return;
+    C.accent = hex;
+    C.accentSoft = accentRgba(hex, 0.14);
+    C.accentText = resolvedTheme === "light" ? shadeHex(hex, -0.32) : shadeHex(hex, 0.35);
+    C.shadowGlow = `0 8px 24px -8px ${accentRgba(hex, resolvedTheme === "light" ? 0.3 : 0.35)}`;
+}
+// Convierte el color de acento del taller a [r,g,b] para usarlo en el PDF (jsPDF trabaja con
+// arreglos RGB, no con CSS). Si no hay color configurado, cae al naranja por defecto del sistema.
+function pdfAccentRgb(settings) {
+    const rgb = hexToRgbObj(settings && settings.accentColor);
+    return rgb ? [rgb.r, rgb.g, rgb.b] : [230, 90, 20];
+}
+// Reduce cualquier imagen subida a un tamaño razonable (máx. 320px de lado) antes de guardarla
+// como logo, para no inflar el localStorage/Firestore con fotos de varios MB. Devuelve una
+// promesa con { dataUrl, aspect } (aspect = ancho/alto, para poder dibujarla sin deformarla en el PDF).
+function resizeLogoFile(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onerror = () => reject(new Error("No se pudo leer la imagen."));
+        reader.onload = () => {
+            const img = new Image();
+            img.onerror = () => reject(new Error("El archivo no parece ser una imagen válida."));
+            img.onload = () => {
+                const maxSide = 320;
+                const scale = Math.min(1, maxSide / Math.max(img.naturalWidth, img.naturalHeight));
+                const w = Math.max(1, Math.round(img.naturalWidth * scale));
+                const h = Math.max(1, Math.round(img.naturalHeight * scale));
+                const canvas = document.createElement("canvas");
+                canvas.width = w;
+                canvas.height = h;
+                const ctx = canvas.getContext("2d");
+                ctx.clearRect(0, 0, w, h);
+                ctx.drawImage(img, 0, 0, w, h);
+                resolve({ dataUrl: canvas.toDataURL("image/png"), aspect: img.naturalWidth / img.naturalHeight });
+            };
+            img.src = String(reader.result);
+        };
+        reader.readAsDataURL(file);
+    });
+}
 /* ---------------------------------- USUARIOS Y PERMISOS ---------------------------------- */
 // Cada módulo del sistema tiene un nivel de acceso por rol: "none" (oculto), "ver" (solo lectura)
 // o "editar" (lectura y escritura). Además hay 3 permisos transversales: verMontos (ver precios y
@@ -875,6 +973,23 @@ const proformaValidUntil = (pf) => {
     d.setDate(d.getDate() + (pf.validDays || 7));
     return d.toISOString().slice(0, 10);
 };
+// Resuelve el cliente/vehículo de una proforma: si tiene clientId/vehicleId, lo busca en las
+// listas normales; si no (proforma para alguien fuera de la lista de clientes), arma un objeto
+// equivalente a partir de los datos sueltos guardados en la propia proforma (guestClient/guestVehicle).
+const resolveProformaClient = (pf, clients) => {
+    if (pf.clientId)
+        return clients.find((c) => c.id === pf.clientId) || null;
+    if (pf.guestClient)
+        return { id: null, name: pf.guestClient.name || "Cliente ocasional", phone: pf.guestClient.phone || "", isGuest: true };
+    return null;
+};
+const resolveProformaVehicle = (pf, vehicles) => {
+    if (pf.vehicleId)
+        return vehicles.find((v) => v.id === pf.vehicleId) || null;
+    if (pf.guestVehicle)
+        return { id: null, plate: pf.guestVehicle.plate || "", brand: pf.guestVehicle.brand || "", model: pf.guestVehicle.model || "", year: pf.guestVehicle.year || "", isGuest: true };
+    return null;
+};
 const fmtDatePE = (iso) => {
     if (!iso)
         return "";
@@ -882,7 +997,36 @@ const fmtDatePE = (iso) => {
     return d.toLocaleDateString("es-PE", { day: "2-digit", month: "2-digit", year: "numeric" });
 };
 const onlyDigits = (s) => (s || "").replace(/\D/g, "");
+// Formatea una placa al estándar peruano vigente: 3 letras + guión + 3 números (ej. ABC-123),
+// el formato que usa la SUNARP para autos, camionetas y SUVs desde 2011. Se limpia todo lo que
+// no sea letra o número, se pasa a mayúsculas y se inserta el guión automáticamente.
+const formatPlatePE = (raw) => {
+    const clean = (raw || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 6);
+    return clean.length > 3 ? `${clean.slice(0, 3)}-${clean.slice(3)}` : clean;
+};
 /* ---------------------------------- PDF · PROFORMA ---------------------------------- */
+// Dibuja el logo del taller (si hay uno subido en Ajustes) en la esquina superior izquierda del
+// PDF, respetando su proporción original. Devuelve cuántos mm hay que correr el texto del
+// encabezado a la derecha para no encimarse con la imagen (0 si no hay logo).
+function addTallerHeaderLogo(doc, settings, marginX) {
+    if (!(settings === null || settings === void 0 ? void 0 : settings.logoDataUrl))
+        return 0;
+    try {
+        const maxH = 16, maxW = 38;
+        const aspect = settings.logoAspect && settings.logoAspect > 0 ? settings.logoAspect : 1;
+        let w = maxH * aspect, h = maxH;
+        if (w > maxW) {
+            w = maxW;
+            h = w / aspect;
+        }
+        const fmt = settings.logoDataUrl.indexOf("image/png") !== -1 ? "PNG" : "JPEG";
+        doc.addImage(settings.logoDataUrl, fmt, marginX, 8, w, h);
+        return w + 5;
+    }
+    catch (e) {
+        return 0;
+    }
+}
 function buildProformaDoc(pf, client, vehicle, settings) {
     if (!window.jspdf || !window.jspdf.jsPDF) {
         throw new Error("La librería de generación de PDF no cargó. Revisa tu conexión a internet.");
@@ -893,20 +1037,23 @@ function buildProformaDoc(pf, client, vehicle, settings) {
     const pageHeight = doc.internal.pageSize.getHeight();
     const marginX = 15;
     let y = 18;
+    const logoOffset = addTallerHeaderLogo(doc, settings, marginX);
+    const textX = marginX + logoOffset;
+    const accentRgb = pdfAccentRgb(settings);
     doc.setFont("helvetica", "bold");
     doc.setFontSize(16);
     doc.setTextColor(30, 30, 30);
-    doc.text(settings.tallerNombre || "Taller Mecánico", marginX, y);
+    doc.text(settings.tallerNombre || "Taller Mecánico", textX, y);
     doc.setFont("helvetica", "normal");
     doc.setFontSize(9);
     doc.setTextColor(90, 90, 90);
     let subY = y + 6;
     [settings.address, settings.phone && `Tel: ${settings.phone}`, settings.ruc && `RUC: ${settings.ruc}`, settings.email]
         .filter(Boolean)
-        .forEach((line) => { doc.text(line, marginX, subY); subY += 4.5; });
+        .forEach((line) => { doc.text(line, textX, subY); subY += 4.5; });
     doc.setFont("helvetica", "bold");
     doc.setFontSize(20);
-    doc.setTextColor(230, 90, 20);
+    doc.setTextColor(...accentRgb);
     doc.text("PROFORMA", pageWidth - marginX, y, { align: "right" });
     doc.setFont("helvetica", "normal");
     doc.setFontSize(10);
@@ -942,7 +1089,7 @@ function buildProformaDoc(pf, client, vehicle, settings) {
         body: rows,
         theme: "grid",
         styles: { font: "helvetica", fontSize: 9.5, cellPadding: 3, textColor: [40, 40, 40] },
-        headStyles: { fillColor: [230, 90, 20], textColor: [255, 255, 255], fontStyle: "bold" },
+        headStyles: { fillColor: accentRgb, textColor: [255, 255, 255], fontStyle: "bold" },
         columnStyles: { 1: { halign: "center", cellWidth: 18 }, 2: { halign: "right", cellWidth: 30 }, 3: { halign: "right", cellWidth: 32 } },
         margin: { left: marginX, right: marginX },
     });
@@ -979,6 +1126,38 @@ function buildProformaDoc(pf, client, vehicle, settings) {
         const noteLines = doc.splitTextToSize(pf.notes, pageWidth - marginX * 2);
         doc.text(noteLines, marginX, finalY);
         finalY += noteLines.length * 4.5 + 4;
+    }
+    if ((pf.vehiclePhotos || []).length > 0) {
+        if (finalY > pageHeight - 60) {
+            doc.addPage();
+            finalY = 18;
+        }
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(9.5);
+        doc.setTextColor(30, 30, 30);
+        doc.text(`Fotos del veh\u00EDculo (${pf.vehiclePhotos.length})`, marginX, finalY);
+        finalY += 6;
+        const imgW = (pageWidth - marginX * 2 - 10) / 3;
+        const imgH = imgW * 0.75;
+        let x = marginX;
+        pf.vehiclePhotos.forEach((p) => {
+            if (x + imgW > pageWidth - marginX + 0.5) {
+                x = marginX;
+                finalY += imgH + 5;
+            }
+            if (finalY + imgH > pageHeight - 20) {
+                doc.addPage();
+                finalY = 18;
+                x = marginX;
+            }
+            try {
+                const fmt = p.dataUrl.indexOf("image/png") !== -1 ? "PNG" : "JPEG";
+                doc.addImage(p.dataUrl, fmt, x, finalY, imgW, imgH);
+            }
+            catch (e) { /* si una imagen no puede embeberse, se omite y se continúa */ }
+            x += imgW + 5;
+        });
+        finalY += imgH + 10;
     }
     doc.setFont("helvetica", "italic");
     doc.setFontSize(8.5);
@@ -1038,21 +1217,24 @@ function buildReceptionDoc(order, client, vehicle, settings) {
     const pageHeight = doc.internal.pageSize.getHeight();
     const marginX = 15;
     let y = 18;
+    const logoOffset = addTallerHeaderLogo(doc, settings, marginX);
+    const textX = marginX + logoOffset;
+    const accentRgb = pdfAccentRgb(settings);
     const ck = order.checkin || emptyCheckin();
     doc.setFont("helvetica", "bold");
     doc.setFontSize(16);
     doc.setTextColor(30, 30, 30);
-    doc.text(settings.tallerNombre || "Taller Mecánico", marginX, y);
+    doc.text(settings.tallerNombre || "Taller Mecánico", textX, y);
     doc.setFont("helvetica", "normal");
     doc.setFontSize(9);
     doc.setTextColor(90, 90, 90);
     let subY = y + 6;
     [settings.address, settings.phone && `Tel: ${settings.phone}`, settings.ruc && `RUC: ${settings.ruc}`]
         .filter(Boolean)
-        .forEach((line) => { doc.text(line, marginX, subY); subY += 4.5; });
+        .forEach((line) => { doc.text(line, textX, subY); subY += 4.5; });
     doc.setFont("helvetica", "bold");
     doc.setFontSize(17);
-    doc.setTextColor(230, 90, 20);
+    doc.setTextColor(...accentRgb);
     doc.text("ACTA DE RECEPCIÓN", pageWidth - marginX, y, { align: "right" });
     doc.setFont("helvetica", "normal");
     doc.setFontSize(10);
@@ -1095,7 +1277,7 @@ function buildReceptionDoc(order, client, vehicle, settings) {
         body: rows,
         theme: "grid",
         styles: { font: "helvetica", fontSize: 8.8, cellPadding: 2.6, textColor: [40, 40, 40] },
-        headStyles: { fillColor: [230, 90, 20], textColor: [255, 255, 255], fontStyle: "bold" },
+        headStyles: { fillColor: accentRgb, textColor: [255, 255, 255], fontStyle: "bold" },
         columnStyles: { 1: { cellWidth: 32 } },
         margin: { left: marginX, right: marginX },
     });
@@ -1171,16 +1353,18 @@ function downloadReceptionPDF(order, client, vehicle, settings) {
 // desde el celular del cliente se refleje en el equipo del taller (dos dispositivos distintos)
 // hace falta configurar FIREBASE_CONFIG arriba y alojar el archivo en una URL pública.
 const proformaApprovalLink = (pf) => `${window.location.origin}${window.location.pathname}#aprobar-${pf.id}`;
-// Llama a la funcion gratuita en Vercel (fuera de Firebase) para que envie el push al celular del
-// taller. Si no se configuro NOTIFY_ENDPOINT todavia, simplemente no hace nada (no rompe el flujo
-// de aprobacion normal, que sigue funcionando por Firestore de todas formas).
-function triggerPushNotification(proformaId) {
+// Llama a la funcion gratuita en Vercel (fuera de Firebase) para que envie el push real al celular
+// del taller (funciona incluso con Expert cerrado). title/body ya vienen armados desde donde se
+// llama, para que la funcion de Vercel no tenga que leerlos de Firestore (evita mostrar datos
+// desactualizados si la escritura de la aprobacion todavia no llego). Si no se configuro
+// NOTIFY_ENDPOINT todavia, simplemente no hace nada (no rompe el flujo normal por Firestore).
+function triggerPushNotification(proformaId, payload) {
     if (!NOTIFY_ENDPOINT)
         return;
     fetch(NOTIFY_ENDPOINT, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ proformaId: proformaId, secret: NOTIFY_SECRET }),
+        body: JSON.stringify({ proformaId: proformaId, secret: NOTIFY_SECRET, ...payload }),
     }).catch((e) => console.error("No se pudo avisar por push", e));
 }
 function shareApprovalRequestWhatsApp(pf, client, settings) {
@@ -1758,8 +1942,10 @@ function ProformaCard({ pf, client, vehicle, onOpen }) {
                 React.createElement("div", { className: "flex items-center gap-2", style: { color: C.textMute } },
                     React.createElement(FileText, { size: 13 }),
                     React.createElement("span", { className: "text-[11px] font-mono tracking-widest" }, pf.code)),
-                React.createElement("div", { style: { fontFamily: "Oswald, sans-serif" }, className: "text-lg mt-1 tracking-wide truncate" }, vehicle ? `${vehicle.brand} ${vehicle.model}` : "—"),
-                React.createElement("div", { className: "text-xs mt-0.5 truncate", style: { color: C.textSoft } }, client === null || client === void 0 ? void 0 : client.name)),
+                React.createElement("div", { style: { fontFamily: "Oswald, sans-serif" }, className: "text-lg mt-1 tracking-wide truncate" }, vehicle && (vehicle.brand || vehicle.model) ? `${vehicle.brand} ${vehicle.model}`.trim() : (vehicle === null || vehicle === void 0 ? void 0 : vehicle.plate) || "—"),
+                React.createElement("div", { className: "text-xs mt-0.5 truncate flex items-center gap-1.5", style: { color: C.textSoft } },
+                    client === null || client === void 0 ? void 0 : client.name,
+                    (client === null || client === void 0 ? void 0 : client.isGuest) && React.createElement("span", { className: "text-[9px] px-1.5 py-0.5 rounded-full shrink-0", style: { background: C.surfaceHi, color: C.textMute } }, "ocasional"))),
             React.createElement("span", { className: "shrink-0 text-[10px] font-mono", style: { color: C.textMute } }, fmtDatePE(pf.date))),
         React.createElement("div", { className: "mx-5 bg-[length:8px_1px] bg-repeat-x h-px", style: { backgroundImage: `linear-gradient(90deg, ${C.border} 50%, transparent 50%)` } }),
         React.createElement("div", { className: "flex items-center justify-between gap-2 px-5 py-4" },
@@ -1769,7 +1955,7 @@ function ProformaCard({ pf, client, vehicle, onOpen }) {
                     React.createElement(ShieldCheck, { size: 14 }))),
             React.createElement("span", { style: { fontFamily: "JetBrains Mono, monospace", color: C.text }, className: "text-sm font-medium" }, money(proformaTotal(pf))))));
 }
-function ProformasView({ proformas, setProformas, clients, vehicles, settings, focusRequest }) {
+function ProformasView({ proformas, setProformas, clients, vehicles, settings, focusRequest, logAudit }) {
     const [filter, setFilter] = useState("todas");
     const [query, setQuery] = useState("");
     const [openId, setOpenId] = useState(() => (focusRequest ? focusRequest.id : null));
@@ -1778,12 +1964,12 @@ function ProformasView({ proformas, setProformas, clients, vehicles, settings, f
         if (focusRequest && focusRequest.id)
             setOpenId(focusRequest.id);
     }, [focusRequest]);
-    const findClient = (id) => clients.find((c) => c.id === id);
-    const findVehicle = (id) => vehicles.find((v) => v.id === id);
+    const findClient = (p) => resolveProformaClient(p, clients);
+    const findVehicle = (p) => resolveProformaVehicle(p, vehicles);
     const filtered = proformas.filter((p) => {
         const matchStatus = filter === "todas" || p.status === filter;
-        const v = findVehicle(p.vehicleId);
-        const c = findClient(p.clientId);
+        const v = findVehicle(p);
+        const c = findClient(p);
         const q = query.toLowerCase();
         const matchQuery = !q || p.code.toLowerCase().includes(q) || (v === null || v === void 0 ? void 0 : v.plate.toLowerCase().includes(q)) || (c === null || c === void 0 ? void 0 : c.name.toLowerCase().includes(q));
         return matchStatus && matchQuery;
@@ -1794,8 +1980,18 @@ function ProformasView({ proformas, setProformas, clients, vehicles, settings, f
         return `PRO-${String(next).padStart(4, "0")}`;
     };
     const openProforma = openId ? proformas.find((p) => p.id === openId) : null;
-    const updateStatus = (id, status) => setProformas((prev) => prev.map((p) => (p.id === id ? { ...p, status } : p)));
-    const removeProforma = (id) => setProformas((prev) => prev.filter((p) => p.id !== id));
+    const updateStatus = (id, status) => {
+        const pf = proformas.find((p) => p.id === id);
+        setProformas((prev) => prev.map((p) => (p.id === id ? { ...p, status } : p)));
+        if (pf && logAudit)
+            logAudit("estado", "proformas", pf.code, `${pf.status || "-"} → ${status}`);
+    };
+    const removeProforma = (id) => {
+        const pf = proformas.find((p) => p.id === id);
+        setProformas((prev) => prev.filter((p) => p.id !== id));
+        if (pf && logAudit)
+            logAudit("eliminar", "proformas", pf.code, money(proformaTotal(pf)));
+    };
     const setClientApproval = (id, approval) => setProformas((prev) => prev.map((p) => (p.id === id ? { ...p, clientApproval: approval, status: (approval === null || approval === void 0 ? void 0 : approval.approved) ? "aprobada" : p.status } : p)));
     return (React.createElement("div", { className: "space-y-5" },
         React.createElement("div", { className: "flex flex-col sm:flex-row sm:items-center justify-between gap-3" },
@@ -1818,9 +2014,9 @@ function ProformasView({ proformas, setProformas, clients, vehicles, settings, f
                 proformas.filter((p) => p.status === s.key).length,
                 ")")))),
         filtered.length === 0 ? (React.createElement(Card, { className: "p-10 text-center" },
-            React.createElement("p", { style: { color: C.textMute }, className: "text-sm" }, "No hay proformas que coincidan con la b\u00FAsqueda."))) : (React.createElement("div", { className: "grid sm:grid-cols-2 xl:grid-cols-3 gap-4" }, filtered.map((p) => (React.createElement(ProformaCard, { key: p.id, pf: p, client: findClient(p.clientId), vehicle: findVehicle(p.vehicleId), onOpen: () => setOpenId(p.id) }))))),
-        openProforma && (React.createElement(ProformaDetail, { pf: openProforma, client: findClient(openProforma.clientId), vehicle: findVehicle(openProforma.vehicleId), settings: settings, onClose: () => setOpenId(null), onStatusChange: (status) => updateStatus(openProforma.id, status), onDelete: () => { removeProforma(openProforma.id); setOpenId(null); }, onSetClientApproval: (approval) => setClientApproval(openProforma.id, approval) })),
-        showNew && (React.createElement(NewProformaModal, { clients: clients, vehicles: vehicles, code: nextCode(), onClose: () => setShowNew(false), onCreate: (pf) => { setProformas((prev) => [pf, ...prev]); setShowNew(false); } }))));
+            React.createElement("p", { style: { color: C.textMute }, className: "text-sm" }, "No hay proformas que coincidan con la b\u00FAsqueda."))) : (React.createElement("div", { className: "grid sm:grid-cols-2 xl:grid-cols-3 gap-4" }, filtered.map((p) => (React.createElement(ProformaCard, { key: p.id, pf: p, client: findClient(p), vehicle: findVehicle(p), onOpen: () => setOpenId(p.id) }))))),
+        openProforma && (React.createElement(ProformaDetail, { pf: openProforma, client: findClient(openProforma), vehicle: findVehicle(openProforma), settings: settings, onClose: () => setOpenId(null), onStatusChange: (status) => updateStatus(openProforma.id, status), onDelete: () => { removeProforma(openProforma.id); setOpenId(null); }, onSetClientApproval: (approval) => setClientApproval(openProforma.id, approval) })),
+        showNew && (React.createElement(NewProformaModal, { clients: clients, vehicles: vehicles, code: nextCode(), onClose: () => setShowNew(false), onCreate: (pf) => { setProformas((prev) => [pf, ...prev]); if (logAudit) logAudit("crear", "proformas", pf.code, money(proformaTotal(pf))); setShowNew(false); } }))));
 }
 function ProformaDetail({ pf, client, vehicle, settings, onClose, onStatusChange, onDelete, onSetClientApproval }) {
     const st = statusProformaOf(pf.status);
@@ -1880,8 +2076,10 @@ function ProformaDetail({ pf, client, vehicle, settings, onClose, onStatusChange
             React.createElement(Badge, { color: st.color, soft: st.soft }, st.label)),
         React.createElement("div", { className: "grid sm:grid-cols-2 gap-4 mb-6" },
             React.createElement(Card, { className: "p-4" },
-                React.createElement("div", { className: "text-xs uppercase tracking-wide mb-2", style: { color: C.textMute } }, "Cliente"),
-                React.createElement("div", { className: "text-sm font-medium truncate" }, client === null || client === void 0 ? void 0 : client.name),
+                React.createElement("div", { className: "text-xs uppercase tracking-wide mb-2 flex items-center gap-2", style: { color: C.textMute } },
+                    "Cliente",
+                    (client === null || client === void 0 ? void 0 : client.isGuest) && React.createElement("span", { className: "text-[9px] normal-case px-1.5 py-0.5 rounded-full", style: { background: C.surfaceHi, color: C.textSoft } }, "ocasional \u00B7 no registrado")),
+                React.createElement("div", { className: "text-sm font-medium truncate" }, (client === null || client === void 0 ? void 0 : client.name) || "\u2014"),
                 React.createElement("div", { className: "text-xs mt-1 flex items-center gap-1.5", style: { color: C.textMute } },
                     React.createElement(Phone, { size: 12 }), client === null || client === void 0 ? void 0 :
                     client.phone)),
@@ -1912,6 +2110,12 @@ function ProformaDetail({ pf, client, vehicle, settings, onClose, onStatusChange
         pf.notes && (React.createElement("div", { className: "mb-6" },
             React.createElement("div", { className: "text-xs uppercase tracking-wide mb-2", style: { color: C.textMute } }, "Notas"),
             React.createElement("p", { className: "text-sm", style: { color: C.textSoft } }, pf.notes))),
+        (pf.vehiclePhotos || []).length > 0 && (React.createElement("div", { className: "mb-6" },
+            React.createElement("div", { className: "text-xs uppercase tracking-wide mb-2", style: { color: C.textMute } },
+                "Fotos del veh\u00EDculo (",
+                pf.vehiclePhotos.length,
+                ")"),
+            React.createElement("div", { className: "grid grid-cols-3 sm:grid-cols-4 gap-2" }, pf.vehiclePhotos.map((p) => (React.createElement("img", { key: p.id, src: p.dataUrl, className: "w-full h-20 object-cover rounded-lg", style: { border: `1px solid ${C.border}` } })))))),
         error && (React.createElement("div", { className: "mb-4 text-xs px-3 py-2.5 rounded-lg", style: { background: C.dangerSoft, color: C.danger } }, error)),
         React.createElement("div", { className: "flex flex-col sm:flex-row gap-2 mb-6" },
             React.createElement(Button, { variant: "subtle", onClick: handleDownload, className: "flex-1" },
@@ -1970,12 +2174,37 @@ function ProformaDetail({ pf, client, vehicle, settings, onClose, onStatusChange
 }
 function NewProformaModal({ clients, vehicles, code, onClose, onCreate }) {
     var _a;
+    const [isGuest, setIsGuest] = useState(false);
     const [clientId, setClientId] = useState(((_a = clients[0]) === null || _a === void 0 ? void 0 : _a.id) || "");
     const [vehicleId, setVehicleId] = useState("");
+    const [guestName, setGuestName] = useState("");
+    const [guestPhone, setGuestPhone] = useState("");
+    const [guestPlate, setGuestPlate] = useState("");
+    const [guestBrand, setGuestBrand] = useState("");
+    const [guestModel, setGuestModel] = useState("");
+    const [guestYear, setGuestYear] = useState("");
     const [validDays, setValidDays] = useState(7);
     const [incluyeIgv, setIncluyeIgv] = useState(true);
     const [notes, setNotes] = useState("");
     const [items, setItems] = useState([{ id: "it0", description: "", qty: 1, price: "" }]);
+    const [photos, setPhotos] = useState([]);
+    const [busyPhotos, setBusyPhotos] = useState(false);
+    const handlePhotoFiles = (e) => {
+        const files = Array.from(e.target.files || []);
+        if (files.length === 0)
+            return;
+        setBusyPhotos(true);
+        Promise.all(files.map((file) => new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve({ id: "ph" + Date.now() + Math.random().toString(36).slice(2, 6), dataUrl: reader.result });
+            reader.readAsDataURL(file);
+        }))).then((newPhotos) => {
+            setPhotos((prev) => [...prev, ...newPhotos]);
+            setBusyPhotos(false);
+        });
+        e.target.value = "";
+    };
+    const removePhoto = (id) => setPhotos((prev) => prev.filter((p) => p.id !== id));
     const clientVehicles = vehicles.filter((v) => v.clientId === clientId);
     const updateItem = (id, patch) => setItems((prev) => prev.map((it) => (it.id === id ? { ...it, ...patch } : it)));
     const addItem = () => setItems((prev) => [...prev, { id: "it" + Date.now() + Math.random().toString(36).slice(2, 6), description: "", qty: 1, price: "" }]);
@@ -1985,25 +2214,87 @@ function NewProformaModal({ clients, vehicles, code, onClose, onCreate }) {
         .map((it) => ({ id: it.id, description: it.description, qty: Number(it.qty) || 1, price: Number(it.price) || 0 }));
     const subtotal = validItems.reduce((s, it) => s + it.qty * it.price, 0);
     const total = subtotal * (incluyeIgv ? 1 + IGV_RATE : 1);
+    const canSubmit = isGuest
+        ? guestName.trim().length > 0 && validItems.length > 0
+        : Boolean(clientId) && Boolean(vehicleId) && validItems.length > 0;
+    const photoThumbs = photos.map((p, idx) => React.createElement("div", {
+        key: p.id,
+        className: "group relative rounded-xl overflow-hidden aspect-square",
+        style: { border: `1px solid ${C.border}`, boxShadow: C.shadow },
+    },
+        React.createElement("img", { src: p.dataUrl, className: "w-full h-full object-cover" }),
+        idx === 0 && React.createElement("span", {
+            className: "absolute bottom-1 left-1 text-[9px] font-medium px-1.5 py-0.5 rounded-md tracking-wide",
+            style: { background: "rgba(10,11,12,0.72)", color: C.text },
+        }, "PORTADA"),
+        React.createElement("button", {
+            type: "button",
+            onClick: () => removePhoto(p.id),
+            className: "absolute top-1 right-1 w-5 h-5 rounded-full flex items-center justify-center transition-transform hover:scale-110",
+            style: { background: "rgba(10,11,12,0.75)", color: C.text },
+        }, React.createElement(X, { size: 12 }))));
+    const photoEmptyState = React.createElement("div", { className: "flex flex-col items-center text-center py-2 mb-4" },
+        React.createElement("div", { className: "w-11 h-11 rounded-full flex items-center justify-center mb-3", style: { background: C.accentSoft } },
+            React.createElement(Camera, { size: 18, style: { color: C.accentText } })),
+        React.createElement("p", { className: "text-xs max-w-[260px] leading-relaxed", style: { color: C.textMute } }, "Deja evidencia del estado del veh\u00EDculo antes de cotizar. Puedes tomar la foto al momento o subir una desde tu galer\u00EDa."));
+    const photoGrid = React.createElement("div", { className: "grid grid-cols-3 sm:grid-cols-4 gap-2.5 mb-4" }, photoThumbs);
+    const photoActions = React.createElement("div", { className: "flex flex-wrap gap-2.5 justify-center" },
+        React.createElement("label", {
+            className: "inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold cursor-pointer transition-all hover:brightness-110 active:scale-[0.97]",
+            style: { background: `linear-gradient(180deg, #FF7A32 0%, ${C.accent} 100%)`, color: "#1A0D05", boxShadow: `0 1px 0 rgba(255,255,255,0.25) inset, ${C.shadowGlow}` },
+        },
+            React.createElement(Camera, { size: 15 }),
+            busyPhotos ? "Cargando\u2026" : "Tomar foto",
+            React.createElement("input", { type: "file", accept: "image/*", capture: "environment", multiple: true, className: "hidden", onChange: handlePhotoFiles })),
+        React.createElement("label", {
+            className: "inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold cursor-pointer transition-colors hover:bg-white/5",
+            style: { background: C.surfaceHi, color: C.text, border: `1px solid ${C.border}` },
+        },
+            React.createElement(Upload, { size: 15 }),
+            busyPhotos ? "Cargando\u2026" : "Elegir de galer\u00EDa",
+            React.createElement("input", { type: "file", accept: "image/*", multiple: true, className: "hidden", onChange: handlePhotoFiles })));
+    const photoSection = React.createElement("div", null,
+        React.createElement("div", { className: "flex items-center justify-between mb-2 gap-2" },
+            React.createElement("div", { className: "flex items-center gap-2" },
+                React.createElement("span", { className: "text-sm font-medium", style: { color: C.text } }, "Foto del veh\u00EDculo"),
+                photos.length > 0 && React.createElement("span", { className: "text-[11px] font-mono px-1.5 py-0.5 rounded-full", style: { background: C.surfaceHi, color: C.textMute } }, photos.length)),
+            React.createElement("span", { className: "text-[11px]", style: { color: C.textMute } }, "Opcional")),
+        React.createElement("div", { className: "rounded-2xl p-4", style: { background: `${C.bg}90`, border: `1px dashed ${C.border}` } },
+            photos.length === 0 ? photoEmptyState : photoGrid,
+            photoActions));
     const submit = () => {
-        if (!clientId || !vehicleId || validItems.length === 0)
+        if (!canSubmit)
             return;
-        onCreate({
+        const base = {
             id: "pf" + Date.now(),
             code,
-            clientId,
-            vehicleId,
             status: "pendiente",
             date: new Date().toISOString().slice(0, 10),
             validDays: Number(validDays) || 7,
             incluyeIgv,
             items: validItems,
             notes,
-        });
+            vehiclePhotos: photos.map((p) => ({ id: p.id, dataUrl: p.dataUrl })),
+        };
+        if (isGuest) {
+            onCreate({
+                ...base,
+                clientId: "",
+                vehicleId: "",
+                guestClient: { name: guestName.trim(), phone: guestPhone.trim() },
+                guestVehicle: { plate: formatPlatePE(guestPlate), brand: guestBrand.trim(), model: guestModel.trim(), year: guestYear.trim() },
+            });
+        }
+        else {
+            onCreate({ ...base, clientId, vehicleId });
+        }
     };
     return (React.createElement(Modal, { title: "Nueva proforma", onClose: onClose, wide: true },
         React.createElement("div", { className: "space-y-4" },
-            React.createElement("div", { className: "grid sm:grid-cols-2 gap-4" },
+            React.createElement("div", { className: "flex gap-2 p-1 rounded-xl", style: { background: C.surfaceHi } },
+                React.createElement("button", { type: "button", onClick: () => setIsGuest(false), className: "flex-1 text-xs font-medium py-2 rounded-lg transition-colors", style: { background: !isGuest ? C.surface : "transparent", color: !isGuest ? C.text : C.textMute, boxShadow: !isGuest ? C.shadow : "none" } }, "Cliente registrado"),
+                React.createElement("button", { type: "button", onClick: () => setIsGuest(true), className: "flex-1 text-xs font-medium py-2 rounded-lg transition-colors", style: { background: isGuest ? C.surface : "transparent", color: isGuest ? C.text : C.textMute, boxShadow: isGuest ? C.shadow : "none" } }, "Cliente nuevo / ocasional")),
+            !isGuest ? (React.createElement("div", { className: "grid sm:grid-cols-2 gap-4" },
                 React.createElement(Field, { label: "Cliente" },
                     React.createElement(Select, { value: clientId, onChange: (e) => { setClientId(e.target.value); setVehicleId(""); } }, clients.map((c) => React.createElement("option", { key: c.id, value: c.id }, c.name)))),
                 React.createElement(Field, { label: "Veh\u00EDculo" },
@@ -2014,7 +2305,23 @@ function NewProformaModal({ clients, vehicles, code, onClose, onCreate }) {
                             " \u00B7 ",
                             v.brand,
                             " ",
-                            v.model))))),
+                            v.model)))))) : (React.createElement("div", { className: "space-y-4" },
+                React.createElement("p", { className: "text-xs", style: { color: C.textMute } }, "Esta proforma no quedar\u00E1 asociada a tu lista de clientes ni veh\u00EDculos. Si despu\u00E9s quieres darle seguimiento, puedes registrarlo como cliente."),
+                React.createElement("div", { className: "grid sm:grid-cols-2 gap-4" },
+                    React.createElement(Field, { label: "Nombre del cliente" },
+                        React.createElement(Input, { value: guestName, onChange: (e) => setGuestName(e.target.value), placeholder: "Nombre completo" })),
+                    React.createElement(Field, { label: "Tel\u00E9fono (opcional)" },
+                        React.createElement(Input, { value: guestPhone, onChange: (e) => setGuestPhone(e.target.value), placeholder: "9XXXXXXXX" }))),
+                React.createElement("div", { className: "grid sm:grid-cols-2 gap-4" },
+                    React.createElement(Field, { label: "Placa (opcional)" },
+                        React.createElement(Input, { value: guestPlate, onChange: (e) => setGuestPlate(formatPlatePE(e.target.value)), placeholder: "ABC-123", maxLength: 7, className: "font-mono tracking-widest uppercase" })),
+                    React.createElement(Field, { label: "A\u00F1o (opcional)" },
+                        React.createElement(Input, { value: guestYear, onChange: (e) => setGuestYear(e.target.value), placeholder: "2020" }))),
+                React.createElement("div", { className: "grid sm:grid-cols-2 gap-4" },
+                    React.createElement(Field, { label: "Marca (opcional)" },
+                        React.createElement(Input, { value: guestBrand, onChange: (e) => setGuestBrand(e.target.value), placeholder: "Toyota" })),
+                    React.createElement(Field, { label: "Modelo (opcional)" },
+                        React.createElement(Input, { value: guestModel, onChange: (e) => setGuestModel(e.target.value), placeholder: "Yaris" }))))),
             React.createElement("div", null,
                 React.createElement("div", { className: "flex items-center justify-between mb-2 gap-2" },
                     React.createElement("span", { className: "text-sm", style: { color: C.textSoft } }, "\u00CDtems de la proforma"),
@@ -2033,6 +2340,7 @@ function NewProformaModal({ clients, vehicles, code, onClose, onCreate }) {
                 React.createElement("label", { className: "flex items-center gap-2 text-sm pt-6", style: { color: C.textSoft } },
                     React.createElement("input", { type: "checkbox", checked: incluyeIgv, onChange: (e) => setIncluyeIgv(e.target.checked) }),
                     "Incluir IGV (18%)")),
+            photoSection,
             React.createElement(Field, { label: "Notas (opcional)" },
                 React.createElement(TextArea, { rows: 2, value: notes, onChange: (e) => setNotes(e.target.value), placeholder: "Condiciones, observaciones\u2026" })),
             React.createElement("div", { className: "flex items-center justify-between text-sm pt-3", style: { borderTop: `1px solid ${C.borderSoft}` } },
@@ -2040,15 +2348,16 @@ function NewProformaModal({ clients, vehicles, code, onClose, onCreate }) {
                 React.createElement("span", { className: "font-mono font-semibold", style: { color: C.accentText } }, money(total))),
             React.createElement("div", { className: "flex gap-3 pt-2" },
                 React.createElement(Button, { variant: "ghost", onClick: onClose, className: "flex-1" }, "Cancelar"),
-                React.createElement(Button, { onClick: submit, className: "flex-1" },
+                React.createElement(Button, { onClick: submit, disabled: !canSubmit, className: "flex-1" },
                     "Crear proforma ",
                     code)))));
 }
 /* ---------------------------------- CLIENTES ---------------------------------- */
-function ClientesView({ clients, setClients, vehicles, orders }) {
+function ClientesView({ clients, setClients, vehicles, setVehicles, orders }) {
     const [query, setQuery] = useState("");
     const [showNew, setShowNew] = useState(false);
     const [openClient, setOpenClient] = useState(null);
+    const [addVehicle, setAddVehicle] = useState(false);
     const filtered = clients.filter((c) => c.name.toLowerCase().includes(query.toLowerCase()));
     return (React.createElement("div", { className: "space-y-5" },
         React.createElement("div", { className: "flex flex-col sm:flex-row sm:items-center justify-between gap-3" },
@@ -2093,7 +2402,11 @@ function ClientesView({ clients, setClients, vehicles, orders }) {
                         React.createElement(MapPin, { size: 14 }),
                         openClient.address)),
                 React.createElement("div", null,
-                    React.createElement("div", { className: "text-xs uppercase tracking-wide mb-2", style: { color: C.textMute } }, "Veh\u00EDculos"),
+                    React.createElement("div", { className: "flex items-center justify-between mb-2 gap-2" },
+                        React.createElement("span", { className: "text-xs uppercase tracking-wide", style: { color: C.textMute } }, "Veh\u00EDculos"),
+                        React.createElement("button", { type: "button", onClick: () => setAddVehicle(true), className: "text-xs font-medium flex items-center gap-1 shrink-0", style: { color: C.accentText } },
+                            React.createElement(Plus, { size: 13 }),
+                            " Agregar veh\u00EDculo")),
                     React.createElement("div", { className: "space-y-2" }, vehicles.filter((v) => v.clientId === openClient.id).map((v) => (React.createElement("div", { key: v.id, className: "flex justify-between text-sm py-2 px-3 rounded-lg", style: { background: C.surfaceHi } },
                         React.createElement("span", null,
                             v.brand,
@@ -2102,7 +2415,8 @@ function ClientesView({ clients, setClients, vehicles, orders }) {
                             " (",
                             v.year,
                             ")"),
-                        React.createElement("span", { className: "font-mono", style: { color: C.textMute } }, v.plate)))))),
+                        React.createElement("span", { className: "font-mono", style: { color: C.textMute } }, v.plate)))),
+                    vehicles.filter((v) => v.clientId === openClient.id).length === 0 && (React.createElement("p", { className: "text-xs py-1", style: { color: C.textMute } }, "Este cliente todav\u00EDa no tiene veh\u00EDculos registrados.")))),
                 React.createElement("div", null,
                     React.createElement("div", { className: "text-xs uppercase tracking-wide mb-2", style: { color: C.textMute } }, "Historial de \u00F3rdenes"),
                     React.createElement("div", { className: "space-y-2" }, orders.filter((o) => o.clientId === openClient.id).map((o) => {
@@ -2111,7 +2425,8 @@ function ClientesView({ clients, setClients, vehicles, orders }) {
                             React.createElement("span", { className: "font-mono text-xs" }, o.code),
                             React.createElement(Badge, { color: st.color, soft: st.soft }, st.label)));
                     })))))),
-        showNew && (React.createElement(NewClientModal, { onClose: () => setShowNew(false), onCreate: (client) => { setClients((prev) => [...prev, client]); setShowNew(false); } }))));
+        showNew && (React.createElement(NewClientModal, { onClose: () => setShowNew(false), onCreate: (client) => { setClients((prev) => [...prev, client]); setShowNew(false); } })),
+        addVehicle && openClient && (React.createElement(NewVehicleModal, { clients: clients, lockedClient: openClient, onClose: () => setAddVehicle(false), onCreate: (vehicle) => { setVehicles((prev) => [...prev, vehicle]); setAddVehicle(false); } }))));
 }
 function NewClientModal({ onClose, onCreate }) {
     const [name, setName] = useState("");
@@ -2177,9 +2492,9 @@ function VehiculosView({ vehicles, setVehicles, clients, orders }) {
         })),
         showNew && (React.createElement(NewVehicleModal, { clients: clients, onClose: () => setShowNew(false), onCreate: (vehicle) => { setVehicles((prev) => [...prev, vehicle]); setShowNew(false); } }))));
 }
-function NewVehicleModal({ clients, onClose, onCreate }) {
+function NewVehicleModal({ clients, lockedClient, onClose, onCreate }) {
     var _a;
-    const [clientId, setClientId] = useState(((_a = clients[0]) === null || _a === void 0 ? void 0 : _a.id) || "");
+    const [clientId, setClientId] = useState(lockedClient ? lockedClient.id : ((_a = clients[0]) === null || _a === void 0 ? void 0 : _a.id) || "");
     const [plate, setPlate] = useState("");
     const [brand, setBrand] = useState("");
     const [model, setModel] = useState("");
@@ -2189,15 +2504,18 @@ function NewVehicleModal({ clients, onClose, onCreate }) {
     const submit = () => {
         if (!clientId || !plate || !brand)
             return;
-        onCreate({ id: "v" + Date.now(), clientId, plate: plate.toUpperCase(), brand, model, year: Number(year) || "", color, vin });
+        onCreate({ id: "v" + Date.now(), clientId, plate: formatPlatePE(plate), brand, model, year: Number(year) || "", color, vin });
     };
     return (React.createElement(Modal, { title: "Nuevo veh\u00EDculo", onClose: onClose },
         React.createElement("div", { className: "space-y-4" },
-            React.createElement(Field, { label: "Propietario" },
-                React.createElement(Select, { value: clientId, onChange: (e) => setClientId(e.target.value) }, clients.map((c) => React.createElement("option", { key: c.id, value: c.id }, c.name)))),
+            lockedClient ? (React.createElement(Field, { label: "Propietario" },
+                React.createElement("div", { className: "flex items-center gap-2 text-sm px-3.5 py-2.5 rounded-xl", style: { background: C.surfaceHi, color: C.text, border: `1px solid ${C.border}` } },
+                    React.createElement(Users, { size: 14, style: { color: C.textMute } }),
+                    lockedClient.name))) : (React.createElement(Field, { label: "Propietario" },
+                React.createElement(Select, { value: clientId, onChange: (e) => setClientId(e.target.value) }, clients.map((c) => React.createElement("option", { key: c.id, value: c.id }, c.name))))),
             React.createElement("div", { className: "grid grid-cols-2 gap-4" },
                 React.createElement(Field, { label: "Placa" },
-                    React.createElement(Input, { value: plate, onChange: (e) => setPlate(e.target.value), placeholder: "ABC-123" })),
+                    React.createElement(Input, { value: plate, onChange: (e) => setPlate(formatPlatePE(e.target.value)), placeholder: "ABC-123", maxLength: 7, className: "font-mono tracking-widest uppercase" })),
                 React.createElement(Field, { label: "A\u00F1o" },
                     React.createElement(Input, { type: "number", value: year, onChange: (e) => setYear(e.target.value), placeholder: "2022" }))),
             React.createElement("div", { className: "grid grid-cols-2 gap-4" },
@@ -2502,7 +2820,7 @@ function UserFormModal({ user, roles, users, onSave, onClose }) {
                 React.createElement(Field, { label: "Confirmar PIN" },
                     React.createElement(Input, { type: "password", inputMode: "numeric", maxLength: 4, value: pin2, onChange: (e) => setPin2(e.target.value.replace(/\D/g, "")), placeholder: "\u2022\u2022\u2022\u2022" }))),
             React.createElement("label", { className: "flex items-center gap-2.5 text-sm cursor-pointer select-none" },
-                React.createElement("input", { type: "checkbox", checked: active, disabled: isLastAdmin, onChange: (e) => setActive(e.target.checked), className: "w-4 h-4 accent-[#FF6A1A]" }),
+                React.createElement("input", { type: "checkbox", checked: active, disabled: isLastAdmin, onChange: (e) => setActive(e.target.checked), className: "w-4 h-4", style: { accentColor: C.accent } }),
                 React.createElement("span", { style: { color: C.textSoft } },
                     "Cuenta activa ",
                     isLastAdmin && "(último administrador, no se puede desactivar)")),
@@ -2545,13 +2863,13 @@ function RoleFormModal({ role, onSave, onClose }) {
                     { key: "eliminar", label: "Eliminar registros", val: eliminar, set: setEliminar },
                     { key: "gestionUsuarios", label: "Gestionar usuarios y roles", val: gestionUsuarios, set: setGestionUsuarios },
                 ].map((p) => (React.createElement("label", { key: p.key, className: "flex items-center gap-2.5 text-sm cursor-pointer select-none px-3.5 py-2 rounded-xl", style: { background: C.surfaceHi } },
-                    React.createElement("input", { type: "checkbox", disabled: locked, checked: p.val, onChange: (e) => p.set(e.target.checked), className: "w-4 h-4 accent-[#FF6A1A]" }),
+                    React.createElement("input", { type: "checkbox", disabled: locked, checked: p.val, onChange: (e) => p.set(e.target.checked), className: "w-4 h-4", style: { accentColor: C.accent } }),
                     React.createElement("span", { style: { color: C.textSoft } }, p.label)))))),
             !locked && (React.createElement("div", { className: "flex gap-3 pt-2" },
                 React.createElement(Button, { variant: "ghost", onClick: onClose, className: "flex-1" }, "Cancelar"),
                 React.createElement(Button, { onClick: submit, className: "flex-1" }, "Guardar rol"))))));
 }
-function UsersRolesView({ users, setUsers, roles, setRoles, currentUser, settings, setSettings }) {
+function UsersRolesView({ users, setUsers, roles, setRoles, currentUser, settings, setSettings, logAudit }) {
     var _a, _b, _a2;
     const [showUserForm, setShowUserForm] = useState(false);
     // --- Huella / Face ID (solo este dispositivo) ---
@@ -2625,9 +2943,13 @@ function UsersRolesView({ users, setUsers, roles, setRoles, currentUser, setting
     const saveUser = (payload) => {
         if (editUser) {
             setUsers((prev) => prev.map((u) => (u.id === editUser.id ? { ...u, ...payload } : u)));
+            if (logAudit)
+                logAudit("editar", "usuarios", payload.name || editUser.name, "Datos de usuario actualizados");
         }
         else {
             setUsers((prev) => [...prev, { id: "usr" + Date.now(), createdAt: Date.now(), ...payload }]);
+            if (logAudit)
+                logAudit("crear", "usuarios", payload.name || "Nuevo usuario", "Usuario creado");
         }
         setShowUserForm(false);
         setEditUser(null);
@@ -2635,6 +2957,8 @@ function UsersRolesView({ users, setUsers, roles, setRoles, currentUser, setting
     const deleteUser = (u) => {
         setUsers((prev) => prev.filter((x) => x.id !== u.id));
         setConfirmDelete(null);
+        if (logAudit)
+            logAudit("eliminar", "usuarios", u.name, "Usuario eliminado");
     };
     const addRole = () => {
         const base = roles.find((r) => r.id === "recepcion") || roles[0];
@@ -2642,8 +2966,11 @@ function UsersRolesView({ users, setUsers, roles, setRoles, currentUser, setting
         setEditRole(newRole);
     };
     const saveRole = (role) => {
+        const isNew = !roles.some((r) => r.id === role.id);
         setRoles((prev) => (prev.some((r) => r.id === role.id) ? prev.map((r) => (r.id === role.id ? role : r)) : [...prev, role]));
         setEditRole(null);
+        if (logAudit)
+            logAudit(isNew ? "crear" : "editar", "roles", role.name, isNew ? "Rol creado" : "Permisos actualizados");
     };
     const autoLockOptions = [
         { v: 0, l: "Nunca" }, { v: 5, l: "5 minutos" }, { v: 15, l: "15 minutos" }, { v: 30, l: "30 minutos" }, { v: 60, l: "60 minutos" },
@@ -2805,7 +3132,7 @@ async function applyBackupSnapshot(data, db) {
 // borrar la clave de localStorage: si se borra la clave, el sistema vuelve a caer en esos datos de
 // ejemplo (usePersistentState usa initialValue como respaldo). Para dejar todo realmente en blanco,
 // hay que escribir arreglos vacíos explícitos.
-const EMPTY_SETTINGS = { tallerNombre: "", ownerName: "", ownerRole: "", phone: "", address: "", ruc: "", email: "", security: { autoLockMinutes: 20, lockOnOpen: true } };
+const EMPTY_SETTINGS = { tallerNombre: "", ownerName: "", ownerRole: "", phone: "", address: "", ruc: "", email: "", logoDataUrl: "", logoAspect: 1, accentColor: "", security: { autoLockMinutes: 20, lockOnOpen: true } };
 const BUSINESS_DATA_EMPTY = { clients: [], vehicles: [], parts: [], orders: [], appointments: [], caja: [], proformas: [], fcmTokens: [] };
 async function writeLocalAndCloud(values, db) {
     Object.keys(values).forEach((k) => {
@@ -2874,17 +3201,99 @@ function ConfirmPinModal({ title, description, confirmLabel, danger, currentUser
                 React.createElement(PinPad, { disabled: busy, onDigit: onDigit, onBackspace: () => setPin(pin.slice(0, -1)) }),
                 React.createElement(Button, { variant: "ghost", className: "w-full", onClick: onCancel }, "Cancelar"))))));
 }
-function AjustesView({ settings, setSettings, cloudStatus, cloudError, cloudProjectId, db, users, setUsers, roles, setRoles, currentUser, currentRole, themeMode, setThemeMode, onLock }) {
+function fmtDateTimePE(ts) {
+    if (!ts)
+        return "";
+    return new Date(ts).toLocaleString("es-PE", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
+}
+const AUDIT_ACTION_LABELS = {
+    crear: { label: "Creó", color: C.success, soft: C.successSoft },
+    editar: { label: "Editó", color: C.info, soft: C.infoSoft },
+    eliminar: { label: "Eliminó", color: C.danger, soft: C.dangerSoft },
+    estado: { label: "Cambió estado", color: C.warning, soft: C.warningSoft },
+    exportar: { label: "Exportó", color: C.textSoft, soft: C.textMuteSoft },
+    importar: { label: "Importó", color: C.purple, soft: C.purpleSoft },
+};
+const AUDIT_MODULE_LABELS = {
+    ajustes: "Ajustes", usuarios: "Usuarios", roles: "Roles", caja: "Caja",
+    ordenes: "Órdenes", proformas: "Proformas", sistema: "Sistema",
+};
+function downloadAuditCsv(entries, tallerNombre) {
+    const header = ["Fecha", "Usuario", "Acción", "Módulo", "Registro", "Detalle"];
+    const rows = entries.map((e) => [
+        fmtDateTimePE(e.ts), e.userName || "-",
+        (AUDIT_ACTION_LABELS[e.action] || { label: e.action }).label,
+        AUDIT_MODULE_LABELS[e.module] || e.module, e.label || "", e.detail || "",
+    ]);
+    const esc = (v) => `"${String(v).replace(/"/g, '""')}"`;
+    const csv = [header, ...rows].map((r) => r.map(esc).join(",")).join("\n");
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    const stamp = new Date().toISOString().slice(0, 10);
+    a.href = url;
+    a.download = `auditoria-${(tallerNombre || "taller").toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${stamp}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+// Vista de solo lectura del historial de acciones (quién hizo qué y cuándo). No tiene forma de
+// editar ni borrar entradas desde la interfaz -eso sería contradictorio con la idea de un registro
+// de auditoría confiable-, solo filtrar, revisar y exportar.
+function AuditLogView({ auditLog, tallerNombre }) {
+    const [moduleFilter, setModuleFilter] = useState("todos");
+    const [query, setQuery] = useState("");
+    const entries = auditLog || [];
+    const modules = Array.from(new Set(entries.map((e) => e.module))).filter(Boolean);
+    const filtered = entries.filter((e) => {
+        const matchModule = moduleFilter === "todos" || e.module === moduleFilter;
+        const q = query.trim().toLowerCase();
+        const matchQuery = !q || [e.userName, e.label, e.detail].filter(Boolean).some((s) => s.toLowerCase().includes(q));
+        return matchModule && matchQuery;
+    });
+    return (React.createElement("div", { className: "space-y-4" },
+        React.createElement(Card, { className: "p-6 space-y-4" },
+            React.createElement("div", { className: "flex items-center justify-between gap-3 flex-wrap" },
+                React.createElement("div", null,
+                    React.createElement("div", { className: "text-xs uppercase tracking-wide", style: { color: C.textMute } }, "Registro de auditoría"),
+                    React.createElement("p", { className: "text-sm mt-1", style: { color: C.textSoft } }, "Qui\u00E9n hizo qu\u00E9 y cu\u00E1ndo, en usuarios, roles, caja, \u00F3rdenes, proformas y ajustes del sistema. Se guarda autom\u00E1ticamente y no se puede editar ni borrar desde aqu\u00ED; se conservan los \u00FAltimos 500 eventos.")),
+                entries.length > 0 && (React.createElement(Button, { variant: "ghost", onClick: () => downloadAuditCsv(filtered, tallerNombre) },
+                    React.createElement(Download, { size: 15 }),
+                    " Exportar CSV"))),
+            React.createElement("div", { className: "flex flex-col sm:flex-row gap-3" },
+                React.createElement("div", { className: "relative flex-1" },
+                    React.createElement(Search, { size: 16, className: "absolute left-3 top-1/2 -translate-y-1/2", style: { color: C.textMute } }),
+                    React.createElement(Input, { placeholder: "Buscar por usuario o registro", value: query, onChange: (e) => setQuery(e.target.value), className: "pl-9" })),
+                modules.length > 1 && (React.createElement("select", { value: moduleFilter, onChange: (e) => setModuleFilter(e.target.value), className: "px-3 py-2.5 rounded-xl text-sm", style: { background: C.surfaceHi, color: C.text, border: `1px solid ${C.borderSoft}` } },
+                    React.createElement("option", { value: "todos" }, "Todos los m\u00F3dulos"),
+                    modules.map((m) => React.createElement("option", { key: m, value: m }, AUDIT_MODULE_LABELS[m] || m))))),
+            filtered.length === 0 ? (React.createElement("p", { className: "text-sm text-center py-8", style: { color: C.textMute } }, entries.length === 0 ? "Todavía no hay eventos registrados." : "Ningún evento coincide con la búsqueda.")) : (React.createElement("div", { className: "space-y-1.5 max-h-[520px] overflow-y-auto pr-1" }, filtered.map((e) => {
+                const ac = AUDIT_ACTION_LABELS[e.action] || { label: e.action, color: C.textSoft, soft: C.textMuteSoft };
+                return (React.createElement("div", { key: e.id, className: "flex items-start gap-3 px-3.5 py-2.5 rounded-xl", style: { background: C.surfaceHi } },
+                    React.createElement("span", { className: "text-[10px] font-medium px-2 py-1 rounded-full shrink-0 mt-0.5", style: { background: ac.soft, color: ac.color } }, ac.label),
+                    React.createElement("div", { className: "min-w-0 flex-1" },
+                        React.createElement("div", { className: "text-sm truncate" },
+                            React.createElement("span", { className: "font-medium" }, e.label || AUDIT_MODULE_LABELS[e.module] || e.module),
+                            e.detail && React.createElement("span", { style: { color: C.textMute } }, " \u2014 " + e.detail)),
+                        React.createElement("div", { className: "text-xs mt-0.5", style: { color: C.textMute } },
+                            e.userName || "Sistema", " \u00B7 ", AUDIT_MODULE_LABELS[e.module] || e.module, " \u00B7 ", fmtDateTimePE(e.ts)))));
+            }))))));
+}
+function AjustesView({ settings, setSettings, cloudStatus, cloudError, cloudProjectId, db, users, setUsers, roles, setRoles, currentUser, currentRole, themeMode, setThemeMode, onLock, auditLog, logAudit }) {
     const [form, setForm] = useState(settings);
     const [saved, setSaved] = useState(false);
     const [tab, setTab] = useState("general");
     const showUsersTab = canManageUsers(currentRole);
+    const showAuditTab = canManageUsers(currentRole);
     const readOnly = !canEditModule(currentRole, "ajustes");
     const update = (key) => (e) => setForm((prev) => ({ ...prev, [key]: e.target.value }));
     const submit = () => {
         setSettings(form);
         setSaved(true);
         setTimeout(() => setSaved(false), 2000);
+        if (logAudit)
+            logAudit("editar", "ajustes", "Perfil del taller", "Datos generales actualizados");
     };
     // --- Copia de seguridad / importar / reiniciar ---
     const fileInputRef = useRef(null);
@@ -2894,10 +3303,58 @@ function AjustesView({ settings, setSettings, cloudStatus, cloudError, cloudProj
     const [resetMode, setResetMode] = useState(null); // 'data' | 'full' | null
     const [busyAction, setBusyAction] = useState(null); // 'import' | 'reset' | null
     const canManageData = !readOnly;
+    // --- Imagen y marca: logo del taller y color de acento ---
+    const logoInputRef = useRef(null);
+    const [logoBusy, setLogoBusy] = useState(false);
+    const [logoError, setLogoError] = useState(null);
+    const pickLogoFile = () => { var _a; return (_a = logoInputRef.current) === null || _a === void 0 ? void 0 : _a.click(); };
+    const onLogoFileChosen = async (e) => {
+        const file = e.target.files && e.target.files[0];
+        e.target.value = "";
+        if (!file)
+            return;
+        if (!file.type.startsWith("image/")) {
+            setLogoError("Elige un archivo de imagen (PNG, JPG, etc.).");
+            return;
+        }
+        setLogoError(null);
+        setLogoBusy(true);
+        try {
+            const { dataUrl, aspect } = await resizeLogoFile(file);
+            const next = { ...form, logoDataUrl: dataUrl, logoAspect: aspect };
+            setSettings(next);
+            setForm(next);
+            if (logAudit)
+                logAudit("editar", "ajustes", "Logo del taller", "Logo actualizado");
+        }
+        catch (err) {
+            setLogoError((err && err.message) || "No se pudo procesar la imagen.");
+        }
+        finally {
+            setLogoBusy(false);
+        }
+    };
+    const removeLogo = () => {
+        const next = { ...form, logoDataUrl: "", logoAspect: 1 };
+        setSettings(next);
+        setForm(next);
+        setLogoError(null);
+        if (logAudit)
+            logAudit("editar", "ajustes", "Logo del taller", "Logo eliminado");
+    };
+    const setAccentColor = (hex) => {
+        const next = { ...form, accentColor: hex };
+        setSettings(next);
+        setForm(next);
+        if (logAudit)
+            logAudit("editar", "ajustes", "Color de acento", hex || "Predeterminado");
+    };
     const doExport = () => {
         downloadBackupFile(settings.tallerNombre);
         setExportOk(true);
         setTimeout(() => setExportOk(false), 2500);
+        if (logAudit)
+            logAudit("exportar", "sistema", "Copia de seguridad", "Backup descargado");
     };
     const pickImportFile = () => { var _a; return (_a = fileInputRef.current) === null || _a === void 0 ? void 0 : _a.click(); };
     const onImportFileChosen = (e) => {
@@ -2926,6 +3383,8 @@ function AjustesView({ settings, setSettings, cloudStatus, cloudError, cloudProj
         if (!pendingImport)
             return;
         setBusyAction("import");
+        if (logAudit)
+            logAudit("importar", "sistema", "Copia de seguridad", `Restaurado desde backup de \u201c${pendingImport.tallerNombre || "Sin nombre"}\u201d`);
         try {
             await applyBackupSnapshot(pendingImport.data, db);
         }
@@ -2936,6 +3395,8 @@ function AjustesView({ settings, setSettings, cloudStatus, cloudError, cloudProj
     };
     const confirmReset = async () => {
         setBusyAction("reset");
+        if (logAudit)
+            logAudit("eliminar", "sistema", resetMode === "full" ? "Reinicio completo del sistema" : "Reinicio de datos del negocio", `Ejecutado por ${(currentUser && currentUser.name) || "-"}`);
         try {
             if (resetMode === "full")
                 await resetFullSystem(db);
@@ -2953,12 +3414,12 @@ function AjustesView({ settings, setSettings, cloudStatus, cloudError, cloudProj
             onLock && (React.createElement(Button, { variant: "ghost", onClick: onLock },
                 React.createElement(KeyRound, { size: 15 }),
                 " Bloquear pantalla"))),
-        showUsersTab && (React.createElement("div", { className: "flex gap-2" }, [{ key: "general", label: "General" }, { key: "usuarios", label: "Usuarios y permisos" }].map((t) => (React.createElement("button", { key: t.key, onClick: () => setTab(t.key), className: "px-4 py-2 rounded-xl text-sm font-medium transition-colors", style: {
+        showUsersTab && (React.createElement("div", { className: "flex gap-2 flex-wrap" }, [{ key: "general", label: "General" }, { key: "usuarios", label: "Usuarios y permisos" }, showAuditTab && { key: "auditoria", label: "Auditoría" }].filter(Boolean).map((t) => (React.createElement("button", { key: t.key, onClick: () => setTab(t.key), className: "px-4 py-2 rounded-xl text-sm font-medium transition-colors", style: {
                 background: tab === t.key ? C.accentSoft : C.surfaceHi,
                 color: tab === t.key ? C.accentText : C.textSoft,
                 border: `1px solid ${tab === t.key ? C.accent + "55" : C.borderSoft}`,
             } }, t.label))))),
-        tab === "usuarios" && showUsersTab ? (React.createElement(UsersRolesView, { users: users, setUsers: setUsers, roles: roles, setRoles: setRoles, currentUser: currentUser, settings: settings, setSettings: setSettings })) : (React.createElement(React.Fragment, null,
+        tab === "usuarios" && showUsersTab ? (React.createElement(UsersRolesView, { users: users, setUsers: setUsers, roles: roles, setRoles: setRoles, currentUser: currentUser, settings: settings, setSettings: setSettings, logAudit: logAudit })) : tab === "auditoria" && showAuditTab ? (React.createElement(AuditLogView, { auditLog: auditLog, tallerNombre: settings === null || settings === void 0 ? void 0 : settings.tallerNombre })) : (React.createElement(React.Fragment, null,
             React.createElement(Card, { className: "p-6 space-y-4" },
                 React.createElement("div", { className: "text-xs uppercase tracking-wide", style: { color: C.textMute } }, "Apariencia"),
                 React.createElement("p", { className: "text-sm", style: { color: C.textSoft } }, "Elige c\u00F3mo se ve Expert en este dispositivo. \"Sistema\" sigue el modo de tu celular o computadora."),
@@ -3024,6 +3485,39 @@ function AjustesView({ settings, setSettings, cloudStatus, cloudError, cloudProj
                     saved && (React.createElement("span", { className: "text-xs flex items-center gap-1.5", style: { color: C.success } },
                         React.createElement(CheckCircle2, { size: 14 }),
                         " Guardado"))))),
+            React.createElement(Card, { className: "p-6 space-y-4" },
+                React.createElement("div", { className: "text-xs uppercase tracking-wide", style: { color: C.textMute } }, "Imagen y marca"),
+                React.createElement("p", { className: "text-sm", style: { color: C.textSoft } }, "El logo aparece en el encabezado de las proformas y actas de recepci\u00F3n en PDF. El color de acento personaliza botones, resaltados y esos mismos PDF con la identidad de tu taller."),
+                React.createElement("div", { className: "flex items-center gap-4 flex-wrap" },
+                    React.createElement("div", { className: "w-20 h-20 rounded-xl flex items-center justify-center overflow-hidden shrink-0", style: { background: C.surfaceHi, border: `1px solid ${C.borderSoft}` } }, form.logoDataUrl
+                        ? React.createElement("img", { src: form.logoDataUrl, alt: "Logo del taller", className: "max-w-full max-h-full object-contain" })
+                        : React.createElement(ImageIcon, { size: 22, style: { color: C.textMute } })),
+                    React.createElement("div", { className: "flex flex-col gap-2" },
+                        React.createElement("div", { className: "flex gap-2 flex-wrap" },
+                            !readOnly && (React.createElement(Button, { variant: "ghost", onClick: pickLogoFile, disabled: logoBusy },
+                                React.createElement(Upload, { size: 15 }),
+                                logoBusy ? " Procesando\u2026" : (form.logoDataUrl ? " Cambiar logo" : " Subir logo"))),
+                            !readOnly && form.logoDataUrl && (React.createElement(Button, { variant: "ghost", onClick: removeLogo },
+                                React.createElement(Trash2, { size: 15 }),
+                                " Quitar"))),
+                        React.createElement("p", { className: "text-xs", style: { color: C.textMute } }, "PNG o JPG. Se ajusta autom\u00E1ticamente; un logo con fondo transparente se ve mejor."),
+                        logoError && React.createElement("p", { className: "text-xs", style: { color: C.danger } }, logoError))),
+                React.createElement("input", { ref: logoInputRef, type: "file", accept: "image/*", className: "hidden", onChange: onLogoFileChosen }),
+                React.createElement("div", { className: "pt-3", style: { borderTop: `1px solid ${C.borderSoft}` } },
+                    React.createElement("div", { className: "text-xs uppercase tracking-wide mt-3 mb-2 flex items-center gap-1.5", style: { color: C.textMute } },
+                        React.createElement(Palette, { size: 13 }),
+                        " Color de acento"),
+                    React.createElement("div", { className: "flex flex-wrap gap-2.5" }, ACCENT_PRESETS.map((p) => {
+                        const isActive = (form.accentColor || "#FF6A1A").toLowerCase() === p.value.toLowerCase();
+                        return React.createElement("button", { key: p.key, type: "button", disabled: readOnly, title: p.label, onClick: () => setAccentColor(p.value), className: "w-8 h-8 rounded-full shrink-0", style: {
+                                background: p.value,
+                                boxShadow: isActive ? `0 0 0 2px ${C.surface}, 0 0 0 4px ${p.value}` : `0 0 0 1px ${C.borderSoft}`,
+                            } });
+                    })),
+                    React.createElement("div", { className: "flex items-center gap-2.5 mt-3" },
+                        React.createElement("input", { type: "color", disabled: readOnly, value: form.accentColor || "#FF6A1A", onChange: (e) => setAccentColor(e.target.value), className: "w-9 h-9 rounded-lg cursor-pointer", style: { background: "transparent", border: `1px solid ${C.borderSoft}` } }),
+                        React.createElement("span", { className: "text-xs font-mono", style: { color: C.textMute } }, (form.accentColor || "#FF6A1A").toUpperCase()),
+                        form.accentColor && !readOnly && (React.createElement("button", { type: "button", onClick: () => setAccentColor(""), className: "text-xs underline", style: { color: C.textMute } }, "Usar color predeterminado"))))),
             React.createElement(Card, { className: "p-6 space-y-4" },
                 React.createElement("div", { className: "text-xs uppercase tracking-wide", style: { color: C.textMute } }, "Copia de seguridad"),
                 React.createElement("p", { className: "text-sm", style: { color: C.textSoft } }, "Descarga un archivo con todos los datos del taller (clientes, veh\u00EDculos, \u00F3rdenes, caja, proformas, usuarios, etc.) para guardarlo como respaldo, o para pasarlos a otro celular o computadora."),
@@ -3364,12 +3858,14 @@ function ClientApprovalPage({ pf, client, vehicle, settings, onApprove, onReject
     const total = proformaTotal(pf);
     const isExpired = !alreadyApproved && !alreadyRejected && new Date() > new Date(`${proformaValidUntil(pf)}T23:59:59`);
     const confirmApproval = () => {
-        onApprove(name || (client === null || client === void 0 ? void 0 : client.name) || "Cliente");
-        triggerPushNotification(pf.id);
+        const who = name || (client === null || client === void 0 ? void 0 : client.name) || "Cliente";
+        onApprove(who);
+        triggerPushNotification(pf.id, { title: `Presupuesto ${pf.code} aprobado`, body: `${who} aprobó ${money(proformaTotal(pf))}` });
     };
     const confirmRejection = () => {
-        onReject(name || (client === null || client === void 0 ? void 0 : client.name) || "Cliente", reason);
-        triggerPushNotification(pf.id);
+        const who = name || (client === null || client === void 0 ? void 0 : client.name) || "Cliente";
+        onReject(who, reason);
+        triggerPushNotification(pf.id, { title: `Presupuesto ${pf.code} rechazado`, body: `${who} rechazó el presupuesto${reason ? ": " + reason : ""}` });
     };
     return (React.createElement("div", { style: { background: `radial-gradient(1200px 600px at 15% -10%, ${C.accentSoft} 0%, transparent 55%), ${C.bg}`, color: C.text, minHeight: "100vh", fontFamily: "Inter, sans-serif" }, className: "p-5 sm:p-8" },
         React.createElement("style", null, getFonts()),
@@ -3684,10 +4180,14 @@ function App() {
     const [orders, setOrders] = useCloudSync("expertTaller.orders", initialOrders, db);
     const [appointments, setAppointments] = useCloudSync("expertTaller.appointments", initialAppointments, db);
     const [settings, setSettings] = useCloudSync("expertTaller.settings", initialSettings, db);
+    // Color de acento propio del taller (opcional): se aplica encima del tema claro/oscuro ya
+    // resuelto, igual que este último, para que todo el árbol de componentes lo tome de una vez.
+    applyAccentColor(settings === null || settings === void 0 ? void 0 : settings.accentColor, resolvedTheme);
     const [caja, setCaja] = useCloudSync("expertTaller.caja", [], db);
     const [proformas, setProformas] = useCloudSync("expertTaller.proformas", initialProformas, db);
     const [users, setUsers] = useCloudSync("expertTaller.users", initialUsers, db);
     const [roles, setRoles] = useCloudSync("expertTaller.roles", initialRoles, db);
+    const [auditLog, setAuditLog] = useCloudSync("expertTaller.auditLog", [], db);
     const [fcmTokens, setFcmTokens] = useCloudSync("expertTaller.fcmTokens", [], db);
     // Pide el "token" de este dispositivo para Firebase Cloud Messaging y lo guarda en Firestore, para
     // que la funcion de Vercel sepa a que celulares/PCs avisar cuando un cliente responda.
@@ -3735,6 +4235,25 @@ function App() {
     const lastActivityRef = useRef(Date.now());
     const currentUser = (session && users.find((u) => u.id === session.userId && u.active !== false)) || null;
     const currentRole = currentUser ? getRole(roles, currentUser.roleId) : null;
+    // Registro de auditoría: quién hizo qué y cuándo, para dar confianza cuando hay varios usuarios
+    // o un socio con acceso al sistema. Vive en la nube (si hay Firebase conectado) para que sea el
+    // mismo historial en todos los dispositivos, y se recorta a los últimos 500 eventos para no
+    // hacer crecer el documento de Firestore indefinidamente.
+    const logAudit = (action, module, label, detail) => {
+        setAuditLog((prev) => [
+            {
+                id: "al" + Date.now() + Math.random().toString(36).slice(2, 7),
+                ts: Date.now(),
+                userId: (currentUser && currentUser.id) || null,
+                userName: (currentUser && currentUser.name) || "Sistema",
+                action,
+                module,
+                label,
+                detail: detail || "",
+            },
+            ...(prev || []),
+        ].slice(0, 500));
+    };
     const login = (userId) => {
         setSession({ userId });
         setLocked(false);
@@ -3777,9 +4296,13 @@ function App() {
             { id: "m" + Date.now() + Math.random().toString(36).slice(2, 7), date: new Date().toISOString().slice(0, 10), ...mov },
             ...prev,
         ]);
+        logAudit("crear", "caja", mov.concept || (mov.type === "ingreso" ? "Ingreso" : "Gasto"), `${mov.type === "ingreso" ? "Ingreso" : "Gasto"} · ${money(mov.amount)}`);
     };
     const removeCajaMovement = (id) => {
+        const mov = caja.find((m) => m.id === id);
         setCaja((prev) => prev.filter((m) => m.id !== id));
+        if (mov)
+            logAudit("eliminar", "caja", mov.concept || (mov.type === "ingreso" ? "Ingreso" : "Gasto"), `${mov.type === "ingreso" ? "Ingreso" : "Gasto"} · ${money(mov.amount)}`);
     };
     const registrarAbono = (orderId, amount) => {
         const order = orders.find((o) => o.id === orderId);
@@ -3813,6 +4336,7 @@ function App() {
             }
             return { ...o, status: newStatus, pagos };
         }));
+        logAudit("estado", "ordenes", `OT ${order.code}`, `${order.status || "-"} → ${newStatus}`);
         if (isCollected && !wasCollected && saldo > 0) {
             const client = clients.find((c) => c.id === order.clientId);
             addCajaMovement({
@@ -3869,7 +4393,7 @@ function App() {
     const approvalMatch = hashRoute && hashRoute.match(/^#aprobar-(.+)$/);
     if (approvalMatch) {
         const approvalPf = proformas.find((p) => p.id === approvalMatch[1]);
-        return (React.createElement(ClientApprovalPage, { pf: approvalPf, client: approvalPf ? clients.find((c) => c.id === approvalPf.clientId) : null, vehicle: approvalPf ? vehicles.find((v) => v.id === approvalPf.vehicleId) : null, settings: settings, onApprove: (name) => setProformas((prev) => prev.map((p) => p.id === approvalPf.id
+        return (React.createElement(ClientApprovalPage, { pf: approvalPf, client: approvalPf ? resolveProformaClient(approvalPf, clients) : null, vehicle: approvalPf ? resolveProformaVehicle(approvalPf, vehicles) : null, settings: settings, onApprove: (name) => setProformas((prev) => prev.map((p) => p.id === approvalPf.id
                 ? { ...p, status: "aprobada", clientApproval: { approved: true, approvedAt: new Date().toISOString(), approvedBy: name, method: "cliente_web" } }
                 : p)), onReject: (name, reason) => setProformas((prev) => prev.map((p) => p.id === approvalPf.id
                 ? { ...p, status: "rechazada", clientApproval: { approved: false, rejectedAt: new Date().toISOString(), rejectedBy: name, reason: reason || "", method: "cliente_web" } }
@@ -3932,13 +4456,13 @@ function App() {
                         ") no tiene permiso para ver esta secci\u00F3n."))) : (React.createElement(React.Fragment, null,
                     active === "dashboard" && (React.createElement(Dashboard, { orders: orders, clients: clients, vehicles: vehicles, parts: parts, appointments: appointments, goTo: setActive, settings: settings, verMontos: canSeeMoney(currentRole) })),
                     active === "ordenes" && (React.createElement(OrdenesView, { orders: orders, setOrders: setOrders, clients: clients, vehicles: vehicles, onChangeStatus: changeOrderStatus, onRegistrarAbono: registrarAbono, settings: settings })),
-                    active === "proformas" && (React.createElement(ProformasView, { proformas: proformas, setProformas: setProformas, clients: clients, vehicles: vehicles, settings: settings, focusRequest: proformaFocus })),
-                    active === "clientes" && React.createElement(ClientesView, { clients: clients, setClients: setClients, vehicles: vehicles, orders: orders }),
+                    active === "proformas" && (React.createElement(ProformasView, { proformas: proformas, setProformas: setProformas, clients: clients, vehicles: vehicles, settings: settings, focusRequest: proformaFocus, logAudit: logAudit })),
+                    active === "clientes" && React.createElement(ClientesView, { clients: clients, setClients: setClients, vehicles: vehicles, setVehicles: setVehicles, orders: orders }),
                     active === "vehiculos" && React.createElement(VehiculosView, { vehicles: vehicles, setVehicles: setVehicles, clients: clients, orders: orders }),
                     active === "inventario" && React.createElement(InventarioView, { parts: parts, setParts: setParts }),
                     active === "agenda" && React.createElement(AgendaView, { appointments: appointments, setAppointments: setAppointments }),
                     active === "caja" && (React.createElement(CajaView, { caja: caja, onAddMovement: addCajaMovement, onRemoveMovement: removeCajaMovement, orders: orders, clients: clients, vehicles: vehicles, onChangeStatus: changeOrderStatus, onRegistrarAbono: registrarAbono })),
-                    active === "ajustes" && (React.createElement(AjustesView, { settings: settings, setSettings: setSettings, cloudStatus: cloudStatus, cloudError: cloudError, cloudProjectId: cloudProjectId, db: db, users: users, setUsers: setUsers, roles: roles, setRoles: setRoles, currentUser: currentUser, currentRole: currentRole, themeMode: themeMode, setThemeMode: setThemeMode, onLock: lockNow })))))))));
+                    active === "ajustes" && (React.createElement(AjustesView, { settings: settings, setSettings: setSettings, cloudStatus: cloudStatus, cloudError: cloudError, cloudProjectId: cloudProjectId, db: db, users: users, setUsers: setUsers, roles: roles, setRoles: setRoles, currentUser: currentUser, currentRole: currentRole, themeMode: themeMode, setThemeMode: setThemeMode, onLock: lockNow, auditLog: auditLog, logAudit: logAudit })))))))));
 }
 </script>
 
