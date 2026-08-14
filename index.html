@@ -333,6 +333,9 @@ function Trash2(p) { return (React.createElement(IconBase, { ...p },
     React.createElement("path", { d: "M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" }),
     React.createElement("line", { x1: "10", y1: "11", x2: "10", y2: "17" }),
     React.createElement("line", { x1: "14", y1: "11", x2: "14", y2: "17" }))); }
+function Pencil(p) { return (React.createElement(IconBase, { ...p },
+    React.createElement("path", { d: "M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" }),
+    React.createElement("path", { d: "m15 5 4 4" }))); }
 function Circle(p) { return (React.createElement(IconBase, { ...p },
     React.createElement("circle", { cx: "12", cy: "12", r: "10" }))); }
 function KeyRound(p) { return (React.createElement(IconBase, { ...p },
@@ -686,6 +689,35 @@ function resizeLogoFile(file) {
                 ctx.clearRect(0, 0, w, h);
                 ctx.drawImage(img, 0, 0, w, h);
                 resolve({ dataUrl: canvas.toDataURL("image/png"), aspect: img.naturalWidth / img.naturalHeight });
+            };
+            img.src = String(reader.result);
+        };
+        reader.readAsDataURL(file);
+    });
+}
+// Reduce fotos tomadas con la cámara del celular (que suelen pesar varios MB) a un tamaño
+// razonable en JPEG antes de guardarlas, para no inflar localStorage/Firestore. A diferencia de
+// resizeLogoFile (pensada para logos pequeños en PNG), esta admite fotos más grandes (hasta 1280px
+// de lado) y las comprime como JPEG con calidad reducida, ideal para fotos de hallazgos/evidencia.
+function compressPhotoFile(file, maxSide = 1280, quality = 0.72) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onerror = () => reject(new Error("No se pudo leer la imagen."));
+        reader.onload = () => {
+            const img = new Image();
+            img.onerror = () => reject(new Error("El archivo no parece ser una imagen válida."));
+            img.onload = () => {
+                const scale = Math.min(1, maxSide / Math.max(img.naturalWidth, img.naturalHeight));
+                const w = Math.max(1, Math.round(img.naturalWidth * scale));
+                const h = Math.max(1, Math.round(img.naturalHeight * scale));
+                const canvas = document.createElement("canvas");
+                canvas.width = w;
+                canvas.height = h;
+                const ctx = canvas.getContext("2d");
+                ctx.fillStyle = "#fff";
+                ctx.fillRect(0, 0, w, h);
+                ctx.drawImage(img, 0, 0, w, h);
+                resolve(canvas.toDataURL("image/jpeg", quality));
             };
             img.src = String(reader.result);
         };
@@ -1346,6 +1378,326 @@ function downloadReceptionPDF(order, client, vehicle, settings) {
     const doc = buildReceptionDoc(order, client, vehicle, settings);
     doc.save(`Recepcion-${order.code}.pdf`);
 }
+/* ---------------------------------- PDF · REQUERIMIENTO DE REPUESTOS ---------------------------------- */
+// Documento simple para pedirle al cliente que consiga ciertos repuestos: nombre, cantidad y una
+// nota opcional (medida, marca, referencia, etc.). No incluye precios ni flujo de aprobación.
+function buildRequirementDoc(order, client, vehicle, requirement, settings) {
+    if (!window.jspdf || !window.jspdf.jsPDF) {
+        throw new Error("La librería de generación de PDF no cargó. Revisa tu conexión a internet.");
+    }
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ unit: "mm", format: "a4" });
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const marginX = 15;
+    let y = 18;
+    const logoOffset = addTallerHeaderLogo(doc, settings, marginX);
+    const textX = marginX + logoOffset;
+    const accentRgb = pdfAccentRgb(settings);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(16);
+    doc.setTextColor(30, 30, 30);
+    doc.text(settings.tallerNombre || "Taller Mecánico", textX, y);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.setTextColor(90, 90, 90);
+    let subY = y + 6;
+    [settings.address, settings.phone && `Tel: ${settings.phone}`, settings.ruc && `RUC: ${settings.ruc}`]
+        .filter(Boolean)
+        .forEach((line) => { doc.text(line, textX, subY); subY += 4.5; });
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(17);
+    doc.setTextColor(...accentRgb);
+    doc.text("PEDIDO DE REPUESTOS", pageWidth - marginX, y, { align: "right" });
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    doc.setTextColor(60, 60, 60);
+    doc.text(order.code, pageWidth - marginX, y + 6, { align: "right" });
+    doc.text(`Fecha: ${fmtDatePE(requirement.date || new Date().toISOString().slice(0, 10))}`, pageWidth - marginX, y + 11, { align: "right" });
+    y = Math.max(subY, y + 18) + 6;
+    doc.setDrawColor(220, 220, 220);
+    doc.line(marginX, y, pageWidth - marginX, y);
+    y += 8;
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    doc.setTextColor(30, 30, 30);
+    doc.text("Cliente", marginX, y);
+    doc.text("Vehículo", pageWidth / 2 + 5, y);
+    y += 5;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9.5);
+    doc.setTextColor(70, 70, 70);
+    doc.text((client === null || client === void 0 ? void 0 : client.name) || "-", marginX, y);
+    doc.text((`${(vehicle === null || vehicle === void 0 ? void 0 : vehicle.brand) || ""} ${(vehicle === null || vehicle === void 0 ? void 0 : vehicle.model) || ""} ${(vehicle === null || vehicle === void 0 ? void 0 : vehicle.year) ? "(" + vehicle.year + ")" : ""}`).trim() || "-", pageWidth / 2 + 5, y);
+    y += 5;
+    if (client === null || client === void 0 ? void 0 : client.phone)
+        doc.text(client.phone, marginX, y);
+    if (vehicle === null || vehicle === void 0 ? void 0 : vehicle.plate)
+        doc.text(`Placa: ${vehicle.plate}`, pageWidth / 2 + 5, y);
+    y += 10;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9.5);
+    doc.setTextColor(90, 90, 90);
+    const introLines = doc.splitTextToSize("Para continuar con la reparación necesitamos que nos facilite los siguientes repuestos:", pageWidth - marginX * 2);
+    doc.text(introLines, marginX, y);
+    y += introLines.length * 4.5 + 4;
+    const rows = (requirement.items || []).map((it) => [it.name || "-", String(it.qty || 1), it.note || ""]);
+    doc.autoTable({
+        startY: y,
+        head: [["Repuesto", "Cantidad", "Nota"]],
+        body: rows,
+        theme: "grid",
+        styles: { font: "helvetica", fontSize: 9, cellPadding: 3, textColor: [40, 40, 40] },
+        headStyles: { fillColor: accentRgb, textColor: [255, 255, 255], fontStyle: "bold" },
+        columnStyles: { 1: { cellWidth: 24, halign: "center" } },
+        margin: { left: marginX, right: marginX },
+    });
+    let finalY = doc.lastAutoTable.finalY + 8;
+    if (requirement.notes) {
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(9.5);
+        doc.setTextColor(30, 30, 30);
+        doc.text("Notas adicionales:", marginX, finalY);
+        finalY += 5;
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(9);
+        doc.setTextColor(90, 90, 90);
+        const noteLines = doc.splitTextToSize(requirement.notes, pageWidth - marginX * 2);
+        doc.text(noteLines, marginX, finalY);
+        finalY += noteLines.length * 4.5 + 4;
+    }
+    doc.setFont("helvetica", "italic");
+    doc.setFontSize(7.8);
+    doc.setTextColor(140, 140, 140);
+    doc.text("Este documento es un pedido informativo de repuestos y no constituye una cotización ni comprobante de pago.", marginX, pageHeight - 8, { maxWidth: pageWidth - marginX * 2 });
+    return doc;
+}
+function downloadRequirementPDF(order, client, vehicle, requirement, settings) {
+    const doc = buildRequirementDoc(order, client, vehicle, requirement, settings);
+    doc.save(`Requerimiento-${order.code}.pdf`);
+}
+async function shareRequirementWhatsApp(order, client, vehicle, requirement, settings) {
+    const doc = buildRequirementDoc(order, client, vehicle, requirement, settings);
+    const fileName = `Requerimiento-${order.code}.pdf`;
+    const itemsList = (requirement.items || []).map((it) => `- ${it.name} x${it.qty || 1}`).join("\n");
+    const text = `Hola ${(client === null || client === void 0 ? void 0 : client.name) || ""}, para continuar con la reparación de tu vehículo (orden ${order.code}) necesitamos que nos facilites estos repuestos:\n${itemsList}\n\nTe adjunto el detalle en PDF.`;
+    try {
+        const blob = doc.output("blob");
+        const file = new File([blob], fileName, { type: "application/pdf" });
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+            await navigator.share({ files: [file], title: `Requerimiento ${order.code}`, text });
+            return { ok: true, method: "share" };
+        }
+    }
+    catch (e) {
+        if (e && e.name === "AbortError")
+            return { ok: false, method: "cancelled" };
+        // si falla el share nativo, seguimos con el respaldo de abajo
+    }
+    doc.save(fileName);
+    const digits = onlyDigits(client === null || client === void 0 ? void 0 : client.phone);
+    const last9 = digits.slice(-9);
+    const waUrl = last9
+        ? `https://wa.me/51${last9}?text=${encodeURIComponent(text + "\n\n(Adjunta el PDF que se acaba de descargar a tu equipo)")}`
+        : `https://wa.me/?text=${encodeURIComponent(text + "\n\n(Adjunta el PDF que se acaba de descargar a tu equipo)")}`;
+    window.open(waUrl, "_blank");
+    return { ok: true, method: "fallback" };
+}
+/* ---------------------------------- PDF · REPORTE DE SERVICIO (hallazgos) ---------------------------------- */
+// Documento final que se arma desde la propia orden de trabajo: resume el problema reportado, el
+// detalle de servicios/repuestos facturados y, lo más importante, los hallazgos que el técnico fue
+// registrando durante el proceso (ej: cables rotos, pernos malogrados) con sus fotos de respaldo.
+function buildServiceReportDoc(order, client, vehicle, settings) {
+    if (!window.jspdf || !window.jspdf.jsPDF) {
+        throw new Error("La librería de generación de PDF no cargó. Revisa tu conexión a internet.");
+    }
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ unit: "mm", format: "a4" });
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const marginX = 15;
+    let y = 18;
+    const logoOffset = addTallerHeaderLogo(doc, settings, marginX);
+    const textX = marginX + logoOffset;
+    const accentRgb = pdfAccentRgb(settings);
+    const findings = order.findings || [];
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(16);
+    doc.setTextColor(30, 30, 30);
+    doc.text(settings.tallerNombre || "Taller Mecánico", textX, y);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.setTextColor(90, 90, 90);
+    let subY = y + 6;
+    [settings.address, settings.phone && `Tel: ${settings.phone}`, settings.ruc && `RUC: ${settings.ruc}`]
+        .filter(Boolean)
+        .forEach((line) => { doc.text(line, textX, subY); subY += 4.5; });
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(17);
+    doc.setTextColor(...accentRgb);
+    doc.text("REPORTE DE SERVICIO", pageWidth - marginX, y, { align: "right" });
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    doc.setTextColor(60, 60, 60);
+    doc.text(order.code, pageWidth - marginX, y + 6, { align: "right" });
+    doc.text(`Fecha: ${fmtDatePE(new Date().toISOString().slice(0, 10))}`, pageWidth - marginX, y + 11, { align: "right" });
+    y = Math.max(subY, y + 18) + 6;
+    doc.setDrawColor(220, 220, 220);
+    doc.line(marginX, y, pageWidth - marginX, y);
+    y += 8;
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    doc.setTextColor(30, 30, 30);
+    doc.text("Cliente", marginX, y);
+    doc.text("Vehículo", pageWidth / 2 + 5, y);
+    y += 5;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9.5);
+    doc.setTextColor(70, 70, 70);
+    doc.text((client === null || client === void 0 ? void 0 : client.name) || "-", marginX, y);
+    doc.text((`${(vehicle === null || vehicle === void 0 ? void 0 : vehicle.brand) || ""} ${(vehicle === null || vehicle === void 0 ? void 0 : vehicle.model) || ""} ${(vehicle === null || vehicle === void 0 ? void 0 : vehicle.year) ? "(" + vehicle.year + ")" : ""}`).trim() || "-", pageWidth / 2 + 5, y);
+    y += 5;
+    if (client === null || client === void 0 ? void 0 : client.phone)
+        doc.text(client.phone, marginX, y);
+    if (vehicle === null || vehicle === void 0 ? void 0 : vehicle.plate)
+        doc.text(`Placa: ${vehicle.plate}`, pageWidth / 2 + 5, y);
+    y += 9;
+    if (order.description) {
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(9.5);
+        doc.setTextColor(30, 30, 30);
+        doc.text("Problema reportado por el cliente:", marginX, y);
+        y += 5;
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(9);
+        doc.setTextColor(90, 90, 90);
+        const descLines = doc.splitTextToSize(order.description, pageWidth - marginX * 2);
+        doc.text(descLines, marginX, y);
+        y += descLines.length * 4.5 + 6;
+    }
+    const svcRows = [
+        ...(order.services || []).map((s) => ["Servicio", s.name, "", money(s.price)]),
+        ...(order.parts || []).map((p) => ["Repuesto", p.name, String(p.qty), money(p.price * p.qty)]),
+    ];
+    if (svcRows.length > 0) {
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(9.5);
+        doc.setTextColor(30, 30, 30);
+        doc.text("Trabajo realizado", marginX, y);
+        y += 3;
+        doc.autoTable({
+            startY: y,
+            head: [["Tipo", "Descripción", "Cant.", "Precio"]],
+            body: svcRows,
+            theme: "grid",
+            styles: { font: "helvetica", fontSize: 8.8, cellPadding: 2.6, textColor: [40, 40, 40] },
+            headStyles: { fillColor: accentRgb, textColor: [255, 255, 255], fontStyle: "bold" },
+            columnStyles: { 0: { cellWidth: 24 }, 2: { cellWidth: 18, halign: "center" }, 3: { cellWidth: 26, halign: "right" } },
+            margin: { left: marginX, right: marginX },
+        });
+        y = doc.lastAutoTable.finalY + 5;
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(10);
+        doc.setTextColor(30, 30, 30);
+        doc.text(`Total: ${money(orderTotal(order))}`, pageWidth - marginX, y, { align: "right" });
+        y += 10;
+    }
+    if (findings.length > 0) {
+        if (y > pageHeight - 40) {
+            doc.addPage();
+            y = 18;
+        }
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(11);
+        doc.setTextColor(...accentRgb);
+        doc.text(`Hallazgos durante el servicio (${findings.length})`, marginX, y);
+        y += 7;
+        const allFindingPhotos = [];
+        findings.forEach((f, idx) => {
+            (f.photos || []).forEach((p) => allFindingPhotos.push({ photo: p, label: `${idx + 1}. ${f.title || "Hallazgo"}` }));
+        });
+        if (allFindingPhotos.length > 0) {
+            if (y > pageHeight - 40) {
+                doc.addPage();
+                y = 18;
+            }
+            const cols = 2;
+            const imgGap = 8;
+            const rowGap = imgGap;
+            const imgW = ((pageWidth - marginX * 2 - imgGap) / 2) * 0.8;
+            const imgH = imgW * 0.75;
+            const captionH = 4.5;
+            const gridStartX = marginX + ((pageWidth - marginX * 2) - (imgW * cols + imgGap * (cols - 1))) / 2;
+            let x = gridStartX;
+            let col = 0;
+            allFindingPhotos.forEach((item) => {
+                if (col >= cols) {
+                    col = 0;
+                    x = gridStartX;
+                    y += imgH + captionH + rowGap;
+                }
+                if (y + imgH + captionH > pageHeight - 20) {
+                    doc.addPage();
+                    y = 18;
+                    x = gridStartX;
+                    col = 0;
+                }
+                try {
+                    const fmt = item.photo.dataUrl.indexOf("image/png") !== -1 ? "PNG" : "JPEG";
+                    doc.addImage(item.photo.dataUrl, fmt, x, y, imgW, imgH);
+                }
+                catch (e) { /* si una imagen no puede embeberse, se omite y se continúa */ }
+                doc.setFont("helvetica", "normal");
+                doc.setFontSize(7.5);
+                doc.setTextColor(120, 120, 120);
+                const labelLines = doc.splitTextToSize(item.label, imgW);
+                doc.text(labelLines[0], x, y + imgH + 3.2);
+                x += imgW + imgGap;
+                col += 1;
+            });
+            y += imgH + captionH + 5;
+        }
+    }
+    doc.setFont("helvetica", "italic");
+    doc.setFontSize(7.8);
+    doc.setTextColor(140, 140, 140);
+    doc.text("Reporte generado desde la orden de trabajo, con los hallazgos registrados por el técnico durante el servicio.", marginX, pageHeight - 8, { maxWidth: pageWidth - marginX * 2 });
+    return doc;
+}
+function downloadServiceReportPDF(order, client, vehicle, settings) {
+    const doc = buildServiceReportDoc(order, client, vehicle, settings);
+    doc.save(`Reporte-servicio-${order.code}.pdf`);
+}
+async function shareServiceReportWhatsApp(order, client, vehicle, settings) {
+    const doc = buildServiceReportDoc(order, client, vehicle, settings);
+    const fileName = `Reporte-servicio-${order.code}.pdf`;
+    const findings = order.findings || [];
+    const findingsList = findings.length > 0
+        ? findings.map((f) => `- ${f.title}`).join("\n")
+        : "";
+    const text = `Hola ${(client === null || client === void 0 ? void 0 : client.name) || ""}, te comparto el reporte de servicio de tu vehículo (orden ${order.code}).${findingsList ? `\n\nDurante el servicio encontramos:\n${findingsList}` : ""}\n\nTe adjunto el detalle en PDF.`;
+    try {
+        const blob = doc.output("blob");
+        const file = new File([blob], fileName, { type: "application/pdf" });
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+            await navigator.share({ files: [file], title: `Reporte de servicio ${order.code}`, text });
+            return { ok: true, method: "share" };
+        }
+    }
+    catch (e) {
+        if (e && e.name === "AbortError")
+            return { ok: false, method: "cancelled" };
+        // si falla el share nativo, seguimos con el respaldo de abajo
+    }
+    doc.save(fileName);
+    const digits = onlyDigits(client === null || client === void 0 ? void 0 : client.phone);
+    const last9 = digits.slice(-9);
+    const waUrl = last9
+        ? `https://wa.me/51${last9}?text=${encodeURIComponent(text + "\n\n(Adjunta el PDF que se acaba de descargar a tu equipo)")}`
+        : `https://wa.me/?text=${encodeURIComponent(text + "\n\n(Adjunta el PDF que se acaba de descargar a tu equipo)")}`;
+    window.open(waUrl, "_blank");
+    return { ok: true, method: "fallback" };
+}
 /* ---------------------------------- APROBACIÓN/RECHAZO DE PROFORMA POR WHATSAPP ---------------------------------- */
 // Nota: la respuesta (aprobación o rechazo) se guarda en localStorage del navegador. Si el
 // cliente abre el enlace en el mismo dispositivo/navegador (o se comparte el enlace de este
@@ -1413,9 +1765,9 @@ const getInputStyle = () => ({
 });
 const inputClass = "px-3 py-2.5 rounded-xl text-sm outline-none transition-all duration-150 focus:ring-2 focus:ring-offset-0 w-full placeholder:text-[13px]";
 const getInputRingStyle = () => ({ "--tw-ring-color": C.accent });
-function Input(props) {
-    return React.createElement("input", { ...props, className: `${inputClass} ${props.className || ""}`, style: { ...getInputStyle(), ...getInputRingStyle(), ...props.style } });
-}
+const Input = React.forwardRef(function Input(props, ref) {
+    return React.createElement("input", { ...props, ref, className: `${inputClass} ${props.className || ""}`, style: { ...getInputStyle(), ...getInputRingStyle(), ...props.style } });
+});
 function Select(props) {
     return React.createElement("select", { ...props, className: `${inputClass} ${props.className || ""}`, style: { ...getInputStyle(), ...getInputRingStyle(), ...props.style } });
 }
@@ -1606,7 +1958,7 @@ function Dashboard({ orders, clients, vehicles, parts, appointments, goTo, setti
                                 " u."))))))))));
 }
 /* ---------------------------------- ÓRDENES ---------------------------------- */
-function OrdenesView({ orders, setOrders, clients, vehicles, onChangeStatus, onRegistrarAbono, settings }) {
+function OrdenesView({ orders, setOrders, clients, vehicles, parts, onChangeStatus, onRegistrarAbono, settings, logAudit }) {
     const [filter, setFilter] = useState("todas");
     const [query, setQuery] = useState("");
     const [openOrder, setOpenOrder] = useState(null);
@@ -1628,6 +1980,26 @@ function OrdenesView({ orders, setOrders, clients, vehicles, onChangeStatus, onR
     };
     const saveCheckin = (orderId, checkin) => {
         setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, checkin } : o)));
+    };
+    const saveRequirement = (orderId, requirement) => {
+        setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, requirement } : o)));
+        if (logAudit) {
+            const order = orders.find((o) => o.id === orderId);
+            logAudit("requerimiento", "ordenes", (order && order.code) || orderId, requirement ? `${requirement.items.length} repuesto(s)` : "eliminado");
+        }
+    };
+    const saveFindings = (orderId, findings) => {
+        setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, findings } : o)));
+        if (logAudit) {
+            const order = orders.find((o) => o.id === orderId);
+            logAudit("hallazgos", "ordenes", (order && order.code) || orderId, `${findings.length} hallazgo(s)`);
+        }
+    };
+    const removeOrder = (orderId) => {
+        const order = orders.find((o) => o.id === orderId);
+        setOrders((prev) => prev.filter((o) => o.id !== orderId));
+        if (logAudit)
+            logAudit("eliminar", "ordenes", (order && order.code) || orderId, "");
     };
     return (React.createElement("div", { className: "space-y-5" },
         React.createElement("div", { className: "flex flex-col sm:flex-row sm:items-center justify-between gap-3" },
@@ -1651,13 +2023,13 @@ function OrdenesView({ orders, setOrders, clients, vehicles, onChangeStatus, onR
                 ")")))),
         filtered.length === 0 ? (React.createElement(Card, { className: "p-10 text-center" },
             React.createElement("p", { style: { color: C.textMute }, className: "text-sm" }, "No hay \u00F3rdenes que coincidan con la b\u00FAsqueda."))) : (React.createElement("div", { className: "grid sm:grid-cols-2 xl:grid-cols-3 gap-4" }, filtered.map((o) => (React.createElement(Ticket, { key: o.id, order: o, client: findClient(o.clientId), vehicle: findVehicle(o.vehicleId), onOpen: () => setOpenOrder(o) }))))),
-        openOrder && (React.createElement(OrderDetail, { order: orders.find((o) => o.id === openOrder.id), client: findClient(openOrder.clientId), vehicle: findVehicle(openOrder.vehicleId), onClose: () => setOpenOrder(null), onStatusChange: (status) => onChangeStatus(orders.find((o) => o.id === openOrder.id), status), onRegistrarAbono: (amount) => onRegistrarAbono(openOrder.id, amount), onSaveCheckin: (checkin) => saveCheckin(openOrder.id, checkin), settings: settings })),
+        openOrder && (React.createElement(OrderDetail, { order: orders.find((o) => o.id === openOrder.id), client: findClient(openOrder.clientId), vehicle: findVehicle(openOrder.vehicleId), parts: parts, onClose: () => setOpenOrder(null), onStatusChange: (status) => onChangeStatus(orders.find((o) => o.id === openOrder.id), status), onRegistrarAbono: (amount) => onRegistrarAbono(openOrder.id, amount), onSaveCheckin: (checkin) => saveCheckin(openOrder.id, checkin), onSaveRequirement: (requirement) => saveRequirement(openOrder.id, requirement), onSaveFindings: (findings) => saveFindings(openOrder.id, findings), onDelete: () => { removeOrder(openOrder.id); setOpenOrder(null); }, settings: settings })),
         showNew && (React.createElement(NewOrderModal, { clients: clients, vehicles: vehicles, code: nextCode(), onClose: () => setShowNew(false), onCreate: (order) => {
                 setOrders((prev) => [order, ...prev]);
                 setShowNew(false);
             } }))));
 }
-function OrderDetail({ order, client, vehicle, onClose, onStatusChange, onRegistrarAbono, onSaveCheckin, settings }) {
+function OrderDetail({ order, client, vehicle, parts, onClose, onStatusChange, onRegistrarAbono, onSaveCheckin, onSaveRequirement, onSaveFindings, onDelete, settings }) {
     const st = statusOf(order.status);
     const total = orderTotal(order);
     const abonado = orderAbonado(order);
@@ -1665,7 +2037,59 @@ function OrderDetail({ order, client, vehicle, onClose, onStatusChange, onRegist
     const [showAbonoForm, setShowAbonoForm] = useState(false);
     const [abonoAmount, setAbonoAmount] = useState("");
     const [showReception, setShowReception] = useState(false);
+    const [showRequirement, setShowRequirement] = useState(false);
+    const [showFindings, setShowFindings] = useState(false);
     const [pdfError, setPdfError] = useState("");
+    const [reqError, setReqError] = useState("");
+    const [reqBusy, setReqBusy] = useState(false);
+    const [reportError, setReportError] = useState("");
+    const [reportBusy, setReportBusy] = useState(false);
+    const requirement = order.requirement;
+    const findings = order.findings || [];
+    const handleDownloadReport = () => {
+        setReportError("");
+        try {
+            downloadServiceReportPDF(order, client, vehicle, settings || {});
+        }
+        catch (e) {
+            setReportError((e && e.message) || "No se pudo generar el PDF.");
+        }
+    };
+    const handleShareReport = async () => {
+        setReportError("");
+        setReportBusy(true);
+        try {
+            await shareServiceReportWhatsApp(order, client, vehicle, settings || {});
+        }
+        catch (e) {
+            setReportError((e && e.message) || "No se pudo compartir el PDF.");
+        }
+        finally {
+            setReportBusy(false);
+        }
+    };
+    const handleDownloadRequirement = () => {
+        setReqError("");
+        try {
+            downloadRequirementPDF(order, client, vehicle, requirement, settings || {});
+        }
+        catch (e) {
+            setReqError((e && e.message) || "No se pudo generar el PDF.");
+        }
+    };
+    const handleShareRequirement = async () => {
+        setReqError("");
+        setReqBusy(true);
+        try {
+            await shareRequirementWhatsApp(order, client, vehicle, requirement, settings || {});
+        }
+        catch (e) {
+            setReqError((e && e.message) || "No se pudo compartir el PDF.");
+        }
+        finally {
+            setReqBusy(false);
+        }
+    };
     const submitAbono = () => {
         const amt = Math.min(Math.max(0, Number(abonoAmount) || 0), saldo);
         if (amt <= 0)
@@ -1786,6 +2210,58 @@ function OrderDetail({ order, client, vehicle, onClose, onStatusChange, onRegist
                         React.createElement(Download, { size: 14 }),
                         " Descargar acta PDF"),
                     React.createElement(Button, { variant: "ghost", onClick: () => setShowReception(true), className: "flex-1" }, "Editar"))))),
+        React.createElement("div", { className: "mb-6" },
+            React.createElement("div", { className: "text-xs uppercase tracking-wide mb-2", style: { color: C.textMute } }, "Requerimiento de repuestos"),
+            !requirement || !(requirement.items || []).length ? (React.createElement(Card, { className: "p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3" },
+                React.createElement("div", { className: "text-sm", style: { color: C.textSoft } }, "\u00BFNecesitas que el cliente consiga alg\u00FAn repuesto? Arma la lista y env\u00EDasela por WhatsApp en PDF."),
+                React.createElement(Button, { variant: "subtle", onClick: () => setShowRequirement(true), className: "shrink-0" },
+                    React.createElement(Wrench, { size: 16 }),
+                    " Nuevo requerimiento"))) : (React.createElement(Card, { className: "p-4 space-y-3" },
+                React.createElement("div", { className: "flex items-center justify-between gap-3" },
+                    React.createElement("div", { className: "flex items-center gap-2 text-sm font-medium" },
+                        React.createElement(Wrench, { size: 16, style: { color: C.accentText } }),
+                        " Repuestos solicitados"),
+                    React.createElement("span", { className: "text-xs", style: { color: C.textMute } }, fmtDatePE(requirement.date))),
+                React.createElement("div", { className: "space-y-1.5" }, requirement.items.map((it) => (React.createElement("div", { key: it.id, className: "flex justify-between text-sm py-1", style: { borderBottom: `1px solid ${C.borderSoft}` } },
+                    React.createElement("span", null, it.name, it.note ? React.createElement("span", { className: "text-xs", style: { color: C.textMute } }, ` — ${it.note}`) : null),
+                    React.createElement("span", { className: "font-mono shrink-0 ml-2" }, `× ${it.qty}`))))),
+                requirement.notes && (React.createElement("p", { className: "text-xs", style: { color: C.textSoft } }, requirement.notes)),
+                reqError && (React.createElement("div", { className: "text-xs px-3 py-2 rounded-lg", style: { background: C.dangerSoft, color: C.danger } }, reqError)),
+                React.createElement("div", { className: "flex flex-wrap gap-2 pt-1" },
+                    React.createElement(Button, { variant: "whatsapp", onClick: handleShareRequirement, disabled: reqBusy, className: "flex-1" },
+                        React.createElement(MessageCircle, { size: 14 }),
+                        " ", reqBusy ? "Enviando…" : "Enviar por WhatsApp"),
+                    React.createElement(Button, { variant: "subtle", onClick: handleDownloadRequirement, className: "flex-1" },
+                        React.createElement(Download, { size: 14 }),
+                        " Descargar PDF"),
+                    React.createElement(Button, { variant: "ghost", onClick: () => setShowRequirement(true), className: "flex-1" }, "Editar")),
+                React.createElement("button", { onClick: () => { if (window.confirm("¿Eliminar este requerimiento de repuestos?"))
+                        onSaveRequirement(null); }, className: "text-xs flex items-center gap-1.5 pt-1", style: { color: C.danger } },
+                    React.createElement(Trash2, { size: 12 }),
+                    " Eliminar requerimiento")))),
+        React.createElement("div", { className: "mb-6" },
+            React.createElement("div", { className: "flex items-center justify-between mb-2" },
+                React.createElement("div", { className: "text-xs uppercase tracking-wide", style: { color: C.textMute } }, "Hallazgos del servicio"),
+                findings.length > 0 && React.createElement("button", { onClick: () => setShowFindings(true), className: "text-xs font-medium", style: { color: C.accentText } }, "Editar")),
+            findings.length === 0
+                ? React.createElement(Card, { className: "p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3" },
+                    React.createElement("div", { className: "text-sm", style: { color: C.textSoft } }, "\u00BFEncontraste algo en el camino (cables rotos, pernos malogrados, etc.)? Reg\u00EDstralo con fotos para respaldarlo."),
+                    React.createElement(Button, { variant: "subtle", onClick: () => setShowFindings(true), className: "shrink-0" },
+                        React.createElement(AlertTriangle, { size: 16 }),
+                        " Agregar hallazgo"))
+                : React.createElement(Card, { className: "p-4 space-y-3" },
+                    React.createElement("div", { className: "space-y-2" }, findings.map((f) => React.createElement("div", { key: f.id, className: "rounded-xl px-3 py-2.5", style: { background: C.bg, border: `1px solid ${C.borderSoft}` } },
+                        React.createElement("div", { className: "text-sm font-medium" }, f.title),
+                        f.note && React.createElement("div", { className: "text-xs mt-0.5", style: { color: C.textMute } }, f.note),
+                        (f.photos || []).length > 0 && React.createElement("div", { className: "grid grid-cols-4 sm:grid-cols-6 gap-1.5 mt-2" }, f.photos.map((p) => React.createElement("img", { key: p.id, src: p.dataUrl, className: "w-full h-14 object-cover rounded-lg", style: { border: `1px solid ${C.borderSoft}` } })))))),
+                    reportError && React.createElement("div", { className: "text-xs px-3 py-2 rounded-lg", style: { background: C.dangerSoft, color: C.danger } }, reportError),
+                    React.createElement("div", { className: "flex flex-wrap gap-2 pt-1" },
+                        React.createElement(Button, { variant: "whatsapp", onClick: handleShareReport, disabled: reportBusy, className: "flex-1" },
+                            React.createElement(MessageCircle, { size: 14 }),
+                            " ", reportBusy ? "Enviando…" : "Enviar reporte por WhatsApp"),
+                        React.createElement(Button, { variant: "subtle", onClick: handleDownloadReport, className: "flex-1" },
+                            React.createElement(Download, { size: 14 }),
+                            " Descargar reporte PDF")))),
         React.createElement("div", null,
             React.createElement("div", { className: "text-xs uppercase tracking-wide mb-2", style: { color: C.textMute } }, "Actualizar estado"),
             React.createElement("div", { className: "flex flex-wrap gap-2" }, getStatus().map((s) => (React.createElement("button", { key: s.key, onClick: () => onStatusChange(s.key), className: "px-3 py-1.5 rounded-full text-xs font-medium border", style: {
@@ -1794,7 +2270,14 @@ function OrderDetail({ order, client, vehicle, onClose, onStatusChange, onRegist
                     borderColor: order.status === s.key ? s.color : C.border,
                 } }, s.label)))),
             (order.status === "listo" || order.status === "entregado") && total > 0 && saldo <= 0 && (React.createElement("p", { className: "text-xs mt-2 flex items-center gap-1.5", style: { color: C.textMute } }, "\uD83D\uDCB0 El saldo se registr\u00F3 autom\u00E1ticamente en Caja."))),
-        showReception && (React.createElement(ReceptionModal, { order: order, client: client, vehicle: vehicle, onClose: () => setShowReception(false), onSave: (checkin) => { onSaveCheckin(checkin); setShowReception(false); } }))));
+        showReception && (React.createElement(ReceptionModal, { order: order, client: client, vehicle: vehicle, onClose: () => setShowReception(false), onSave: (checkin) => { onSaveCheckin(checkin); setShowReception(false); } })),
+        showRequirement && (React.createElement(RequirementModal, { order: order, requirement: requirement, parts: parts, onClose: () => setShowRequirement(false), onSave: (req) => { onSaveRequirement(req); setShowRequirement(false); } })),
+        showFindings && (React.createElement(FindingsModal, { order: order, findings: findings, onClose: () => setShowFindings(false), onSave: (items) => { onSaveFindings && onSaveFindings(items); setShowFindings(false); } })),
+        onDelete && (React.createElement("div", { className: "mt-6 pt-4", style: { borderTop: `1px solid ${C.borderSoft}` } },
+            React.createElement("button", { onClick: () => { if (window.confirm("¿Eliminar esta orden de trabajo? Esta acción no se puede deshacer."))
+                    onDelete(); }, className: "text-xs flex items-center gap-1.5", style: { color: C.danger } },
+                React.createElement(Trash2, { size: 13 }),
+                " Eliminar orden")))));
 }
 function NewOrderModal({ clients, vehicles, code, onClose, onCreate }) {
     var _a;
@@ -1820,6 +2303,7 @@ function NewOrderModal({ clients, vehicles, code, onClose, onCreate }) {
             services: [],
             parts: [],
             pagos: [],
+            findings: [],
         });
     };
     return (React.createElement(Modal, { title: "Nueva orden de trabajo", onClose: onClose },
@@ -1919,14 +2403,221 @@ function ReceptionModal({ order, client, vehicle, onClose, onSave }) {
                     data.photos.length,
                     ")"),
                 data.photos.length > 0 && (React.createElement("div", { className: "grid grid-cols-3 sm:grid-cols-4 gap-2 mb-2" }, data.photos.map((p) => (React.createElement(PhotoThumb, { key: p.id, src: p.dataUrl, onRemove: () => removePhoto(p.id) }))))),
-                React.createElement("label", { className: "inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold cursor-pointer", style: { background: C.surfaceHi, color: C.text, border: `1px solid ${C.border}` } },
-                    React.createElement(Plus, { size: 16 }),
-                    " ",
-                    busyPhotos ? "Cargando…" : "Agregar fotos",
-                    React.createElement("input", { type: "file", accept: "image/*", capture: "environment", multiple: true, className: "hidden", onChange: handleFiles }))),
+                React.createElement("div", { className: "flex gap-2" },
+                    React.createElement("label", { className: "flex-1 inline-flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-sm font-semibold cursor-pointer text-center", style: { background: C.surfaceHi, color: C.text, border: `1px solid ${C.border}` } },
+                        React.createElement(Camera, { size: 16 }),
+                        " ",
+                        busyPhotos ? "Cargando…" : "Tomar foto",
+                        React.createElement("input", { type: "file", accept: "image/*", capture: "environment", multiple: true, className: "hidden", onChange: handleFiles })),
+                    React.createElement("label", { className: "flex-1 inline-flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-sm font-semibold cursor-pointer text-center", style: { background: C.surfaceHi, color: C.text, border: `1px solid ${C.border}` } },
+                        React.createElement(Upload, { size: 16 }),
+                        " ",
+                        busyPhotos ? "Cargando…" : "Elegir de galería",
+                        React.createElement("input", { type: "file", accept: "image/*", multiple: true, className: "hidden", onChange: handleFiles })))),
             React.createElement("div", { className: "flex gap-3 pt-2" },
                 React.createElement(Button, { variant: "ghost", onClick: onClose, className: "flex-1" }, "Cancelar"),
                 React.createElement(Button, { onClick: submit, className: "flex-1" }, "Guardar recepci\u00F3n")))));
+}
+/* ---------------------------------- REQUERIMIENTO DE REPUESTOS (por orden) ---------------------------------- */
+const emptyRequirementDraft = () => ({ name: "", qty: 1, note: "" });
+function RequirementModal({ order, requirement, parts, onClose, onSave }) {
+    const [items, setItems] = useState(() => (requirement && requirement.items) ? requirement.items.map((it) => ({ ...it })) : []);
+    const [notes, setNotes] = useState((requirement && requirement.notes) || "");
+    const [draft, setDraft] = useState(emptyRequirementDraft());
+    const [editingId, setEditingId] = useState(null);
+    const nameRef = useRef(null);
+    const isEditing = editingId !== null;
+    const resetDraft = () => {
+        setDraft(emptyRequirementDraft());
+        setEditingId(null);
+    };
+    const addOrUpdate = () => {
+        const name = (draft.name || "").trim();
+        if (!name)
+            return;
+        const clean = { name, qty: Math.max(1, Number(draft.qty) || 1), note: (draft.note || "").trim() };
+        if (isEditing) {
+            setItems((prev) => prev.map((it) => (it.id === editingId ? { ...it, ...clean } : it)));
+        }
+        else {
+            setItems((prev) => [...prev, { id: "ri" + Date.now() + Math.random().toString(36).slice(2, 6), ...clean }]);
+        }
+        resetDraft();
+        if (nameRef.current)
+            nameRef.current.focus();
+    };
+    const startEdit = (it) => {
+        setDraft({ name: it.name, qty: it.qty, note: it.note || "" });
+        setEditingId(it.id);
+        if (nameRef.current)
+            nameRef.current.focus();
+    };
+    const removeItem = (id) => {
+        setItems((prev) => prev.filter((it) => it.id !== id));
+        if (editingId === id)
+            resetDraft();
+    };
+    const handleDraftKeyDown = (e) => {
+        if (e.key === "Enter") {
+            e.preventDefault();
+            addOrUpdate();
+        }
+    };
+    const submit = () => {
+        if (items.length === 0)
+            return;
+        onSave({ items, notes: notes.trim(), date: new Date().toISOString().slice(0, 10), updatedAt: new Date().toISOString() });
+    };
+    return (React.createElement(Modal, { title: `Requerimiento de repuestos · ${order.code}`, onClose: onClose, wide: true },
+        (parts && parts.length > 0) && (React.createElement("datalist", { id: "req-parts-catalog" }, parts.map((p) => React.createElement("option", { key: p.id, value: p.name })))),
+        React.createElement("div", { className: "space-y-4" },
+            React.createElement("p", { className: "text-sm", style: { color: C.textSoft } }, "Agrega los repuestos que el cliente debe conseguir. Cada uno se suma a la lista de abajo."),
+            React.createElement(Card, { className: "p-3.5 space-y-3", style: isEditing ? { boxShadow: `0 0 0 1.5px ${C.accent}` } : {} },
+                isEditing && (React.createElement("div", { className: "flex items-center gap-1.5 text-xs font-medium", style: { color: C.accentText } },
+                    React.createElement(Pencil, { size: 12 }),
+                    " Editando repuesto")),
+                React.createElement(Field, { label: "Repuesto" },
+                    React.createElement(Input, { ref: nameRef, list: (parts && parts.length > 0) ? "req-parts-catalog" : undefined, placeholder: "Ej: Pastillas de freno delanteras", value: draft.name, onChange: (e) => setDraft((d) => ({ ...d, name: e.target.value })), onKeyDown: handleDraftKeyDown, autoFocus: true })),
+                React.createElement("div", { className: "grid grid-cols-[80px_1fr] gap-2" },
+                    React.createElement(Field, { label: "Cantidad" },
+                        React.createElement(Input, { type: "number", min: "1", value: draft.qty, onChange: (e) => setDraft((d) => ({ ...d, qty: e.target.value })), onKeyDown: handleDraftKeyDown })),
+                    React.createElement(Field, { label: "Nota (opcional)" },
+                        React.createElement(Input, { placeholder: "Marca, medida, referencia\u2026", value: draft.note, onChange: (e) => setDraft((d) => ({ ...d, note: e.target.value })), onKeyDown: handleDraftKeyDown }))),
+                React.createElement("div", { className: "flex gap-2" },
+                    isEditing && (React.createElement(Button, { variant: "ghost", onClick: resetDraft, className: "flex-1" }, "Cancelar")),
+                    React.createElement(Button, { variant: isEditing ? "primary" : "subtle", onClick: addOrUpdate, className: "flex-1" },
+                        isEditing ? (React.createElement(React.Fragment, null, React.createElement(CheckCircle2, { size: 15 }), " Guardar cambios")) : (React.createElement(React.Fragment, null, React.createElement(Plus, { size: 15 }), " Agregar repuesto"))))),
+            React.createElement(Card, { className: "p-3.5 space-y-2.5" },
+                React.createElement("div", { className: "flex items-center justify-between" },
+                    React.createElement("div", { className: "text-xs uppercase tracking-wide font-medium", style: { color: C.textMute } }, "Lista de repuestos"),
+                    items.length > 0 && React.createElement("div", { className: "text-xs font-mono", style: { color: C.textMute } }, items.length)),
+                items.length > 0
+                    ? React.createElement("div", { className: "space-y-2" },
+                        items.map((it) => React.createElement("div", { key: it.id, className: "flex items-center gap-2 rounded-xl px-3 py-2.5", style: { background: C.bg, border: `1px solid ${it.id === editingId ? C.accent : C.borderSoft}` } },
+                            React.createElement("div", { className: "flex-1 min-w-0" },
+                                React.createElement("div", { className: "text-sm truncate" },
+                                    it.name,
+                                    React.createElement("span", { className: "font-mono ml-1.5", style: { color: C.textMute } }, `× ${it.qty}`)),
+                                it.note && React.createElement("div", { className: "text-xs truncate", style: { color: C.textMute } }, it.note)),
+                            React.createElement("button", { type: "button", onClick: () => startEdit(it), className: "w-8 h-8 shrink-0 rounded-lg flex items-center justify-center transition-colors hover:bg-white/5", style: { color: C.textMute } },
+                                React.createElement(Pencil, { size: 14 })),
+                            React.createElement("button", { type: "button", onClick: () => removeItem(it.id), className: "w-8 h-8 shrink-0 rounded-lg flex items-center justify-center transition-colors hover:bg-white/5", style: { color: C.danger } },
+                                React.createElement(Trash2, { size: 14 })))))
+                    : React.createElement("p", { className: "text-xs text-center py-2", style: { color: C.textMute } }, "A\u00FAn no agregas ning\u00FAn repuesto a la lista.")),
+            React.createElement(Field, { label: "Notas adicionales (opcional)" },
+                React.createElement(TextArea, { rows: 2, value: notes, onChange: (e) => setNotes(e.target.value), placeholder: "Ej: Puede comprarlos en cualquier tienda, tra\u00E9rlos antes del viernes, etc." })),
+            React.createElement("div", { className: "flex gap-3 pt-2" },
+                React.createElement(Button, { variant: "ghost", onClick: onClose, className: "flex-1" }, "Cancelar"),
+                React.createElement(Button, { onClick: submit, disabled: items.length === 0, className: "flex-1" }, "Guardar requerimiento" + (items.length > 0 ? ` (${items.length})` : ""))))));
+}
+/* ---------------------------------- HALLAZGOS DEL SERVICIO (por orden) ---------------------------------- */
+// Lo que el técnico va encontrando mientras trabaja en la orden (cables rotos, pernos malogrados,
+// etc.), cada uno con sus propias fotos de respaldo. Se arma igual que RequirementModal: un
+// formulario de "borrador" arriba y la lista ya guardada abajo, en su propio cuadro.
+const emptyFindingDraft = () => ({ title: "", note: "", photos: [] });
+function FindingsModal({ order, findings, onClose, onSave }) {
+    const [items, setItems] = useState(() => (findings || []).map((it) => ({ ...it, photos: [...(it.photos || [])] })));
+    const [draft, setDraft] = useState(emptyFindingDraft());
+    const [editingId, setEditingId] = useState(null);
+    const [busyPhotos, setBusyPhotos] = useState(false);
+    const titleRef = useRef(null);
+    const isEditing = editingId !== null;
+    const resetDraft = () => {
+        setDraft(emptyFindingDraft());
+        setEditingId(null);
+    };
+    const handleFiles = (e) => {
+        const files = Array.from(e.target.files || []);
+        if (files.length === 0)
+            return;
+        setBusyPhotos(true);
+        Promise.all(files.map((file) => compressPhotoFile(file).then((dataUrl) => ({ id: "fp" + Date.now() + Math.random().toString(36).slice(2, 6), dataUrl }))))
+            .then((newPhotos) => {
+            setDraft((d) => ({ ...d, photos: [...d.photos, ...newPhotos] }));
+            setBusyPhotos(false);
+        })
+            .catch(() => setBusyPhotos(false));
+        e.target.value = "";
+    };
+    const removeDraftPhoto = (id) => setDraft((d) => ({ ...d, photos: d.photos.filter((p) => p.id !== id) }));
+    const addOrUpdate = () => {
+        const title = (draft.title || "").trim();
+        if (!title)
+            return;
+        const clean = { title, note: (draft.note || "").trim(), photos: draft.photos };
+        if (isEditing) {
+            setItems((prev) => prev.map((it) => (it.id === editingId ? { ...it, ...clean } : it)));
+        }
+        else {
+            setItems((prev) => [...prev, { id: "fd" + Date.now() + Math.random().toString(36).slice(2, 6), createdAt: new Date().toISOString(), ...clean }]);
+        }
+        resetDraft();
+        if (titleRef.current)
+            titleRef.current.focus();
+    };
+    const startEdit = (it) => {
+        setDraft({ title: it.title, note: it.note || "", photos: [...(it.photos || [])] });
+        setEditingId(it.id);
+        if (titleRef.current)
+            titleRef.current.focus();
+    };
+    const removeItem = (id) => {
+        setItems((prev) => prev.filter((it) => it.id !== id));
+        if (editingId === id)
+            resetDraft();
+    };
+    const submit = () => {
+        onSave(items);
+    };
+    return (React.createElement(Modal, { title: `Hallazgos del servicio · ${order.code}`, onClose: onClose, wide: true },
+        React.createElement("div", { className: "space-y-4" },
+            React.createElement("p", { className: "text-sm", style: { color: C.textSoft } }, "Registra cualquier detalle que encuentres durante el servicio (ej: cables rotos, pernos malogrados) con fotos de respaldo."),
+            React.createElement(Card, { className: "p-3.5 space-y-3", style: isEditing ? { boxShadow: `0 0 0 1.5px ${C.accent}` } : {} },
+                isEditing && (React.createElement("div", { className: "flex items-center gap-1.5 text-xs font-medium", style: { color: C.accentText } },
+                    React.createElement(Pencil, { size: 12 }),
+                    " Editando hallazgo")),
+                React.createElement(Field, { label: "Hallazgo" },
+                    React.createElement(Input, { ref: titleRef, placeholder: "Ej: Cable de buj\u00EDa roto", value: draft.title, onChange: (e) => setDraft((d) => ({ ...d, title: e.target.value })), autoFocus: true })),
+                React.createElement(Field, { label: "Detalle (opcional)" },
+                    React.createElement(TextArea, { rows: 2, value: draft.note, onChange: (e) => setDraft((d) => ({ ...d, note: e.target.value })), placeholder: "Describe lo que encontraste\u2026" })),
+                React.createElement("div", null,
+                    draft.photos.length > 0 && React.createElement("div", { className: "grid grid-cols-4 sm:grid-cols-5 gap-2 mb-2" }, draft.photos.map((p) => React.createElement(PhotoThumb, { key: p.id, src: p.dataUrl, onRemove: () => removeDraftPhoto(p.id) }))),
+                    React.createElement("div", { className: "flex gap-2" },
+                        React.createElement("label", { className: "flex-1 inline-flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold cursor-pointer text-center", style: { background: C.surfaceHi, color: C.text, border: `1px solid ${C.border}` } },
+                            React.createElement(Camera, { size: 14 }),
+                            " ",
+                            busyPhotos ? "Cargando…" : "Tomar foto",
+                            React.createElement("input", { type: "file", accept: "image/*", capture: "environment", multiple: true, className: "hidden", onChange: handleFiles })),
+                        React.createElement("label", { className: "flex-1 inline-flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold cursor-pointer text-center", style: { background: C.surfaceHi, color: C.text, border: `1px solid ${C.border}` } },
+                            React.createElement(Upload, { size: 14 }),
+                            " ",
+                            busyPhotos ? "Cargando…" : "Elegir de galería",
+                            React.createElement("input", { type: "file", accept: "image/*", multiple: true, className: "hidden", onChange: handleFiles })))),
+                React.createElement("div", { className: "flex gap-2" },
+                    isEditing && (React.createElement(Button, { variant: "ghost", onClick: resetDraft, className: "flex-1" }, "Cancelar")),
+                    React.createElement(Button, { variant: isEditing ? "primary" : "subtle", onClick: addOrUpdate, className: "flex-1", disabled: busyPhotos },
+                        isEditing ? (React.createElement(React.Fragment, null, React.createElement(CheckCircle2, { size: 15 }), " Guardar cambios")) : (React.createElement(React.Fragment, null, React.createElement(Plus, { size: 15 }), " Agregar hallazgo"))))),
+            React.createElement(Card, { className: "p-3.5 space-y-2.5" },
+                React.createElement("div", { className: "flex items-center justify-between" },
+                    React.createElement("div", { className: "text-xs uppercase tracking-wide font-medium", style: { color: C.textMute } }, "Hallazgos registrados"),
+                    items.length > 0 && React.createElement("div", { className: "text-xs font-mono", style: { color: C.textMute } }, items.length)),
+                items.length > 0
+                    ? React.createElement("div", { className: "space-y-2" },
+                        items.map((it) => React.createElement("div", { key: it.id, className: "rounded-xl px-3 py-2.5", style: { background: C.bg, border: `1px solid ${it.id === editingId ? C.accent : C.borderSoft}` } },
+                            React.createElement("div", { className: "flex items-start gap-2" },
+                                React.createElement("div", { className: "flex-1 min-w-0" },
+                                    React.createElement("div", { className: "text-sm font-medium truncate" }, it.title),
+                                    it.note && React.createElement("div", { className: "text-xs mt-0.5", style: { color: C.textMute } }, it.note),
+                                    (it.photos || []).length > 0 && React.createElement("div", { className: "text-xs mt-1 flex items-center gap-1", style: { color: C.textMute } }, React.createElement(Camera, { size: 11 }), ` ${it.photos.length} foto${it.photos.length === 1 ? "" : "s"}`)),
+                                React.createElement("button", { type: "button", onClick: () => startEdit(it), className: "w-8 h-8 shrink-0 rounded-lg flex items-center justify-center transition-colors hover:bg-white/5", style: { color: C.textMute } },
+                                    React.createElement(Pencil, { size: 14 })),
+                                React.createElement("button", { type: "button", onClick: () => removeItem(it.id), className: "w-8 h-8 shrink-0 rounded-lg flex items-center justify-center transition-colors hover:bg-white/5", style: { color: C.danger } },
+                                    React.createElement(Trash2, { size: 14 }))),
+                            (it.photos || []).length > 0 && React.createElement("div", { className: "grid grid-cols-4 sm:grid-cols-6 gap-1.5 mt-2" }, it.photos.map((p) => React.createElement("img", { key: p.id, src: p.dataUrl, className: "w-full h-14 object-cover rounded-lg", style: { border: `1px solid ${C.borderSoft}` } }))))))
+                    : React.createElement("p", { className: "text-xs text-center py-2", style: { color: C.textMute } }, "A\u00FAn no registras ning\u00FAn hallazgo.")),
+            React.createElement("div", { className: "flex gap-3 pt-2" },
+                React.createElement(Button, { variant: "ghost", onClick: onClose, className: "flex-1" }, "Cancelar"),
+                React.createElement(Button, { onClick: submit, className: "flex-1" }, "Guardar hallazgos" + (items.length > 0 ? ` (${items.length})` : ""))))));
 }
 /* ---------------------------------- PROFORMAS ---------------------------------- */
 function ProformaCard({ pf, client, vehicle, onOpen }) {
@@ -2238,16 +2929,16 @@ function NewProformaModal({ clients, vehicles, code, onClose, onCreate }) {
             React.createElement(Camera, { size: 18, style: { color: C.accentText } })),
         React.createElement("p", { className: "text-xs max-w-[260px] leading-relaxed", style: { color: C.textMute } }, "Deja evidencia del estado del veh\u00EDculo antes de cotizar. Puedes tomar la foto al momento o subir una desde tu galer\u00EDa."));
     const photoGrid = React.createElement("div", { className: "grid grid-cols-3 sm:grid-cols-4 gap-2.5 mb-4" }, photoThumbs);
-    const photoActions = React.createElement("div", { className: "flex flex-wrap gap-2.5 justify-center" },
+    const photoActions = React.createElement("div", { className: "flex gap-2.5" },
         React.createElement("label", {
-            className: "inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold cursor-pointer transition-all hover:brightness-110 active:scale-[0.97]",
+            className: "flex-1 inline-flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-sm font-semibold cursor-pointer text-center transition-all hover:brightness-110 active:scale-[0.97]",
             style: { background: `linear-gradient(180deg, #FF7A32 0%, ${C.accent} 100%)`, color: "#1A0D05", boxShadow: `0 1px 0 rgba(255,255,255,0.25) inset, ${C.shadowGlow}` },
         },
             React.createElement(Camera, { size: 15 }),
             busyPhotos ? "Cargando\u2026" : "Tomar foto",
             React.createElement("input", { type: "file", accept: "image/*", capture: "environment", multiple: true, className: "hidden", onChange: handlePhotoFiles })),
         React.createElement("label", {
-            className: "inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold cursor-pointer transition-colors hover:bg-white/5",
+            className: "flex-1 inline-flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-sm font-semibold cursor-pointer text-center transition-colors hover:bg-white/5",
             style: { background: C.surfaceHi, color: C.text, border: `1px solid ${C.border}` },
         },
             React.createElement(Upload, { size: 15 }),
@@ -4455,7 +5146,7 @@ function App() {
                         (currentRole === null || currentRole === void 0 ? void 0 : currentRole.name) || "sin rol",
                         ") no tiene permiso para ver esta secci\u00F3n."))) : (React.createElement(React.Fragment, null,
                     active === "dashboard" && (React.createElement(Dashboard, { orders: orders, clients: clients, vehicles: vehicles, parts: parts, appointments: appointments, goTo: setActive, settings: settings, verMontos: canSeeMoney(currentRole) })),
-                    active === "ordenes" && (React.createElement(OrdenesView, { orders: orders, setOrders: setOrders, clients: clients, vehicles: vehicles, onChangeStatus: changeOrderStatus, onRegistrarAbono: registrarAbono, settings: settings })),
+                    active === "ordenes" && (React.createElement(OrdenesView, { orders: orders, setOrders: setOrders, clients: clients, vehicles: vehicles, parts: parts, onChangeStatus: changeOrderStatus, onRegistrarAbono: registrarAbono, settings: settings, logAudit: logAudit })),
                     active === "proformas" && (React.createElement(ProformasView, { proformas: proformas, setProformas: setProformas, clients: clients, vehicles: vehicles, settings: settings, focusRequest: proformaFocus, logAudit: logAudit })),
                     active === "clientes" && React.createElement(ClientesView, { clients: clients, setClients: setClients, vehicles: vehicles, setVehicles: setVehicles, orders: orders }),
                     active === "vehiculos" && React.createElement(VehiculosView, { vehicles: vehicles, setVehicles: setVehicles, clients: clients, orders: orders }),
