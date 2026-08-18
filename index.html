@@ -113,10 +113,7 @@
 </style>
 <script>
   // Instalación como app (PWA): guarda el evento de instalación de Chrome/Android para
-  // poder dispararlo luego desde el botón "Instalar" en Ajustes. Chrome y Edge ya no
-  // exigen un service worker para permitir instalar la app, solo el manifest.json y los
-  // íconos (evitamos registrar un service worker propio aquí para no interferir con el
-  // que ya usa el sistema para los avisos push de WhatsApp/Firebase).
+  // poder dispararlo luego desde el botón "Instalar" en Ajustes.
   window.addEventListener("beforeinstallprompt", function (e) {
     e.preventDefault();
     window.__expertInstallPrompt = e;
@@ -125,6 +122,16 @@
   window.addEventListener("appinstalled", function () {
     window.__expertInstallPrompt = null;
   });
+  // Registra el service worker que cachea la app (index.html + librerías) para que puedas
+  // abrir Expert Taller aunque no tengas internet en ese momento. Se registra siempre, no solo
+  // cuando activas los avisos push, y se hace en segundo plano para no retrasar la carga.
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", function () {
+      navigator.serviceWorker.register("sw.js").catch(function (err) {
+        console.warn("No se pudo registrar el service worker (modo offline no disponible):", err);
+      });
+    });
+  }
 </script>
 </head>
 <body>
@@ -1787,6 +1794,10 @@ function Modal({ title, onClose, children, wide }) {
 function Ticket({ order, client, vehicle, onOpen }) {
     var _a;
     const st = statusOf(order.status);
+    const total = orderTotal(order);
+    const abonado = orderAbonado(order);
+    const saldo = orderSaldo(order);
+    const partial = total > 0 && abonado > 0 && saldo > 0;
     return (React.createElement("div", { onClick: onOpen, className: "group relative rounded-2xl cursor-pointer transition-all duration-300 hover:-translate-y-1", style: {
             background: `linear-gradient(165deg, ${C.surfaceHi}66 0%, ${C.surface} 22%)`,
             border: `1px solid ${C.border}`,
@@ -1803,13 +1814,20 @@ function Ticket({ order, client, vehicle, onOpen }) {
                 React.createElement("div", { className: "text-xs mt-0.5 truncate", style: { color: C.textSoft } }, client === null || client === void 0 ? void 0 : client.name)),
             React.createElement("span", { className: "shrink-0 font-mono text-xs px-2.5 py-1.5 rounded-lg tracking-widest", style: { background: C.bg, color: C.text, border: `1px solid ${C.border}`, boxShadow: "inset 0 1px 2px rgba(0,0,0,0.3)" } }, vehicle === null || vehicle === void 0 ? void 0 : vehicle.plate)),
         React.createElement("div", { className: "mx-5 bg-[length:8px_1px] bg-repeat-x h-px", style: { backgroundImage: `linear-gradient(90deg, ${C.border} 50%, transparent 50%)` } }),
-        React.createElement("div", { className: "flex items-center justify-between px-5 py-4" },
+        React.createElement("div", { className: `flex items-center justify-between px-5 ${partial ? "pt-4 pb-2" : "py-4"}` },
             React.createElement(Badge, { color: st.color, soft: st.soft }, st.label),
             React.createElement("span", { className: "flex items-center gap-1.5" },
                 ((_a = order.checkin) === null || _a === void 0 ? void 0 : _a.completed) && React.createElement("span", { title: "Recepci\u00F3n digital registrada", style: { color: C.info } },
                     React.createElement(Camera, { size: 14 })),
-                orderTotal(order) > 0 && orderSaldo(order) <= 0 && React.createElement("span", { title: "Cobrado" }, "\uD83D\uDCB0"),
-                React.createElement("span", { style: { fontFamily: "JetBrains Mono, monospace", color: C.text }, className: "text-sm font-medium" }, money(orderTotal(order)))))));
+                total > 0 && saldo <= 0 && React.createElement("span", { title: "Cobrado" }, "\uD83D\uDCB0"),
+                React.createElement("span", { style: { fontFamily: "JetBrains Mono, monospace", color: C.text }, className: "text-sm font-medium" }, money(total)))),
+        partial && (React.createElement("div", { className: "flex items-center justify-between px-5 pb-4 text-xs", style: { fontFamily: "JetBrains Mono, monospace" } },
+            React.createElement("span", { style: { color: C.success } },
+                "Abonado ",
+                money(abonado)),
+            React.createElement("span", { style: { color: C.warning } },
+                "Saldo ",
+                money(saldo))))));
 }
 /* ---------------------------------- SIDEBAR ---------------------------------- */
 const NAV = [
@@ -1958,7 +1976,7 @@ function Dashboard({ orders, clients, vehicles, parts, appointments, goTo, setti
                                 " u."))))))))));
 }
 /* ---------------------------------- ÓRDENES ---------------------------------- */
-function OrdenesView({ orders, setOrders, clients, vehicles, parts, onChangeStatus, onRegistrarAbono, settings, logAudit }) {
+function OrdenesView({ orders, setOrders, clients, setClients, vehicles, setVehicles, parts, onChangeStatus, onRegistrarAbono, settings, logAudit, currentUser }) {
     const [filter, setFilter] = useState("todas");
     const [query, setQuery] = useState("");
     const [openOrder, setOpenOrder] = useState(null);
@@ -2001,6 +2019,14 @@ function OrdenesView({ orders, setOrders, clients, vehicles, parts, onChangeStat
         if (logAudit)
             logAudit("eliminar", "ordenes", (order && order.code) || orderId, "");
     };
+    const saveServices = (orderId, services) => {
+        const order = orders.find((o) => o.id === orderId);
+        const prevTotal = order ? (order.services || []).reduce((s, x) => s + x.price, 0) : 0;
+        const nextTotal = services.reduce((s, x) => s + x.price, 0);
+        setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, services } : o)));
+        if (logAudit)
+            logAudit("precio", "ordenes", (order && order.code) || orderId, `Servicios ${money(prevTotal)} \u2192 ${money(nextTotal)}`);
+    };
     return (React.createElement("div", { className: "space-y-5" },
         React.createElement("div", { className: "flex flex-col sm:flex-row sm:items-center justify-between gap-3" },
             React.createElement("h1", { style: { fontFamily: "Oswald, sans-serif" }, className: "text-2xl tracking-wide" }, "\u00D3rdenes de trabajo"),
@@ -2023,13 +2049,13 @@ function OrdenesView({ orders, setOrders, clients, vehicles, parts, onChangeStat
                 ")")))),
         filtered.length === 0 ? (React.createElement(Card, { className: "p-10 text-center" },
             React.createElement("p", { style: { color: C.textMute }, className: "text-sm" }, "No hay \u00F3rdenes que coincidan con la b\u00FAsqueda."))) : (React.createElement("div", { className: "grid sm:grid-cols-2 xl:grid-cols-3 gap-4" }, filtered.map((o) => (React.createElement(Ticket, { key: o.id, order: o, client: findClient(o.clientId), vehicle: findVehicle(o.vehicleId), onOpen: () => setOpenOrder(o) }))))),
-        openOrder && (React.createElement(OrderDetail, { order: orders.find((o) => o.id === openOrder.id), client: findClient(openOrder.clientId), vehicle: findVehicle(openOrder.vehicleId), parts: parts, onClose: () => setOpenOrder(null), onStatusChange: (status) => onChangeStatus(orders.find((o) => o.id === openOrder.id), status), onRegistrarAbono: (amount) => onRegistrarAbono(openOrder.id, amount), onSaveCheckin: (checkin) => saveCheckin(openOrder.id, checkin), onSaveRequirement: (requirement) => saveRequirement(openOrder.id, requirement), onSaveFindings: (findings) => saveFindings(openOrder.id, findings), onDelete: () => { removeOrder(openOrder.id); setOpenOrder(null); }, settings: settings })),
-        showNew && (React.createElement(NewOrderModal, { clients: clients, vehicles: vehicles, code: nextCode(), onClose: () => setShowNew(false), onCreate: (order) => {
+        openOrder && (React.createElement(OrderDetail, { order: orders.find((o) => o.id === openOrder.id), client: findClient(openOrder.clientId), vehicle: findVehicle(openOrder.vehicleId), parts: parts, onClose: () => setOpenOrder(null), onStatusChange: (status) => onChangeStatus(orders.find((o) => o.id === openOrder.id), status), onRegistrarAbono: (amount) => onRegistrarAbono(openOrder.id, amount), onSaveCheckin: (checkin) => saveCheckin(openOrder.id, checkin), onSaveRequirement: (requirement) => saveRequirement(openOrder.id, requirement), onSaveFindings: (findings) => saveFindings(openOrder.id, findings), onSaveServices: (services) => saveServices(openOrder.id, services), onDelete: () => { removeOrder(openOrder.id); setOpenOrder(null); }, settings: settings, currentUser: currentUser })),
+        showNew && (React.createElement(NewOrderModal, { clients: clients, setClients: setClients, vehicles: vehicles, setVehicles: setVehicles, code: nextCode(), onClose: () => setShowNew(false), onCreate: (order) => {
                 setOrders((prev) => [order, ...prev]);
                 setShowNew(false);
             } }))));
 }
-function OrderDetail({ order, client, vehicle, parts, onClose, onStatusChange, onRegistrarAbono, onSaveCheckin, onSaveRequirement, onSaveFindings, onDelete, settings }) {
+function OrderDetail({ order, client, vehicle, parts, onClose, onStatusChange, onRegistrarAbono, onSaveCheckin, onSaveRequirement, onSaveFindings, onSaveServices, onDelete, settings, currentUser }) {
     const st = statusOf(order.status);
     const total = orderTotal(order);
     const abonado = orderAbonado(order);
@@ -2044,6 +2070,33 @@ function OrderDetail({ order, client, vehicle, parts, onClose, onStatusChange, o
     const [reqBusy, setReqBusy] = useState(false);
     const [reportError, setReportError] = useState("");
     const [reportBusy, setReportBusy] = useState(false);
+    const [editingServiceIdx, setEditingServiceIdx] = useState(null);
+    const [editingServiceValue, setEditingServiceValue] = useState("");
+    const [pendingServices, setPendingServices] = useState(null);
+    const startEditService = (idx) => {
+        setEditingServiceIdx(idx);
+        setEditingServiceValue(idx === -1 ? "" : String(order.services[idx].price));
+    };
+    const cancelEditService = () => {
+        setEditingServiceIdx(null);
+        setEditingServiceValue("");
+    };
+    const confirmEditService = () => {
+        const newPrice = Number(editingServiceValue);
+        if (isNaN(newPrice) || newPrice < 0)
+            return;
+        const next = editingServiceIdx === -1
+            ? [...order.services, { name: "Presupuesto inicial", price: newPrice }]
+            : order.services.map((s, i) => (i === editingServiceIdx ? { ...s, price: newPrice } : s));
+        setEditingServiceIdx(null);
+        setEditingServiceValue("");
+        if (currentUser && currentUser.pinHash) {
+            setPendingServices(next);
+        }
+        else {
+            onSaveServices && onSaveServices(next);
+        }
+    };
     const requirement = order.requirement;
     const findings = order.findings || [];
     const handleDownloadReport = () => {
@@ -2138,17 +2191,35 @@ function OrderDetail({ order, client, vehicle, parts, onClose, onStatusChange, o
         React.createElement("div", { className: "mb-6" },
             React.createElement("div", { className: "text-xs uppercase tracking-wide mb-2", style: { color: C.textMute } }, "Descripci\u00F3n del problema"),
             React.createElement("p", { className: "text-sm", style: { color: C.textSoft } }, order.description)),
-        (order.services.length > 0 || order.parts.length > 0) && (React.createElement("div", { className: "mb-6 space-y-2" },
+        (order.services.length > 0 || order.parts.length > 0 || onSaveServices) && (React.createElement("div", { className: "mb-6 space-y-2" },
             React.createElement("div", { className: "text-xs uppercase tracking-wide mb-2", style: { color: C.textMute } }, "Detalle de la orden"),
-            order.services.map((s, i) => (React.createElement("div", { key: "s" + i, className: "flex justify-between text-sm py-1.5", style: { borderBottom: `1px solid ${C.borderSoft}` } },
-                React.createElement("span", null, s.name),
-                React.createElement("span", { className: "font-mono" }, money(s.price))))),
+            order.services.map((s, i) => (React.createElement("div", { key: "s" + i, className: "flex justify-between items-center gap-2 text-sm py-1.5", style: { borderBottom: `1px solid ${C.borderSoft}` } },
+                React.createElement("span", { className: "truncate" }, s.name),
+                editingServiceIdx === i ? (React.createElement("div", { className: "flex items-center gap-1.5 shrink-0" },
+                    React.createElement(Input, { type: "number", autoFocus: true, min: "0", step: "0.01", value: editingServiceValue, onChange: (e) => setEditingServiceValue(e.target.value), style: { width: "96px" }, className: "py-1" }),
+                    React.createElement("button", { type: "button", onClick: confirmEditService, className: "w-7 h-7 rounded-lg flex items-center justify-center", style: { color: C.success } },
+                        React.createElement(CheckCircle2, { size: 16 })),
+                    React.createElement("button", { type: "button", onClick: cancelEditService, className: "w-7 h-7 rounded-lg flex items-center justify-center", style: { color: C.textMute } },
+                        React.createElement(X, { size: 14 })))) : (React.createElement("div", { className: "flex items-center gap-1.5 shrink-0" },
+                    React.createElement("span", { className: "font-mono" }, money(s.price)),
+                    onSaveServices && (React.createElement("button", { type: "button", onClick: () => startEditService(i), className: "w-6 h-6 rounded-lg flex items-center justify-center hover:bg-white/5", style: { color: C.textMute } },
+                        React.createElement(Pencil, { size: 12 })))))))),
             order.parts.map((p, i) => (React.createElement("div", { key: "p" + i, className: "flex justify-between text-sm py-1.5", style: { borderBottom: `1px solid ${C.borderSoft}` } },
                 React.createElement("span", null,
                     p.name,
                     " \u00D7 ",
                     p.qty),
                 React.createElement("span", { className: "font-mono" }, money(p.price * p.qty))))),
+            onSaveServices && (editingServiceIdx === -1 ? (React.createElement("div", { className: "flex justify-between items-center gap-2 text-sm py-1.5" },
+                React.createElement("span", { style: { color: C.textSoft } }, "Precio de la orden"),
+                React.createElement("div", { className: "flex items-center gap-1.5 shrink-0" },
+                    React.createElement(Input, { type: "number", autoFocus: true, min: "0", step: "0.01", value: editingServiceValue, onChange: (e) => setEditingServiceValue(e.target.value), placeholder: "0.00", style: { width: "96px" }, className: "py-1" }),
+                    React.createElement("button", { type: "button", onClick: confirmEditService, className: "w-7 h-7 rounded-lg flex items-center justify-center", style: { color: C.success } },
+                        React.createElement(CheckCircle2, { size: 16 })),
+                    React.createElement("button", { type: "button", onClick: cancelEditService, className: "w-7 h-7 rounded-lg flex items-center justify-center", style: { color: C.textMute } },
+                        React.createElement(X, { size: 14 }))))) : (React.createElement("button", { type: "button", onClick: () => startEditService(-1), className: "flex items-center gap-1.5 text-xs font-medium", style: { color: C.accentText } },
+                React.createElement(Plus, { size: 13 }),
+                " Agregar precio"))),
             React.createElement("div", { className: "flex justify-between text-sm pt-2 font-semibold" },
                 React.createElement("span", null, "Total"),
                 React.createElement("span", { className: "font-mono", style: { color: C.accentText } }, money(total))),
@@ -2273,34 +2344,57 @@ function OrderDetail({ order, client, vehicle, parts, onClose, onStatusChange, o
         showReception && (React.createElement(ReceptionModal, { order: order, client: client, vehicle: vehicle, onClose: () => setShowReception(false), onSave: (checkin) => { onSaveCheckin(checkin); setShowReception(false); } })),
         showRequirement && (React.createElement(RequirementModal, { order: order, requirement: requirement, parts: parts, onClose: () => setShowRequirement(false), onSave: (req) => { onSaveRequirement(req); setShowRequirement(false); } })),
         showFindings && (React.createElement(FindingsModal, { order: order, findings: findings, onClose: () => setShowFindings(false), onSave: (items) => { onSaveFindings && onSaveFindings(items); setShowFindings(false); } })),
+        pendingServices && (React.createElement(ConfirmPinModal, { title: "Confirmar precio", description: "Por seguridad, ingresa tu PIN para modificar el precio de esta orden.", currentUser: currentUser, onCancel: () => setPendingServices(null), onConfirmed: async () => { onSaveServices && onSaveServices(pendingServices); setPendingServices(null); } })),
         onDelete && (React.createElement("div", { className: "mt-6 pt-4", style: { borderTop: `1px solid ${C.borderSoft}` } },
             React.createElement("button", { onClick: () => { if (window.confirm("¿Eliminar esta orden de trabajo? Esta acción no se puede deshacer."))
                     onDelete(); }, className: "text-xs flex items-center gap-1.5", style: { color: C.danger } },
                 React.createElement(Trash2, { size: 13 }),
                 " Eliminar orden")))));
 }
-function NewOrderModal({ clients, vehicles, code, onClose, onCreate }) {
+function NewOrderModal({ clients, setClients, vehicles, setVehicles, code, onClose, onCreate }) {
     var _a;
+    const [mode, setMode] = useState("existing");
     const [clientId, setClientId] = useState(((_a = clients[0]) === null || _a === void 0 ? void 0 : _a.id) || "");
     const [vehicleId, setVehicleId] = useState("");
+    const [occName, setOccName] = useState("");
+    const [occPhone, setOccPhone] = useState("");
+    const [occPlate, setOccPlate] = useState("");
+    const [occBrand, setOccBrand] = useState("");
+    const [occModel, setOccModel] = useState("");
     const [description, setDescription] = useState("");
     const [tech, setTech] = useState(TECHS[0]);
     const [est, setEst] = useState("");
+    const [price, setPrice] = useState("");
+    const [showNewClient, setShowNewClient] = useState(false);
+    const [showNewVehicle, setShowNewVehicle] = useState(false);
     const clientVehicles = vehicles.filter((v) => v.clientId === clientId);
+    const selectedClient = clients.find((c) => c.id === clientId) || null;
+    const canSubmit = mode === "existing" ? Boolean(clientId) && Boolean(vehicleId) && Boolean(description) : Boolean(occName) && Boolean(occPlate) && Boolean(occBrand) && Boolean(description);
     const submit = () => {
-        if (!clientId || !vehicleId || !description)
+        if (!canSubmit)
             return;
+        const initialPrice = Number(price) || 0;
+        let finalClientId = clientId;
+        let finalVehicleId = vehicleId;
+        if (mode === "occasional") {
+            const newClient = { id: "c" + Date.now(), name: occName, phone: occPhone, email: "", address: "", occasional: true };
+            const newVehicle = { id: "v" + (Date.now() + 1), clientId: newClient.id, plate: formatPlatePE(occPlate), brand: occBrand, model: occModel, year: "", color: "", vin: "" };
+            setClients((prev) => [...prev, newClient]);
+            setVehicles((prev) => [...prev, newVehicle]);
+            finalClientId = newClient.id;
+            finalVehicleId = newVehicle.id;
+        }
         onCreate({
             id: "o" + Date.now(),
             code,
-            clientId,
-            vehicleId,
+            clientId: finalClientId,
+            vehicleId: finalVehicleId,
             status: "recibido",
             description,
             tech,
             entry: new Date().toISOString().slice(0, 10),
             est: est || new Date().toISOString().slice(0, 10),
-            services: [],
+            services: initialPrice > 0 ? [{ name: "Presupuesto inicial", price: initialPrice }] : [],
             parts: [],
             pagos: [],
             findings: [],
@@ -2308,17 +2402,42 @@ function NewOrderModal({ clients, vehicles, code, onClose, onCreate }) {
     };
     return (React.createElement(Modal, { title: "Nueva orden de trabajo", onClose: onClose },
         React.createElement("div", { className: "space-y-4" },
-            React.createElement(Field, { label: "Cliente" },
-                React.createElement(Select, { value: clientId, onChange: (e) => { setClientId(e.target.value); setVehicleId(""); } }, clients.map((c) => React.createElement("option", { key: c.id, value: c.id }, c.name)))),
-            React.createElement(Field, { label: "Veh\u00EDculo" },
-                React.createElement(Select, { value: vehicleId, onChange: (e) => setVehicleId(e.target.value) },
-                    React.createElement("option", { value: "" }, "Selecciona un veh\u00EDculo"),
-                    clientVehicles.map((v) => React.createElement("option", { key: v.id, value: v.id },
-                        v.plate,
-                        " \u00B7 ",
-                        v.brand,
-                        " ",
-                        v.model)))),
+            React.createElement("div", { className: "flex rounded-xl overflow-hidden", style: { border: `1px solid ${C.border}` } },
+                React.createElement("button", { type: "button", onClick: () => setMode("existing"), className: "flex-1 text-xs font-medium py-2.5 transition-colors", style: mode === "existing" ? { background: C.accent, color: "#fff" } : { background: "transparent", color: C.textSoft } }, "Cliente registrado"),
+                React.createElement("button", { type: "button", onClick: () => setMode("occasional"), className: "flex-1 text-xs font-medium py-2.5 transition-colors", style: mode === "occasional" ? { background: C.accent, color: "#fff" } : { background: "transparent", color: C.textSoft } }, "Cliente ocasional")),
+            mode === "existing" ? (React.createElement(React.Fragment, null,
+                React.createElement(Field, { label: "Cliente" },
+                    React.createElement("div", { className: "flex gap-2" },
+                        React.createElement(Select, { value: clientId, onChange: (e) => { setClientId(e.target.value); setVehicleId(""); }, className: "flex-1" },
+                            clients.length === 0 && React.createElement("option", { value: "" }, "Sin clientes registrados"),
+                            clients.map((c) => React.createElement("option", { key: c.id, value: c.id }, c.name))),
+                        React.createElement(Button, { type: "button", variant: "ghost", onClick: () => setShowNewClient(true), className: "shrink-0 px-3", title: "Registrar un cliente nuevo" },
+                            React.createElement(Plus, { size: 15 })))),
+                React.createElement(Field, { label: "Veh\u00EDculo" },
+                    React.createElement("div", { className: "flex gap-2" },
+                        React.createElement(Select, { value: vehicleId, onChange: (e) => setVehicleId(e.target.value), className: "flex-1" },
+                            React.createElement("option", { value: "" }, "Selecciona un veh\u00EDculo"),
+                            clientVehicles.map((v) => React.createElement("option", { key: v.id, value: v.id },
+                                v.plate,
+                                " \u00B7 ",
+                                v.brand,
+                                " ",
+                                v.model))),
+                        React.createElement(Button, { type: "button", variant: "ghost", disabled: !clientId, onClick: () => setShowNewVehicle(true), className: "shrink-0 px-3", title: clientId ? "Registrar un veh\u00EDculo nuevo para este cliente" : "Primero elige o crea un cliente" },
+                            React.createElement(Plus, { size: 15 })))))) : (React.createElement(React.Fragment, null,
+                React.createElement("p", { className: "text-xs -mt-1", style: { color: C.textMute } }, "Se guarda solo lo b\u00E1sico para esta orden, sin llenar la ficha completa de cliente."),
+                React.createElement("div", { className: "grid grid-cols-2 gap-4" },
+                    React.createElement(Field, { label: "Nombre" },
+                        React.createElement(Input, { value: occName, onChange: (e) => setOccName(e.target.value), placeholder: "Ej: Carlos Ruiz" })),
+                    React.createElement(Field, { label: "Tel\u00E9fono (opcional)" },
+                        React.createElement(Input, { value: occPhone, onChange: (e) => setOccPhone(e.target.value), placeholder: "987 654 321" }))),
+                React.createElement("div", { className: "grid grid-cols-3 gap-4" },
+                    React.createElement(Field, { label: "Placa" },
+                        React.createElement(Input, { value: occPlate, onChange: (e) => setOccPlate(e.target.value), placeholder: "ABC-123" })),
+                    React.createElement(Field, { label: "Marca" },
+                        React.createElement(Input, { value: occBrand, onChange: (e) => setOccBrand(e.target.value), placeholder: "Toyota" })),
+                    React.createElement(Field, { label: "Modelo" },
+                        React.createElement(Input, { value: occModel, onChange: (e) => setOccModel(e.target.value), placeholder: "Yaris" }))))),
             React.createElement(Field, { label: "Descripci\u00F3n del problema" },
                 React.createElement(TextArea, { rows: 3, value: description, onChange: (e) => setDescription(e.target.value), placeholder: "Ej: Ruido en frenos delanteros" })),
             React.createElement("div", { className: "grid grid-cols-2 gap-4" },
@@ -2326,11 +2445,24 @@ function NewOrderModal({ clients, vehicles, code, onClose, onCreate }) {
                     React.createElement(Select, { value: tech, onChange: (e) => setTech(e.target.value) }, TECHS.map((t) => React.createElement("option", { key: t, value: t }, t)))),
                 React.createElement(Field, { label: "Fecha estimada" },
                     React.createElement(Input, { type: "date", value: est, onChange: (e) => setEst(e.target.value) }))),
+            React.createElement(Field, { label: "Precio estimado (opcional)" },
+                React.createElement(Input, { type: "number", min: "0", step: "0.01", placeholder: "0.00", value: price, onChange: (e) => setPrice(e.target.value) })),
             React.createElement("div", { className: "flex gap-3 pt-2" },
                 React.createElement(Button, { variant: "ghost", onClick: onClose, className: "flex-1" }, "Cancelar"),
-                React.createElement(Button, { onClick: submit, className: "flex-1" },
+                React.createElement(Button, { onClick: submit, disabled: !canSubmit, className: "flex-1" },
                     "Crear orden ",
-                    code)))));
+                    code))),
+        showNewClient && (React.createElement(NewClientModal, { onClose: () => setShowNewClient(false), onCreate: (client) => {
+                setClients((prev) => [...prev, client]);
+                setClientId(client.id);
+                setVehicleId("");
+                setShowNewClient(false);
+            } })),
+        showNewVehicle && selectedClient && (React.createElement(NewVehicleModal, { clients: clients, lockedClient: selectedClient, onClose: () => setShowNewVehicle(false), onCreate: (vehicle) => {
+                setVehicles((prev) => [...prev, vehicle]);
+                setVehicleId(vehicle.id);
+                setShowNewVehicle(false);
+            } }))));
 }
 /* ---------------------------------- RECEPCIÓN DIGITAL (checklist + fotos) ---------------------------------- */
 function PhotoThumb({ src, onRemove }) {
@@ -3049,23 +3181,29 @@ function ClientesView({ clients, setClients, vehicles, setVehicles, orders }) {
     const [showNew, setShowNew] = useState(false);
     const [openClient, setOpenClient] = useState(null);
     const [addVehicle, setAddVehicle] = useState(false);
-    const filtered = clients.filter((c) => c.name.toLowerCase().includes(query.toLowerCase()));
+    const [showOccasional, setShowOccasional] = useState(false);
+    const occasionalCount = clients.filter((c) => c.occasional).length;
+    const filtered = clients.filter((c) => (showOccasional || !c.occasional) && c.name.toLowerCase().includes(query.toLowerCase()));
     return (React.createElement("div", { className: "space-y-5" },
         React.createElement("div", { className: "flex flex-col sm:flex-row sm:items-center justify-between gap-3" },
             React.createElement("h1", { style: { fontFamily: "Oswald, sans-serif" }, className: "text-2xl tracking-wide" }, "Clientes"),
             React.createElement(Button, { onClick: () => setShowNew(true) },
                 React.createElement(Plus, { size: 16 }),
                 " Nuevo cliente")),
-        React.createElement("div", { className: "relative" },
-            React.createElement(Search, { size: 16, className: "absolute left-3 top-1/2 -translate-y-1/2", style: { color: C.textMute } }),
-            React.createElement(Input, { placeholder: "Buscar cliente", value: query, onChange: (e) => setQuery(e.target.value), className: "pl-9 sm:max-w-sm" })),
+        React.createElement("div", { className: "flex flex-col sm:flex-row sm:items-center gap-3" },
+            React.createElement("div", { className: "relative flex-1 sm:max-w-sm" },
+                React.createElement(Search, { size: 16, className: "absolute left-3 top-1/2 -translate-y-1/2", style: { color: C.textMute } }),
+                React.createElement(Input, { placeholder: "Buscar cliente", value: query, onChange: (e) => setQuery(e.target.value), className: "pl-9" })),
+            occasionalCount > 0 && (React.createElement("button", { type: "button", onClick: () => setShowOccasional((v) => !v), className: "text-xs font-medium shrink-0", style: { color: showOccasional ? C.accentText : C.textMute } }, showOccasional ? `Ocultar ocasionales (${occasionalCount})` : `Mostrar ocasionales (${occasionalCount})`))),
         React.createElement(Card, { className: "overflow-hidden" }, filtered.map((c, i) => {
             const vCount = vehicles.filter((v) => v.clientId === c.id).length;
             const oCount = orders.filter((o) => o.clientId === c.id).length;
             return (React.createElement("button", { key: c.id, onClick: () => setOpenClient(c), className: "w-full flex items-center gap-4 px-5 py-4 text-left", style: { borderBottom: i < filtered.length - 1 ? `1px solid ${C.borderSoft}` : "none" } },
                 React.createElement("div", { className: "w-10 h-10 rounded-full flex items-center justify-center text-sm font-semibold shrink-0", style: { background: C.surfaceHi } }, c.name.split(" ").map((n) => n[0]).slice(0, 2).join("")),
                 React.createElement("div", { className: "min-w-0 flex-1" },
-                    React.createElement("div", { className: "text-sm font-medium" }, c.name),
+                    React.createElement("div", { className: "text-sm font-medium flex items-center gap-2" },
+                        c.name,
+                        c.occasional && React.createElement(Badge, { color: C.textSoft, soft: C.surfaceHi }, "Ocasional")),
                     React.createElement("div", { className: "text-xs", style: { color: C.textMute } }, c.phone)),
                 React.createElement("div", { className: "hidden sm:flex gap-2 shrink-0" },
                     React.createElement(Badge, { color: C.info, soft: C.infoSoft },
@@ -3080,8 +3218,13 @@ function ClientesView({ clients, setClients, vehicles, setVehicles, orders }) {
         })),
         openClient && (React.createElement(Modal, { title: "Ficha de cliente", onClose: () => setOpenClient(null) },
             React.createElement("div", { className: "space-y-4" },
-                React.createElement("div", null,
-                    React.createElement("div", { style: { fontFamily: "Oswald, sans-serif" }, className: "text-xl" }, openClient.name)),
+                React.createElement("div", { className: "flex items-center gap-2 flex-wrap" },
+                    React.createElement("div", { style: { fontFamily: "Oswald, sans-serif" }, className: "text-xl" }, openClient.name),
+                    openClient.occasional && React.createElement(Badge, { color: C.textSoft, soft: C.surfaceHi }, "Ocasional")),
+                openClient.occasional && (React.createElement("button", { type: "button", onClick: () => {
+                        setClients((prev) => prev.map((c) => (c.id === openClient.id ? { ...c, occasional: false } : c)));
+                        setOpenClient((c) => (c ? { ...c, occasional: false } : c));
+                    }, className: "text-xs font-medium", style: { color: C.accentText } }, "Marcar como cliente regular")),
                 React.createElement("div", { className: "space-y-2 text-sm" },
                     React.createElement("div", { className: "flex items-center gap-2", style: { color: C.textSoft } },
                         React.createElement(Phone, { size: 14 }),
@@ -3125,7 +3268,7 @@ function NewClientModal({ onClose, onCreate }) {
     const [email, setEmail] = useState("");
     const [address, setAddress] = useState("");
     const submit = () => {
-        if (!name || !phone)
+        if (!name)
             return;
         onCreate({ id: "c" + Date.now(), name, phone, email, address });
     };
@@ -3133,9 +3276,9 @@ function NewClientModal({ onClose, onCreate }) {
         React.createElement("div", { className: "space-y-4" },
             React.createElement(Field, { label: "Nombre completo" },
                 React.createElement(Input, { value: name, onChange: (e) => setName(e.target.value), placeholder: "Ej: Ana Torres" })),
-            React.createElement(Field, { label: "Tel\u00E9fono" },
+            React.createElement(Field, { label: "Tel\u00E9fono (opcional)" },
                 React.createElement(Input, { value: phone, onChange: (e) => setPhone(e.target.value), placeholder: "987 654 321" })),
-            React.createElement(Field, { label: "Correo" },
+            React.createElement(Field, { label: "Correo (opcional)" },
                 React.createElement(Input, { value: email, onChange: (e) => setEmail(e.target.value), placeholder: "correo@ejemplo.com" })),
             React.createElement(Field, { label: "Direcci\u00F3n" },
                 React.createElement(Input, { value: address, onChange: (e) => setAddress(e.target.value), placeholder: "Av. Ejemplo 123" })),
@@ -3147,17 +3290,27 @@ function NewClientModal({ onClose, onCreate }) {
 function VehiculosView({ vehicles, setVehicles, clients, orders }) {
     const [query, setQuery] = useState("");
     const [showNew, setShowNew] = useState(false);
+    const [showOccasional, setShowOccasional] = useState(false);
     const findClient = (id) => clients.find((c) => c.id === id);
-    const filtered = vehicles.filter((v) => v.plate.toLowerCase().includes(query.toLowerCase()) || v.brand.toLowerCase().includes(query.toLowerCase()));
+    const occasionalCount = vehicles.filter((v) => { var _a; return (_a = findClient(v.clientId)) === null || _a === void 0 ? void 0 : _a.occasional; }).length;
+    const filtered = vehicles.filter((v) => {
+        var _a;
+        const isOccasional = (_a = findClient(v.clientId)) === null || _a === void 0 ? void 0 : _a.occasional;
+        if (isOccasional && !showOccasional)
+            return false;
+        return v.plate.toLowerCase().includes(query.toLowerCase()) || v.brand.toLowerCase().includes(query.toLowerCase());
+    });
     return (React.createElement("div", { className: "space-y-5" },
         React.createElement("div", { className: "flex flex-col sm:flex-row sm:items-center justify-between gap-3" },
             React.createElement("h1", { style: { fontFamily: "Oswald, sans-serif" }, className: "text-2xl tracking-wide" }, "Veh\u00EDculos"),
             React.createElement(Button, { onClick: () => setShowNew(true) },
                 React.createElement(Plus, { size: 16 }),
                 " Nuevo veh\u00EDculo")),
-        React.createElement("div", { className: "relative" },
-            React.createElement(Search, { size: 16, className: "absolute left-3 top-1/2 -translate-y-1/2", style: { color: C.textMute } }),
-            React.createElement(Input, { placeholder: "Buscar por placa o marca", value: query, onChange: (e) => setQuery(e.target.value), className: "pl-9 sm:max-w-sm" })),
+        React.createElement("div", { className: "flex flex-col sm:flex-row sm:items-center gap-3" },
+            React.createElement("div", { className: "relative flex-1 sm:max-w-sm" },
+                React.createElement(Search, { size: 16, className: "absolute left-3 top-1/2 -translate-y-1/2", style: { color: C.textMute } }),
+                React.createElement(Input, { placeholder: "Buscar por placa o marca", value: query, onChange: (e) => setQuery(e.target.value), className: "pl-9" })),
+            occasionalCount > 0 && (React.createElement("button", { type: "button", onClick: () => setShowOccasional((v) => !v), className: "text-xs font-medium shrink-0", style: { color: showOccasional ? C.accentText : C.textMute } }, showOccasional ? `Ocultar ocasionales (${occasionalCount})` : `Mostrar ocasionales (${occasionalCount})`))),
         React.createElement("div", { className: "grid sm:grid-cols-2 xl:grid-cols-3 gap-4" }, filtered.map((v) => {
             var _a;
             const lastOrder = [...orders].filter((o) => o.vehicleId === v.id).sort((a, b) => b.entry.localeCompare(a.entry))[0];
@@ -3178,7 +3331,9 @@ function VehiculosView({ vehicles, setVehicles, clients, orders }) {
                     "VIN ",
                     v.vin),
                 React.createElement("div", { style: { borderTop: `1px solid ${C.borderSoft}` }, className: "mt-3 pt-3 flex items-center justify-between gap-2" },
-                    React.createElement("span", { className: "text-xs truncate min-w-0", style: { color: C.textSoft } }, (_a = findClient(v.clientId)) === null || _a === void 0 ? void 0 : _a.name),
+                    React.createElement("span", { className: "text-xs truncate min-w-0 flex items-center gap-1.5", style: { color: C.textSoft } },
+                        (_a = findClient(v.clientId)) === null || _a === void 0 ? void 0 : _a.name,
+                        findClient(v.clientId) && findClient(v.clientId).occasional && React.createElement(Badge, { color: C.textSoft, soft: C.surfaceHi }, "Ocasional")),
                     lastOrder && React.createElement(Badge, { color: statusOf(lastOrder.status).color, soft: statusOf(lastOrder.status).soft }, lastOrder.code))));
         })),
         showNew && (React.createElement(NewVehicleModal, { clients: clients, onClose: () => setShowNew(false), onCreate: (vehicle) => { setVehicles((prev) => [...prev, vehicle]); setShowNew(false); } }))));
@@ -4677,6 +4832,12 @@ function useFirebase() {
         try {
             const app = window.firebase.apps && window.firebase.apps.length ? window.firebase.apps[0] : window.firebase.initializeApp(FIREBASE_CONFIG);
             const firestore = window.firebase.firestore();
+            firestore.enablePersistence({ synchronizeTabs: true }).catch((e) => {
+                // "failed-precondition" pasa si hay otra pestaña abierta sin synchronizeTabs, y
+                // "unimplemented" si el navegador no soporta esto (ej. modo incógnito en algunos
+                // casos). En ambos casos la app sigue funcionando, solo sin caché offline de Firestore.
+                console.warn("No se pudo activar la caché offline de Firestore:", e && e.code);
+            });
             window.firebase
                 .auth()
                 .signInAnonymously()
@@ -4894,7 +5055,7 @@ function App() {
                 return;
             if (!("serviceWorker" in navigator))
                 return;
-            const reg = await navigator.serviceWorker.register("firebase-messaging-sw.js");
+            const reg = (await navigator.serviceWorker.getRegistration("sw.js")) || (await navigator.serviceWorker.register("sw.js"));
             const messaging = firebase.messaging();
             const token = await messaging.getToken({ vapidKey: VAPID_KEY, serviceWorkerRegistration: reg });
             if (token) {
@@ -5146,7 +5307,7 @@ function App() {
                         (currentRole === null || currentRole === void 0 ? void 0 : currentRole.name) || "sin rol",
                         ") no tiene permiso para ver esta secci\u00F3n."))) : (React.createElement(React.Fragment, null,
                     active === "dashboard" && (React.createElement(Dashboard, { orders: orders, clients: clients, vehicles: vehicles, parts: parts, appointments: appointments, goTo: setActive, settings: settings, verMontos: canSeeMoney(currentRole) })),
-                    active === "ordenes" && (React.createElement(OrdenesView, { orders: orders, setOrders: setOrders, clients: clients, vehicles: vehicles, parts: parts, onChangeStatus: changeOrderStatus, onRegistrarAbono: registrarAbono, settings: settings, logAudit: logAudit })),
+                    active === "ordenes" && (React.createElement(OrdenesView, { orders: orders, setOrders: setOrders, clients: clients, setClients: setClients, vehicles: vehicles, setVehicles: setVehicles, parts: parts, onChangeStatus: changeOrderStatus, onRegistrarAbono: registrarAbono, settings: settings, logAudit: logAudit, currentUser: currentUser })),
                     active === "proformas" && (React.createElement(ProformasView, { proformas: proformas, setProformas: setProformas, clients: clients, vehicles: vehicles, settings: settings, focusRequest: proformaFocus, logAudit: logAudit })),
                     active === "clientes" && React.createElement(ClientesView, { clients: clients, setClients: setClients, vehicles: vehicles, setVehicles: setVehicles, orders: orders }),
                     active === "vehiculos" && React.createElement(VehiculosView, { vehicles: vehicles, setVehicles: setVehicles, clients: clients, orders: orders }),
