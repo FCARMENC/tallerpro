@@ -49,6 +49,11 @@
     --boot-error-text: #CC2E51;
   }
   html, body { background: var(--boot-bg); margin: 0; color: var(--boot-text); font-family: 'Inter', -apple-system, sans-serif; }
+  /* Evita el gesto de "jalar hacia abajo para recargar" del navegador/WebView, para que la
+     app se sienta como una app nativa y no se reinicie (pidiendo PIN/huella de nuevo) cada
+     vez que alguien hace scroll hasta arriba del todo y sigue jalando. */
+  html { overscroll-behavior-y: none; }
+  body { overscroll-behavior-y: none; overflow-x: hidden; }
 
   #boot-status {
     position: fixed; inset: 0; z-index: 9999;
@@ -1848,11 +1853,12 @@ function Sidebar({ active, setActive, mobileOpen, setMobileOpen, settings, role,
         mobileOpen && (React.createElement("div", { className: "fixed inset-0 z-40 sm:hidden", style: { background: "rgba(0,0,0,0.6)" }, onClick: () => setMobileOpen(false) })),
         React.createElement("aside", { className: `fixed sm:sticky top-0 z-50 h-screen w-64 flex flex-col transition-transform sm:translate-x-0 ${mobileOpen ? "translate-x-0" : "-translate-x-full"}`, style: { background: C.surface, borderRight: `1px solid ${C.border}`, boxShadow: "4px 0 24px rgba(0,0,0,0.25)" } },
             React.createElement("div", { className: "flex items-center gap-2.5 px-6 py-6" },
-                React.createElement("div", { className: "w-9 h-9 rounded-xl flex items-center justify-center", style: { background: `linear-gradient(160deg, ${C.accent} 0%, #C94E0F 100%)`, boxShadow: C.shadowGlow } },
-                    React.createElement(Wrench, { size: 18, style: { color: "#1A0D05" } })),
-                React.createElement("div", null,
-                    React.createElement("div", { style: { fontFamily: "Oswald, sans-serif", letterSpacing: "0.06em" }, className: "text-xl leading-none" }, "EXPERT"),
-                    React.createElement("div", { className: "text-[10px] uppercase tracking-widest truncate max-w-[160px]", style: { color: C.textMute } }, settings.tallerNombre || "Gestión de taller"))),
+                settings.logoDataUrl ? (React.createElement("div", { className: "w-9 h-9 rounded-xl overflow-hidden shrink-0", style: { background: C.surfaceHi, border: `1px solid ${C.borderSoft}` } },
+                    React.createElement("img", { src: settings.logoDataUrl, alt: "Logo del taller", className: "w-full h-full object-contain" }))) : (React.createElement("div", { className: "w-9 h-9 rounded-xl flex items-center justify-center shrink-0", style: { background: `linear-gradient(160deg, ${C.accent} 0%, #C94E0F 100%)`, boxShadow: C.shadowGlow } },
+                    React.createElement(Wrench, { size: 18, style: { color: "#1A0D05" } }))),
+                React.createElement("div", { className: "min-w-0" },
+                    React.createElement("div", { style: { fontFamily: "Oswald, sans-serif", letterSpacing: "0.06em" }, className: "text-xl leading-none truncate max-w-[160px]" }, settings.tallerNombre || "EXPERT"),
+                    React.createElement("div", { className: "text-[10px] uppercase tracking-widest truncate max-w-[160px]", style: { color: C.textMute } }, "Gesti\u00F3n de taller"))),
             React.createElement("nav", { className: "flex-1 px-3 space-y-1" }, visibleNav.map((item) => {
                 const Icon = item.icon;
                 const isActive = active === item.key;
@@ -2053,6 +2059,7 @@ function OrdenesView({ orders, setOrders, clients, setClients, vehicles, setVehi
         showNew && (React.createElement(NewOrderModal, { clients: clients, setClients: setClients, vehicles: vehicles, setVehicles: setVehicles, code: nextCode(), onClose: () => setShowNew(false), onCreate: (order) => {
                 setOrders((prev) => [order, ...prev]);
                 setShowNew(false);
+                playSound("ordenNueva");
             } }))));
 }
 function OrderDetail({ order, client, vehicle, parts, onClose, onStatusChange, onRegistrarAbono, onSaveCheckin, onSaveRequirement, onSaveFindings, onSaveServices, onDelete, settings, currentUser }) {
@@ -4032,6 +4039,7 @@ function ConfirmPinModal({ title, description, confirmLabel, danger, currentUser
             setError("PIN incorrecto. Intenta de nuevo.");
             setPin("");
             setBusy(false);
+            playSound("error");
         }
     };
     return (React.createElement(Modal, { title: title, onClose: confirming ? () => { } : onCancel },
@@ -4126,7 +4134,7 @@ function AuditLogView({ auditLog, tallerNombre }) {
                             e.userName || "Sistema", " \u00B7 ", AUDIT_MODULE_LABELS[e.module] || e.module, " \u00B7 ", fmtDateTimePE(e.ts)))));
             }))))));
 }
-function AjustesView({ settings, setSettings, cloudStatus, cloudError, cloudProjectId, db, users, setUsers, roles, setRoles, currentUser, currentRole, themeMode, setThemeMode, onLock, auditLog, logAudit }) {
+function AjustesView({ settings, setSettings, cloudStatus, cloudError, cloudProjectId, db, users, setUsers, roles, setRoles, currentUser, currentRole, themeMode, setThemeMode, soundsEnabled, setSoundsEnabled, onLock, auditLog, logAudit }) {
     const [form, setForm] = useState(settings);
     const [saved, setSaved] = useState(false);
     const [tab, setTab] = useState("general");
@@ -4279,7 +4287,13 @@ function AjustesView({ settings, setSettings, cloudStatus, cloudError, cloudProj
                         } },
                         React.createElement(OptIcon, { size: 15 }),
                         opt.label));
-                }))),
+                })),
+                React.createElement("div", { style: { borderTop: `1px solid ${C.borderSoft}` }, className: "pt-4 flex items-center justify-between gap-3" },
+                    React.createElement("div", null,
+                        React.createElement("div", { className: "text-sm font-medium" }, "Sonidos de confirmaci\u00F3n"),
+                        React.createElement("p", { className: "text-xs mt-0.5", style: { color: C.textMute } }, "Un tono corto al registrar un pago, marcar una orden lista, crear una orden o si un PIN es incorrecto. Solo en este dispositivo.")),
+                    React.createElement("button", { type: "button", onClick: () => setSoundsEnabled((v) => !v), className: "shrink-0 w-12 h-7 rounded-full relative transition-colors", style: { background: soundsEnabled ? C.accent : C.surfaceHi, border: `1px solid ${soundsEnabled ? C.accent : C.border}` } },
+                        React.createElement("span", { className: "absolute top-0.5 w-5 h-5 rounded-full transition-transform", style: { background: "#fff", transform: soundsEnabled ? "translateX(22px)" : "translateX(2px)" } })))),
             readOnly && (React.createElement("div", { className: "text-sm px-4 py-2.5 rounded-xl", style: { background: C.warningSoft, color: C.warning } }, "Tu rol solo tiene permiso de lectura en Ajustes.")),
             React.createElement(Card, { className: "p-6 space-y-4" },
                 React.createElement("div", { className: "text-xs uppercase tracking-wide", style: { color: C.textMute } }, "Sincronizaci\u00F3n en la nube"),
@@ -4412,7 +4426,7 @@ function AjustesView({ settings, setSettings, cloudStatus, cloudError, cloudProj
 
 }
 /* ---------------------------------- AUTENTICACIÓN ---------------------------------- */
-function AuthShell({ children, footer }) {
+function AuthShell({ children, footer, settings }) {
     return (React.createElement("div", { style: {
             background: `radial-gradient(1200px 600px at 15% -10%, ${C.accentSoft} 0%, transparent 55%), ${C.bg}`,
             color: C.text,
@@ -4422,10 +4436,11 @@ function AuthShell({ children, footer }) {
         React.createElement("style", null, getFonts()),
         React.createElement("div", { className: "w-full max-w-sm space-y-6" },
             React.createElement("div", { className: "flex flex-col items-center gap-3 text-center" },
-                React.createElement("div", { className: "w-14 h-14 rounded-2xl flex items-center justify-center", style: { background: `linear-gradient(160deg, ${C.accent} 0%, #C94E0F 100%)`, boxShadow: C.shadowGlow } },
-                    React.createElement(Wrench, { size: 26, style: { color: "#1A0D05" } })),
+                (settings === null || settings === void 0 ? void 0 : settings.logoDataUrl) ? (React.createElement("div", { className: "w-14 h-14 rounded-2xl overflow-hidden", style: { background: C.surface, border: `1px solid ${C.borderSoft}`, boxShadow: C.shadow } },
+                    React.createElement("img", { src: settings.logoDataUrl, alt: "Logo del taller", className: "w-full h-full object-contain" }))) : (React.createElement("div", { className: "w-14 h-14 rounded-2xl flex items-center justify-center", style: { background: `linear-gradient(160deg, ${C.accent} 0%, #C94E0F 100%)`, boxShadow: C.shadowGlow } },
+                    React.createElement(Wrench, { size: 26, style: { color: "#1A0D05" } }))),
                 React.createElement("div", null,
-                    React.createElement("div", { style: { fontFamily: "Oswald, sans-serif", letterSpacing: "0.06em" }, className: "text-2xl leading-none" }, "EXPERT"),
+                    React.createElement("div", { style: { fontFamily: "Oswald, sans-serif", letterSpacing: "0.06em" }, className: "text-2xl leading-none" }, (settings === null || settings === void 0 ? void 0 : settings.tallerNombre) || "EXPERT"),
                     React.createElement("div", { className: "text-[11px] uppercase tracking-widest mt-1", style: { color: C.textMute } }, "Gesti\u00F3n de taller"))),
             children),
         footer));
@@ -4572,6 +4587,7 @@ function LoginScreen({ users, roles, settings, onLogin }) {
         const nextAttempts = attempts + 1;
         setAttempts(nextAttempts);
         setBusy(false);
+        playSound("error");
         if (nextAttempts >= 5) {
             setLockedUntil(Date.now() + 20000);
             setAttempts(0);
@@ -4587,9 +4603,9 @@ function LoginScreen({ users, roles, settings, onLogin }) {
             tryLogin(next);
     };
     if (!selected) {
-        return (React.createElement(AuthShell, null,
+        return (React.createElement(AuthShell, { settings: settings },
             React.createElement("div", { className: "space-y-1 text-center mb-2" },
-                React.createElement("div", { style: { fontFamily: "Oswald, sans-serif" }, className: "text-lg tracking-wide uppercase" }, (settings === null || settings === void 0 ? void 0 : settings.tallerNombre) || "Selecciona tu usuario"),
+                React.createElement("div", { style: { fontFamily: "Oswald, sans-serif" }, className: "text-lg tracking-wide uppercase" }, "Selecciona tu usuario"),
                 React.createElement("p", { className: "text-xs", style: { color: C.textMute } }, "Toca tu perfil para ingresar")),
             React.createElement("div", { className: "grid grid-cols-2 gap-3" }, activeUsers.map((u) => {
                 const role = getRole(roles, u.roleId);
@@ -4602,7 +4618,7 @@ function LoginScreen({ users, roles, settings, onLogin }) {
             activeUsers.length === 0 && (React.createElement(Card, { className: "p-5 text-center text-sm", style: { color: C.textMute } }, "No hay usuarios activos. Pide a un administrador que reactive tu cuenta."))));
     }
     const role = getRole(roles, selected.roleId);
-    return (React.createElement(AuthShell, null,
+    return (React.createElement(AuthShell, { settings: settings },
         React.createElement("div", { className: "flex flex-col items-center gap-3 -mt-2" },
             React.createElement(UserAvatar, { user: selected, role: role, size: 64 }),
             React.createElement("div", { className: "text-center" },
@@ -4621,7 +4637,7 @@ function LoginScreen({ users, roles, settings, onLogin }) {
             React.createElement("button", { onClick: () => { setSelected(null); setPin(""); }, className: "w-full text-center text-xs py-2", style: { color: C.textMute } }, "\u2190 Cambiar de usuario"))));
 }
 // Pantalla de bloqueo rápido (inactividad): pide el PIN del usuario ya conectado sin cerrar sesión.
-function LockScreen({ user, role, onUnlock, onSwitchUser }) {
+function LockScreen({ user, role, settings, onUnlock, onSwitchUser }) {
     const [pin, setPin] = useState("");
     const [error, setError] = useState(false);
     const [busy, setBusy] = useState(false);
@@ -4665,10 +4681,11 @@ function LockScreen({ user, role, onUnlock, onSwitchUser }) {
             setError(true);
             setPin("");
             setBusy(false);
+            playSound("error");
             setTimeout(() => setError(false), 500);
         }
     };
-    return (React.createElement(AuthShell, null,
+    return (React.createElement(AuthShell, { settings: settings },
         React.createElement("div", { className: "flex flex-col items-center gap-3 -mt-2" },
             React.createElement("div", { className: "flex items-center gap-2 text-xs uppercase tracking-widest", style: { color: C.textMute } },
                 React.createElement(KeyRound, { size: 13 }),
@@ -4982,6 +4999,74 @@ function NotificationsBell({ proformas, clients, onEnablePush, pushReady, onOpen
             unread.length > 0 && (React.createElement("span", { className: "absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full flex items-center justify-center text-[10px] font-semibold", style: { background: C.accent, color: "#1A0D05", boxShadow: `0 0 6px ${C.accent}` } }, unread.length > 9 ? "9+" : unread.length))),
         panel));
 }
+/* ---------------------------------- SONIDOS DE LA APP ---------------------------------- */
+// Los tonos se generan al vuelo con el Web Audio API (osciladores simples), no son archivos de
+// audio: así funcionan incluso sin internet y no hay que cachear nada extra en el service worker.
+let __audioCtx = null;
+function getAudioCtx() {
+    if (typeof window === "undefined")
+        return null;
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx)
+        return null;
+    if (!__audioCtx)
+        __audioCtx = new Ctx();
+    if (__audioCtx.state === "suspended")
+        __audioCtx.resume().catch(() => { });
+    return __audioCtx;
+}
+// notes: [{freq, start, dur, type, gain}]
+function playTones(notes) {
+    const ctx = getAudioCtx();
+    if (!ctx)
+        return;
+    const now = ctx.currentTime;
+    notes.forEach((n) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = n.type || "sine";
+        osc.frequency.value = n.freq;
+        const t0 = now + (n.start || 0);
+        const t1 = t0 + (n.dur || 0.12);
+        const peak = n.gain != null ? n.gain : 0.14;
+        gain.gain.setValueAtTime(0, t0);
+        gain.gain.linearRampToValueAtTime(peak, t0 + 0.012);
+        gain.gain.exponentialRampToValueAtTime(0.0001, t1);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(t0);
+        osc.stop(t1 + 0.02);
+    });
+}
+const SOUND_PLAYERS = {
+    // "Cha-ching" ascendente, corto y satisfactorio: pago/abono registrado.
+    pago: () => playTones([
+        { freq: 880, start: 0, dur: 0.09, type: "sine", gain: 0.13 },
+        { freq: 1318.5, start: 0.07, dur: 0.16, type: "sine", gain: 0.15 },
+    ]),
+    // Tono limpio de éxito: orden lista para entregar.
+    ordenLista: () => playTones([
+        { freq: 659.25, start: 0, dur: 0.1, type: "sine", gain: 0.13 },
+        { freq: 987.77, start: 0.09, dur: 0.18, type: "sine", gain: 0.14 },
+    ]),
+    // Click/confirm discreto: orden nueva creada.
+    ordenNueva: () => playTones([{ freq: 740, start: 0, dur: 0.09, type: "triangle", gain: 0.12 }]),
+    // Buzz corto y grave: error o acción bloqueada.
+    error: () => playTones([
+        { freq: 180, start: 0, dur: 0.1, type: "square", gain: 0.09 },
+        { freq: 160, start: 0.11, dur: 0.12, type: "square", gain: 0.09 },
+    ]),
+};
+// Interruptor global de sonidos, controlado desde Ajustes. Se guarda por dispositivo (igual que
+// el tema visual), así cada celular puede silenciarlo sin afectar a los demás del equipo.
+let __soundsEnabledRef = { current: true };
+function playSound(name) {
+    if (!__soundsEnabledRef.current)
+        return;
+    const player = SOUND_PLAYERS[name];
+    if (player)
+        player();
+}
 /* ---------------------------------- APP ---------------------------------- */
 function App() {
     var _a;
@@ -4989,6 +5074,11 @@ function App() {
     // dispositivo -no se sincroniza a la nube-, igual que la sesi\u00F3n de inicio de sesi\u00F3n:
     // cada celular o PC puede elegir el suyo.
     const [themeMode, setThemeMode] = usePersistentState("expertTaller.theme", "system");
+    // Sonidos de confirmación (pago, orden lista, orden nueva, error). También por dispositivo.
+    const [soundsEnabled, setSoundsEnabled] = usePersistentState("expertTaller.sounds", true);
+    useEffect(() => {
+        __soundsEnabledRef.current = soundsEnabled;
+    }, [soundsEnabled]);
     const [systemPrefersDark, setSystemPrefersDark] = useState(() => (typeof window !== "undefined" && window.matchMedia ? window.matchMedia("(prefers-color-scheme: dark)").matches : true));
     useEffect(() => {
         if (!window.matchMedia)
@@ -5032,6 +5122,24 @@ function App() {
     const [orders, setOrders] = useCloudSync("expertTaller.orders", initialOrders, db);
     const [appointments, setAppointments] = useCloudSync("expertTaller.appointments", initialAppointments, db);
     const [settings, setSettings] = useCloudSync("expertTaller.settings", initialSettings, db);
+    // Refleja el nombre y logo del taller en la pesta\u00f1a del navegador (t\u00edtulo + favicon),
+    // adem\u00e1s de en el resto de la app (barra lateral, pantallas de acceso, PDFs). El \u00edcono de
+    // la pantalla de inicio del celular (cuando la app est\u00e1 instalada) no cambia con esto: ese
+    // viene fijo del manifest.json/APK y solo se actualiza si generas una nueva versi\u00f3n instalable.
+    useEffect(() => {
+        const name = settings === null || settings === void 0 ? void 0 : settings.tallerNombre;
+        document.title = name ? `${name} \u00b7 Gesti\u00f3n de taller` : "Expert \u00b7 Gesti\u00f3n de taller";
+        const logo = settings === null || settings === void 0 ? void 0 : settings.logoDataUrl;
+        if (logo) {
+            let link = document.querySelector('link[rel="icon"]');
+            if (!link) {
+                link = document.createElement("link");
+                link.rel = "icon";
+                document.head.appendChild(link);
+            }
+            link.href = logo;
+        }
+    }, [settings === null || settings === void 0 ? void 0 : settings.tallerNombre, settings === null || settings === void 0 ? void 0 : settings.logoDataUrl]);
     // Color de acento propio del taller (opcional): se aplica encima del tema claro/oscuro ya
     // resuelto, igual que este último, para que todo el árbol de componentes lo tome de una vez.
     applyAccentColor(settings === null || settings === void 0 ? void 0 : settings.accentColor, resolvedTheme);
@@ -5149,6 +5257,12 @@ function App() {
             ...prev,
         ]);
         logAudit("crear", "caja", mov.concept || (mov.type === "ingreso" ? "Ingreso" : "Gasto"), `${mov.type === "ingreso" ? "Ingreso" : "Gasto"} · ${money(mov.amount)}`);
+        // Los ingresos que ya vienen de un abono o de un cobro final de orden tienen su propio
+        // sonido (ver registrarAbono / changeOrderStatus), así que aquí solo suena para los
+        // movimientos que se registran a mano directamente en Caja.
+        if (mov.type === "ingreso" && mov.source === "manual") {
+            playSound("pago");
+        }
     };
     const removeCajaMovement = (id) => {
         const mov = caja.find((m) => m.id === id);
@@ -5171,6 +5285,8 @@ function App() {
             source: "abono",
             orderId,
         });
+        triggerPushNotification(null, { title: `Abono registrado · ${order.code}`, body: `${(client === null || client === void 0 ? void 0 : client.name) || "Cliente"} abonó ${money(amount)}` });
+        playSound("pago");
     };
     const changeOrderStatus = (order, newStatus) => {
         const wasCollected = order.status === "listo" || order.status === "entregado";
@@ -5189,6 +5305,12 @@ function App() {
             return { ...o, status: newStatus, pagos };
         }));
         logAudit("estado", "ordenes", `OT ${order.code}`, `${order.status || "-"} → ${newStatus}`);
+        if (newStatus === "listo" && order.status !== "listo") {
+            const client = clients.find((c) => c.id === order.clientId);
+            const vehicle = vehicles.find((v) => v.id === order.vehicleId);
+            triggerPushNotification(null, { title: `Orden lista para entregar · ${order.code}`, body: `${(client === null || client === void 0 ? void 0 : client.name) || "Cliente"} · ${vehicle ? `${vehicle.brand} ${vehicle.model} (${vehicle.plate})` : ""}` });
+            playSound("ordenLista");
+        }
         if (isCollected && !wasCollected && saldo > 0) {
             const client = clients.find((c) => c.id === order.clientId);
             addCajaMovement({
@@ -5198,6 +5320,11 @@ function App() {
                 source: "cobro_final",
                 orderId: order.id,
             });
+            if (newStatus !== "listo") {
+                // Si la orden pasó directo a "Entregado" (sin pasar por "Listo"), el sonido de
+                // "orden lista" no sonó arriba, así que avisamos aquí que se cobró el saldo.
+                playSound("pago");
+            }
         }
         else if (!isCollected && wasCollected) {
             setCaja((prev) => prev.filter((m) => !(m.orderId === order.id && m.source === "cobro_final")));
@@ -5258,7 +5385,7 @@ function App() {
         return React.createElement(LoginScreen, { users: users, roles: roles, settings: settings, onLogin: login });
     }
     if (locked) {
-        return React.createElement(LockScreen, { user: currentUser, role: currentRole, onUnlock: unlock, onSwitchUser: logout });
+        return React.createElement(LockScreen, { user: currentUser, role: currentRole, settings: settings, onUnlock: unlock, onSwitchUser: logout });
     }
     const titles = {
         dashboard: "Panel",
@@ -5314,7 +5441,7 @@ function App() {
                     active === "inventario" && React.createElement(InventarioView, { parts: parts, setParts: setParts }),
                     active === "agenda" && React.createElement(AgendaView, { appointments: appointments, setAppointments: setAppointments }),
                     active === "caja" && (React.createElement(CajaView, { caja: caja, onAddMovement: addCajaMovement, onRemoveMovement: removeCajaMovement, orders: orders, clients: clients, vehicles: vehicles, onChangeStatus: changeOrderStatus, onRegistrarAbono: registrarAbono })),
-                    active === "ajustes" && (React.createElement(AjustesView, { settings: settings, setSettings: setSettings, cloudStatus: cloudStatus, cloudError: cloudError, cloudProjectId: cloudProjectId, db: db, users: users, setUsers: setUsers, roles: roles, setRoles: setRoles, currentUser: currentUser, currentRole: currentRole, themeMode: themeMode, setThemeMode: setThemeMode, onLock: lockNow, auditLog: auditLog, logAudit: logAudit })))))))));
+                    active === "ajustes" && (React.createElement(AjustesView, { settings: settings, setSettings: setSettings, cloudStatus: cloudStatus, cloudError: cloudError, cloudProjectId: cloudProjectId, db: db, users: users, setUsers: setUsers, roles: roles, setRoles: setRoles, currentUser: currentUser, currentRole: currentRole, themeMode: themeMode, setThemeMode: setThemeMode, soundsEnabled: soundsEnabled, setSoundsEnabled: setSoundsEnabled, onLock: lockNow, auditLog: auditLog, logAudit: logAudit })))))))));
 }
 </script>
 
