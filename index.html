@@ -740,7 +740,7 @@ function compressPhotoFile(file, maxSide = 1280, quality = 0.72) {
 // Cada módulo del sistema tiene un nivel de acceso por rol: "none" (oculto), "ver" (solo lectura)
 // o "editar" (lectura y escritura). Además hay 3 permisos transversales: verMontos (ver precios y
 // cifras de dinero), eliminar (borrar registros) y gestionUsuarios (administrar cuentas y roles).
-const NAV_MODULE_KEYS = ["dashboard", "ordenes", "proformas", "clientes", "vehiculos", "inventario", "agenda", "caja", "ajustes"];
+const NAV_MODULE_KEYS = ["dashboard", "ordenes", "proformas", "clientes", "vehiculos", "inventario", "agenda", "mecanica", "caja", "ajustes"];
 const ACCESS_LEVELS = [
     { key: "none", label: "Sin acceso" },
     { key: "ver", label: "Solo ver" },
@@ -759,19 +759,19 @@ const ROLE_TEMPLATES = [
     {
         id: "socio", name: "Dueño / Socio", locked: false, color: "#B48CF2",
         description: "Visión completa del negocio, sin administrar usuarios.",
-        access: { dashboard: "editar", ordenes: "editar", proformas: "editar", clientes: "editar", vehiculos: "editar", inventario: "editar", agenda: "editar", caja: "editar", ajustes: "ver" },
+        access: { dashboard: "editar", ordenes: "editar", proformas: "editar", clientes: "editar", vehiculos: "editar", inventario: "editar", agenda: "editar", mecanica: "editar", caja: "editar", ajustes: "ver" },
         verMontos: true, eliminar: true, gestionUsuarios: false,
     },
     {
         id: "recepcion", name: "Recepción", locked: false, color: "#4FA3E3",
         description: "Atención al cliente, órdenes, proformas y agenda.",
-        access: { dashboard: "ver", ordenes: "editar", proformas: "editar", clientes: "editar", vehiculos: "editar", inventario: "ver", agenda: "editar", caja: "ver", ajustes: "none" },
+        access: { dashboard: "ver", ordenes: "editar", proformas: "editar", clientes: "editar", vehiculos: "editar", inventario: "ver", agenda: "editar", mecanica: "ver", caja: "ver", ajustes: "none" },
         verMontos: true, eliminar: false, gestionUsuarios: false,
     },
     {
         id: "mecanico", name: "Mecánico", locked: false, color: "#F5B942",
         description: "Trabajo en taller: órdenes y estado de vehículos, sin montos ni caja.",
-        access: { dashboard: "ver", ordenes: "editar", proformas: "none", clientes: "ver", vehiculos: "ver", inventario: "ver", agenda: "ver", caja: "none", ajustes: "none" },
+        access: { dashboard: "ver", ordenes: "editar", proformas: "none", clientes: "ver", vehiculos: "ver", inventario: "ver", agenda: "ver", mecanica: "editar", caja: "none", ajustes: "none" },
         verMontos: false, eliminar: false, gestionUsuarios: false,
     },
 ];
@@ -1803,6 +1803,7 @@ function Ticket({ order, client, vehicle, onOpen }) {
     const abonado = orderAbonado(order);
     const saldo = orderSaldo(order);
     const partial = total > 0 && abonado > 0 && saldo > 0;
+    const pendingDelivery = order.status === "entregado" && total > 0 && saldo > 0;
     return (React.createElement("div", { onClick: onOpen, className: "group relative rounded-2xl cursor-pointer transition-all duration-300 hover:-translate-y-1", style: {
             background: `linear-gradient(165deg, ${C.surfaceHi}66 0%, ${C.surface} 22%)`,
             border: `1px solid ${C.border}`,
@@ -1826,10 +1827,10 @@ function Ticket({ order, client, vehicle, onOpen }) {
                     React.createElement(Camera, { size: 14 })),
                 total > 0 && saldo <= 0 && React.createElement("span", { title: "Cobrado" }, "\uD83D\uDCB0"),
                 React.createElement("span", { style: { fontFamily: "JetBrains Mono, monospace", color: C.text }, className: "text-sm font-medium" }, money(total)))),
-        partial && (React.createElement("div", { className: "flex items-center justify-between px-5 pb-4 text-xs", style: { fontFamily: "JetBrains Mono, monospace" } },
-            React.createElement("span", { style: { color: C.success } },
+        (partial || pendingDelivery) && (React.createElement("div", { className: "flex items-center justify-between px-5 pb-4 text-xs", style: { fontFamily: "JetBrains Mono, monospace" } },
+            abonado > 0 ? (React.createElement("span", { style: { color: C.success } },
                 "Abonado ",
-                money(abonado)),
+                money(abonado))) : (React.createElement("span", { style: { color: C.warning } }, "Entregado sin pago")),
             React.createElement("span", { style: { color: C.warning } },
                 "Saldo ",
                 money(saldo))))));
@@ -1843,6 +1844,7 @@ const NAV = [
     { key: "vehiculos", label: "Vehículos", icon: Car },
     { key: "inventario", label: "Inventario", icon: Package },
     { key: "agenda", label: "Agenda", icon: CalendarDays },
+    { key: "mecanica", label: "Base Mecánica", icon: DatabaseIcon },
     { key: "caja", label: "Caja", icon: Wallet },
     { key: "ajustes", label: "Ajustes", icon: SettingsIcon },
 ];
@@ -2055,7 +2057,7 @@ function OrdenesView({ orders, setOrders, clients, setClients, vehicles, setVehi
                 ")")))),
         filtered.length === 0 ? (React.createElement(Card, { className: "p-10 text-center" },
             React.createElement("p", { style: { color: C.textMute }, className: "text-sm" }, "No hay \u00F3rdenes que coincidan con la b\u00FAsqueda."))) : (React.createElement("div", { className: "grid sm:grid-cols-2 xl:grid-cols-3 gap-4" }, filtered.map((o) => (React.createElement(Ticket, { key: o.id, order: o, client: findClient(o.clientId), vehicle: findVehicle(o.vehicleId), onOpen: () => setOpenOrder(o) }))))),
-        openOrder && (React.createElement(OrderDetail, { order: orders.find((o) => o.id === openOrder.id), client: findClient(openOrder.clientId), vehicle: findVehicle(openOrder.vehicleId), parts: parts, onClose: () => setOpenOrder(null), onStatusChange: (status) => onChangeStatus(orders.find((o) => o.id === openOrder.id), status), onRegistrarAbono: (amount) => onRegistrarAbono(openOrder.id, amount), onSaveCheckin: (checkin) => saveCheckin(openOrder.id, checkin), onSaveRequirement: (requirement) => saveRequirement(openOrder.id, requirement), onSaveFindings: (findings) => saveFindings(openOrder.id, findings), onSaveServices: (services) => saveServices(openOrder.id, services), onDelete: () => { removeOrder(openOrder.id); setOpenOrder(null); }, settings: settings, currentUser: currentUser })),
+        openOrder && (React.createElement(OrderDetail, { order: orders.find((o) => o.id === openOrder.id), client: findClient(openOrder.clientId), vehicle: findVehicle(openOrder.vehicleId), parts: parts, onClose: () => setOpenOrder(null), onStatusChange: (status, options) => onChangeStatus(orders.find((o) => o.id === openOrder.id), status, options), onRegistrarAbono: (amount) => onRegistrarAbono(openOrder.id, amount), onSaveCheckin: (checkin) => saveCheckin(openOrder.id, checkin), onSaveRequirement: (requirement) => saveRequirement(openOrder.id, requirement), onSaveFindings: (findings) => saveFindings(openOrder.id, findings), onSaveServices: (services) => saveServices(openOrder.id, services), onDelete: () => { removeOrder(openOrder.id); setOpenOrder(null); }, settings: settings, currentUser: currentUser })),
         showNew && (React.createElement(NewOrderModal, { clients: clients, setClients: setClients, vehicles: vehicles, setVehicles: setVehicles, code: nextCode(), onClose: () => setShowNew(false), onCreate: (order) => {
                 setOrders((prev) => [order, ...prev]);
                 setShowNew(false);
@@ -2072,6 +2074,7 @@ function OrderDetail({ order, client, vehicle, parts, onClose, onStatusChange, o
     const [showReception, setShowReception] = useState(false);
     const [showRequirement, setShowRequirement] = useState(false);
     const [showFindings, setShowFindings] = useState(false);
+    const [confirmEntregaPago, setConfirmEntregaPago] = useState(false);
     const [pdfError, setPdfError] = useState("");
     const [reqError, setReqError] = useState("");
     const [reqBusy, setReqBusy] = useState(false);
@@ -2342,12 +2345,26 @@ function OrderDetail({ order, client, vehicle, parts, onClose, onStatusChange, o
                             " Descargar reporte PDF")))),
         React.createElement("div", null,
             React.createElement("div", { className: "text-xs uppercase tracking-wide mb-2", style: { color: C.textMute } }, "Actualizar estado"),
-            React.createElement("div", { className: "flex flex-wrap gap-2" }, getStatus().map((s) => (React.createElement("button", { key: s.key, onClick: () => onStatusChange(s.key), className: "px-3 py-1.5 rounded-full text-xs font-medium border", style: {
+            React.createElement("div", { className: "flex flex-wrap gap-2" }, getStatus().map((s) => (React.createElement("button", { key: s.key, onClick: () => {
+                    if (s.key === "entregado" && order.status !== "entregado" && total > 0 && saldo > 0) {
+                        setConfirmEntregaPago(true);
+                    }
+                    else {
+                        onStatusChange(s.key);
+                    }
+                }, className: "px-3 py-1.5 rounded-full text-xs font-medium border", style: {
                     background: order.status === s.key ? s.soft : "transparent",
                     color: order.status === s.key ? s.color : C.textSoft,
                     borderColor: order.status === s.key ? s.color : C.border,
                 } }, s.label)))),
-            (order.status === "listo" || order.status === "entregado") && total > 0 && saldo <= 0 && (React.createElement("p", { className: "text-xs mt-2 flex items-center gap-1.5", style: { color: C.textMute } }, "\uD83D\uDCB0 El saldo se registr\u00F3 autom\u00E1ticamente en Caja."))),
+            (order.status === "listo" || order.status === "entregado") && total > 0 && saldo <= 0 && (React.createElement("p", { className: "text-xs mt-2 flex items-center gap-1.5", style: { color: C.textMute } }, "\uD83D\uDCB0 El saldo se registr\u00F3 autom\u00E1ticamente en Caja.")),
+            order.status === "entregado" && total > 0 && saldo > 0 && (React.createElement("p", { className: "text-xs mt-2 flex items-center gap-1.5", style: { color: C.warning } }, "\u26A0\uFE0F Entregado con saldo pendiente de ", money(saldo), " \u2014 visible en Caja."))),
+        confirmEntregaPago && (React.createElement(Modal, { title: "Confirmar entrega", onClose: () => setConfirmEntregaPago(false) },
+            React.createElement("div", { className: "space-y-4" },
+                React.createElement("p", { className: "text-sm", style: { color: C.textSoft } }, `Esta orden tiene un saldo pendiente de ${money(saldo)}. ¿El cliente ya pagó?`),
+                React.createElement("div", { className: "flex gap-2" },
+                    React.createElement(Button, { variant: "subtle", className: "flex-1", onClick: () => { setConfirmEntregaPago(false); onStatusChange("entregado", { skipCollect: true }); } }, "No, aún debe"),
+                    React.createElement(Button, { className: "flex-1", onClick: () => { setConfirmEntregaPago(false); onStatusChange("entregado"); } }, "Sí, ya pagó"))))),
         showReception && (React.createElement(ReceptionModal, { order: order, client: client, vehicle: vehicle, onClose: () => setShowReception(false), onSave: (checkin) => { onSaveCheckin(checkin); setShowReception(false); } })),
         showRequirement && (React.createElement(RequirementModal, { order: order, requirement: requirement, parts: parts, onClose: () => setShowRequirement(false), onSave: (req) => { onSaveRequirement(req); setShowRequirement(false); } })),
         showFindings && (React.createElement(FindingsModal, { order: order, findings: findings, onClose: () => setShowFindings(false), onSave: (items) => { onSaveFindings && onSaveFindings(items); setShowFindings(false); } })),
@@ -3518,6 +3535,169 @@ function NewAppointmentModal({ onClose, onCreate }) {
                 React.createElement(Button, { variant: "ghost", onClick: onClose, className: "flex-1" }, "Cancelar"),
                 React.createElement(Button, { onClick: submit, className: "flex-1" }, "Guardar cita")))));
 }
+/* ---------------------------------- BASE MECÁNICA (diagramas/fotos de referencia) ----------------------------------
+   Biblioteca de referencia técnica organizada por marca/modelo de vehículo: diagramas, fotos de
+   fallas o hallazgos que vale la pena guardar para consultarlos rápido la próxima vez que aparezca
+   un caso parecido. Reutiliza el mismo patrón de fotos que FindingsModal (compressPhotoFile +
+   PhotoThumb) y el mismo esquema de sincronización que el resto de la app (useCloudSync). */
+const emptyMecanicaDraft = () => ({ brand: "", model: "", title: "", note: "", photos: [] });
+function MecanicaCard({ entry, onOpen }) {
+    const cover = (entry.photos || [])[0];
+    const count = (entry.photos || []).length;
+    return (React.createElement("div", { onClick: onOpen, className: "group relative rounded-2xl cursor-pointer transition-all duration-300 hover:-translate-y-1 overflow-hidden", style: {
+            background: `linear-gradient(165deg, ${C.surfaceHi}66 0%, ${C.surface} 22%)`,
+            border: `1px solid ${C.border}`,
+            boxShadow: C.shadow,
+        } },
+        cover ? (React.createElement("div", { className: "w-full h-32", style: { background: C.bg } },
+            React.createElement("img", { src: cover.dataUrl, className: "w-full h-full object-cover" }))) : (React.createElement("div", { className: "w-full h-32 flex items-center justify-center", style: { background: C.surfaceHi } },
+            React.createElement(ImageIcon, { size: 22, style: { color: C.textMute } }))),
+        React.createElement("div", { className: "px-4 py-3.5" },
+            React.createElement("div", { className: "text-sm font-medium truncate" }, entry.title),
+            entry.note && React.createElement("div", { className: "text-xs mt-0.5 truncate", style: { color: C.textMute } }, entry.note),
+            React.createElement("div", { className: "flex items-center gap-1 mt-2 text-xs", style: { color: C.textMute } },
+                React.createElement(Camera, { size: 11 }),
+                ` ${count} foto${count === 1 ? "" : "s"}`))));
+}
+function MecanicaFormModal({ title, initial, brandOptions, onClose, onSubmit }) {
+    const [draft, setDraft] = useState(() => ({ ...emptyMecanicaDraft(), ...(initial || {}) }));
+    const [busyPhotos, setBusyPhotos] = useState(false);
+    const handleFiles = (e) => {
+        const files = Array.from(e.target.files || []);
+        if (files.length === 0)
+            return;
+        setBusyPhotos(true);
+        Promise.all(files.map((file) => compressPhotoFile(file).then((dataUrl) => ({ id: "mp" + Date.now() + Math.random().toString(36).slice(2, 6), dataUrl }))))
+            .then((newPhotos) => {
+            setDraft((d) => ({ ...d, photos: [...d.photos, ...newPhotos] }));
+            setBusyPhotos(false);
+        })
+            .catch(() => setBusyPhotos(false));
+        e.target.value = "";
+    };
+    const removePhoto = (id) => setDraft((d) => ({ ...d, photos: d.photos.filter((p) => p.id !== id) }));
+    const canSubmit = (draft.title || "").trim().length > 0;
+    const submit = () => {
+        if (!canSubmit)
+            return;
+        onSubmit({ brand: (draft.brand || "").trim(), model: (draft.model || "").trim(), title: draft.title.trim(), note: (draft.note || "").trim(), photos: draft.photos });
+    };
+    return (React.createElement(Modal, { title: title, onClose: onClose, wide: true },
+        React.createElement("div", { className: "space-y-4" },
+            React.createElement("div", { className: "grid grid-cols-2 gap-4" },
+                React.createElement(Field, { label: "Marca" },
+                    React.createElement(Input, { list: "mecanica-brands", value: draft.brand, onChange: (e) => setDraft((d) => ({ ...d, brand: e.target.value })), placeholder: "Ej: Toyota" })),
+                React.createElement(Field, { label: "Modelo" },
+                    React.createElement(Input, { value: draft.model, onChange: (e) => setDraft((d) => ({ ...d, model: e.target.value })), placeholder: "Ej: Hilux" }))),
+            React.createElement("datalist", { id: "mecanica-brands" }, (brandOptions || []).map((b) => React.createElement("option", { key: b, value: b }))),
+            React.createElement(Field, { label: "Falla / diagrama" },
+                React.createElement(Input, { value: draft.title, onChange: (e) => setDraft((d) => ({ ...d, title: e.target.value })), placeholder: "Ej: Diagrama de fusibles, Falla de encendido…", autoFocus: true })),
+            React.createElement(Field, { label: "Notas (opcional)" },
+                React.createElement(TextArea, { rows: 3, value: draft.note, onChange: (e) => setDraft((d) => ({ ...d, note: e.target.value })), placeholder: "Detalle, s\u00EDntoma, c\u00F3mo se resolvi\u00F3\u2026" })),
+            React.createElement("div", null,
+                draft.photos.length > 0 && React.createElement("div", { className: "grid grid-cols-4 sm:grid-cols-5 gap-2 mb-2" }, draft.photos.map((p) => React.createElement(PhotoThumb, { key: p.id, src: p.dataUrl, onRemove: () => removePhoto(p.id) }))),
+                React.createElement("div", { className: "flex gap-2" },
+                    React.createElement("label", { className: "flex-1 inline-flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold cursor-pointer text-center", style: { background: C.surfaceHi, color: C.text, border: `1px solid ${C.border}` } },
+                        React.createElement(Camera, { size: 14 }),
+                        " ",
+                        busyPhotos ? "Cargando…" : "Tomar foto",
+                        React.createElement("input", { type: "file", accept: "image/*", capture: "environment", multiple: true, className: "hidden", onChange: handleFiles })),
+                    React.createElement("label", { className: "flex-1 inline-flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold cursor-pointer text-center", style: { background: C.surfaceHi, color: C.text, border: `1px solid ${C.border}` } },
+                        React.createElement(Upload, { size: 14 }),
+                        " ",
+                        busyPhotos ? "Cargando…" : "Elegir de galer\u00EDa",
+                        React.createElement("input", { type: "file", accept: "image/*", multiple: true, className: "hidden", onChange: handleFiles })))),
+            React.createElement("div", { className: "flex gap-3 pt-2" },
+                React.createElement(Button, { variant: "ghost", onClick: onClose, className: "flex-1" }, "Cancelar"),
+                React.createElement(Button, { onClick: submit, className: "flex-1", disabled: !canSubmit || busyPhotos }, "Guardar ficha")))));
+}
+function MecanicaDetailModal({ entry, brandOptions, canEdit, onClose, onSave, onDelete }) {
+    const [editing, setEditing] = useState(false);
+    if (editing) {
+        return React.createElement(MecanicaFormModal, { title: "Editar ficha", initial: entry, brandOptions: brandOptions, onClose: () => setEditing(false), onSubmit: (data) => { onSave(data); setEditing(false); } });
+    }
+    const heading = `${entry.brand || ""} ${entry.model || ""}`.trim();
+    const photos = entry.photos || [];
+    return (React.createElement(Modal, { title: entry.title, onClose: onClose, wide: true },
+        React.createElement("div", { className: "space-y-4" },
+            heading && React.createElement("div", { className: "flex items-center gap-1.5 text-sm", style: { color: C.textMute } },
+                React.createElement(Car, { size: 13 }),
+                heading),
+            entry.note && React.createElement("p", { className: "text-sm", style: { color: C.textSoft } }, entry.note),
+            photos.length > 0
+                ? React.createElement("div", { className: "grid grid-cols-2 sm:grid-cols-3 gap-2" }, photos.map((p) => React.createElement("img", { key: p.id, src: p.dataUrl, className: "w-full h-32 object-cover rounded-xl", style: { border: `1px solid ${C.borderSoft}` } })))
+                : React.createElement("p", { className: "text-xs text-center py-4", style: { color: C.textMute } }, "Esta ficha no tiene fotos."),
+            canEdit && (React.createElement("div", { className: "flex gap-3 pt-2" },
+                React.createElement(Button, { variant: "danger", onClick: onDelete, className: "flex-1" },
+                    React.createElement(Trash2, { size: 15 }),
+                    " Eliminar"),
+                React.createElement(Button, { variant: "subtle", onClick: () => setEditing(true), className: "flex-1" },
+                    React.createElement(Pencil, { size: 15 }),
+                    " Editar"))))));
+}
+function MecanicaView({ entries, setEntries, vehicles, canEdit, logAudit }) {
+    const [query, setQuery] = useState("");
+    const [showNew, setShowNew] = useState(false);
+    const [openId, setOpenId] = useState(null);
+    const brandOptions = useMemo(() => Array.from(new Set((vehicles || []).map((v) => v.brand).filter(Boolean))).sort(), [vehicles]);
+    const q = query.trim().toLowerCase();
+    const filtered = entries.filter((e) => !q || [e.brand, e.model, e.title, e.note].filter(Boolean).some((v) => v.toLowerCase().includes(q)));
+    const grouped = useMemo(() => {
+        const map = {};
+        filtered.forEach((e) => {
+            const key = `${e.brand || ""} ${e.model || ""}`.trim() || "Sin marca/modelo";
+            map[key] = map[key] || [];
+            map[key].push(e);
+        });
+        Object.keys(map).forEach((k) => map[k].sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || "")));
+        return map;
+    }, [filtered]);
+    const groupKeys = Object.keys(grouped).sort((a, b) => a.localeCompare(b));
+    const openEntry = openId ? entries.find((e) => e.id === openId) : null;
+    const createEntry = (data) => {
+        const entry = { id: "me" + Date.now() + Math.random().toString(36).slice(2, 6), createdAt: new Date().toISOString(), ...data };
+        setEntries((prev) => [entry, ...prev]);
+        if (logAudit)
+            logAudit("crear", "mecanica", `${entry.brand} ${entry.model} · ${entry.title}`.trim(), "");
+        setShowNew(false);
+    };
+    const updateEntry = (id, data) => {
+        setEntries((prev) => prev.map((e) => (e.id === id ? { ...e, ...data } : e)));
+        if (logAudit)
+            logAudit("editar", "mecanica", `${data.brand} ${data.model} · ${data.title}`.trim(), "");
+    };
+    const removeEntry = (id) => {
+        const e = entries.find((x) => x.id === id);
+        setEntries((prev) => prev.filter((x) => x.id !== id));
+        if (e && logAudit)
+            logAudit("eliminar", "mecanica", `${e.brand} ${e.model} · ${e.title}`.trim(), "");
+        setOpenId(null);
+    };
+    return (React.createElement("div", { className: "space-y-5" },
+        React.createElement("div", { className: "flex flex-col sm:flex-row sm:items-center justify-between gap-3" },
+            React.createElement("div", null,
+                React.createElement("h1", { style: { fontFamily: "Oswald, sans-serif" }, className: "text-2xl tracking-wide" }, "Base Mec\u00E1nica"),
+                React.createElement("p", { className: "text-sm mt-0.5", style: { color: C.textMute } }, "Diagramas y fotos de fallas, guardados por marca y modelo, para consultarlos la pr\u00F3xima vez.")),
+            canEdit && React.createElement(Button, { onClick: () => setShowNew(true) },
+                React.createElement(Plus, { size: 16 }),
+                " Nueva ficha")),
+        React.createElement("div", { className: "relative" },
+            React.createElement(Search, { size: 16, className: "absolute left-3 top-1/2 -translate-y-1/2", style: { color: C.textMute } }),
+            React.createElement(Input, { placeholder: "Buscar por marca, modelo o falla", value: query, onChange: (e) => setQuery(e.target.value), className: "pl-9 sm:max-w-sm" })),
+        groupKeys.length === 0
+            ? (React.createElement(Card, { className: "p-8 text-center space-y-2" },
+                React.createElement(DatabaseIcon, { size: 26, style: { color: C.textMute }, className: "mx-auto" }),
+                React.createElement("p", { className: "text-sm", style: { color: C.textMute } }, entries.length === 0 ? "Todav\u00EDa no guardas ninguna ficha. Agrega diagramas o fotos de fallas para tenerlas a mano." : "No hay fichas que coincidan con tu b\u00FAsqueda.")))
+            : (React.createElement("div", { className: "space-y-6" }, groupKeys.map((gk) => (React.createElement("div", { key: gk },
+                React.createElement("div", { className: "text-xs uppercase tracking-wide mb-3 flex items-center gap-2", style: { color: C.textMute } },
+                    React.createElement(Car, { size: 12 }),
+                    gk,
+                    React.createElement("span", { className: "font-mono" }, `(${grouped[gk].length})`)),
+                React.createElement("div", { className: "grid sm:grid-cols-2 lg:grid-cols-3 gap-4" }, grouped[gk].map((e) => (React.createElement(MecanicaCard, { key: e.id, entry: e, onOpen: () => setOpenId(e.id) }))))))))),
+        showNew && (React.createElement(MecanicaFormModal, { title: "Nueva ficha", brandOptions: brandOptions, onClose: () => setShowNew(false), onSubmit: createEntry })),
+        openEntry && (React.createElement(MecanicaDetailModal, { entry: openEntry, brandOptions: brandOptions, canEdit: canEdit, onClose: () => setOpenId(null), onSave: (data) => updateEntry(openEntry.id, data), onDelete: () => { if (window.confirm("¿Eliminar esta ficha? Esta acci\u00F3n no se puede deshacer."))
+                removeEntry(openEntry.id); } }))));
+}
 /* ---------------------------------- CAJA ---------------------------------- */
 function CajaView({ caja, onAddMovement, onRemoveMovement, orders = [], clients = [], vehicles = [], onChangeStatus, onRegistrarAbono }) {
     const [filter, setFilter] = useState("todas");
@@ -3527,6 +3707,7 @@ function CajaView({ caja, onAddMovement, onRemoveMovement, orders = [], clients 
     const findClient = (id) => clients.find((c) => c.id === id);
     const findVehicle = (id) => vehicles.find((v) => v.id === id);
     const openOrder = openOrderId ? orders.find((o) => o.id === openOrderId) : null;
+    const pendientesPago = orders.filter((o) => o.status === "entregado" && orderSaldo(o) > 0);
     const totalIngresos = caja.filter((m) => m.type === "ingreso").reduce((s, m) => s + m.amount, 0);
     const totalGastos = caja.filter((m) => m.type === "gasto").reduce((s, m) => s + m.amount, 0);
     const saldo = totalIngresos - totalGastos;
@@ -3556,6 +3737,20 @@ function CajaView({ caja, onAddMovement, onRemoveMovement, orders = [], clients 
                 React.createElement("div", { style: { fontFamily: "Oswald, sans-serif" }, className: "text-2xl tracking-wide" }, k.value),
                 React.createElement("div", { className: "text-xs mt-1", style: { color: C.textMute } }, k.label)));
         })),
+        pendientesPago.length > 0 && (React.createElement(Card, { className: "p-5", style: { borderColor: `${C.warning}55` } },
+            React.createElement("div", { className: "flex items-center gap-2 mb-3" },
+                React.createElement("span", { style: { color: C.warning } }, "\u26A0\uFE0F"),
+                React.createElement("h3", { style: { fontFamily: "Oswald, sans-serif" }, className: "text-sm tracking-wide uppercase" }, "Pendientes de pago"),
+                React.createElement(Badge, { color: C.warning, soft: C.warningSoft }, pendientesPago.length)),
+            React.createElement("div", { className: "space-y-2" }, pendientesPago.map((o) => {
+                const c = findClient(o.clientId);
+                const v = findVehicle(o.vehicleId);
+                return (React.createElement("div", { key: o.id, onClick: () => setOpenOrderId(o.id), className: "flex flex-wrap items-center justify-between gap-2 px-3 py-2.5 rounded-xl cursor-pointer transition-colors hover:bg-white/5", style: { background: C.bg, border: `1px solid ${C.borderSoft}` } },
+                    React.createElement("div", { className: "min-w-0" },
+                        React.createElement("div", { className: "text-sm font-medium truncate" }, (c === null || c === void 0 ? void 0 : c.name) || "Cliente"),
+                        React.createElement("div", { className: "text-xs mt-0.5", style: { color: C.textMute } }, `OT ${o.code}${v ? ` · ${v.brand} ${v.model} (${v.plate})` : ""}`)),
+                    React.createElement("span", { className: "font-mono text-sm font-medium shrink-0", style: { color: C.warning } }, money(orderSaldo(o)))));
+            })))),
         React.createElement("div", { className: "flex flex-col sm:flex-row gap-3" },
             React.createElement("div", { className: "relative flex-1" },
                 React.createElement(Search, { size: 16, className: "absolute left-3 top-1/2 -translate-y-1/2", style: { color: C.textMute } }),
@@ -3583,7 +3778,7 @@ function CajaView({ caja, onAddMovement, onRemoveMovement, orders = [], clients 
                     onRemoveMovement(m.id); }, className: "w-7 h-7 rounded-md flex items-center justify-center shrink-0 transition-colors hover:bg-white/5", style: { color: C.textMute } },
                 React.createElement(Trash2, { size: 14 })))))))),
         showNew && (React.createElement(NewMovementModal, { onClose: () => setShowNew(false), onCreate: (mov) => { onAddMovement(mov); setShowNew(false); } })),
-        openOrder && (React.createElement(OrderDetail, { order: openOrder, client: findClient(openOrder.clientId), vehicle: findVehicle(openOrder.vehicleId), onClose: () => setOpenOrderId(null), onStatusChange: (status) => onChangeStatus && onChangeStatus(openOrder, status), onRegistrarAbono: (amount) => onRegistrarAbono && onRegistrarAbono(openOrder.id, amount) }))));
+        openOrder && (React.createElement(OrderDetail, { order: openOrder, client: findClient(openOrder.clientId), vehicle: findVehicle(openOrder.vehicleId), onClose: () => setOpenOrderId(null), onStatusChange: (status, options) => onChangeStatus && onChangeStatus(openOrder, status, options), onRegistrarAbono: (amount) => onRegistrarAbono && onRegistrarAbono(openOrder.id, amount) }))));
 }
 function NewMovementModal({ onClose, onCreate }) {
     const [type, setType] = useState("ingreso");
@@ -4885,6 +5080,22 @@ function useCloudSync(key, initialValue, db) {
     const stateRef = useRef(state);
     const skipNextWrite = useRef(false);
     const seededRef = useRef(false);
+    const isFirstRun = useRef(true);
+    // "Revisión" (timestamp) del último cambio HECHO EN ESTE DISPOSITIVO para esta tabla. Se
+    // guarda también en localStorage (clave `${key}.rev`) para que sobreviva a que se cierre la
+    // app antes de que la escritura a Firestore termine de subir. Esto es lo que evita que, al
+    // volver a abrir, un dato viejo que llega de la nube borre algo que se acaba de agregar aquí
+    // y que Firestore todavía no alcanzó a recibir.
+    const revRef = useRef(null);
+    if (revRef.current === null) {
+        try {
+            const saved = window.localStorage.getItem(key + ".rev");
+            revRef.current = saved ? Number(saved) : 0;
+        }
+        catch (e) {
+            revRef.current = 0;
+        }
+    }
     useEffect(() => {
         stateRef.current = state;
     }, [state]);
@@ -4897,17 +5108,36 @@ function useCloudSync(key, initialValue, db) {
         ref.get().then((snap) => {
             if (cancelled)
                 return;
-            if (!snap.exists) {
-                ref.set({ value: stateRef.current, updatedAt: Date.now() }).catch((e) => console.error("Firestore seed error", key, e));
+            const remoteUpdatedAt = snap.exists ? (snap.data().updatedAt || 0) : -1;
+            if (remoteUpdatedAt < revRef.current) {
+                // Lo que hay en la nube es más viejo (o no existe) que lo que ya tenemos en este
+                // dispositivo: lo subimos, para no perder cambios hechos sin conexión o que no
+                // llegaron a subirse antes de cerrar la app la última vez.
+                const rev = revRef.current || Date.now();
+                revRef.current = rev;
+                try {
+                    window.localStorage.setItem(key + ".rev", String(rev));
+                }
+                catch (e) { }
+                ref.set({ value: stateRef.current, updatedAt: rev }).catch((e) => console.error("Firestore seed error", key, e));
             }
             seededRef.current = true;
         }).catch((e) => console.error("Firestore read error", key, e));
         const unsub = ref.onSnapshot((snap) => {
-            if (snap.exists) {
-                const remote = snap.data().value;
-                skipNextWrite.current = true;
-                setState(remote);
+            if (!snap.exists)
+                return;
+            const remoteUpdatedAt = snap.data().updatedAt || 0;
+            // Si lo que llega de la nube es igual o más viejo que lo que ya tenemos aquí, lo
+            // ignoramos (puede ser el eco de nuestra propia escritura, o un dato desactualizado).
+            if (remoteUpdatedAt <= revRef.current)
+                return;
+            revRef.current = remoteUpdatedAt;
+            try {
+                window.localStorage.setItem(key + ".rev", String(remoteUpdatedAt));
             }
+            catch (e) { }
+            skipNextWrite.current = true;
+            setState(snap.data().value);
         }, (e) => console.error("Firestore sync error", key, e));
         return () => {
             cancelled = true;
@@ -4915,15 +5145,29 @@ function useCloudSync(key, initialValue, db) {
         };
     }, [db, key]);
     useEffect(() => {
-        if (!db || !seededRef.current)
+        if (isFirstRun.current) {
+            // No contamos la carga inicial (leída de localStorage) como un "cambio local nuevo".
+            isFirstRun.current = false;
             return;
+        }
         if (skipNextWrite.current) {
             skipNextWrite.current = false;
             return;
         }
+        // Cambio hecho por el usuario en este dispositivo: registramos la revisión de inmediato
+        // (de forma síncrona en localStorage) para no perderla si la app se cierra antes de que
+        // la subida a Firestore, que es asíncrona, alcance a completarse.
+        const rev = Date.now();
+        revRef.current = rev;
+        try {
+            window.localStorage.setItem(key + ".rev", String(rev));
+        }
+        catch (e) { }
+        if (!db || !seededRef.current)
+            return;
         const ref = db.collection("tallerData").doc(key);
-        ref.set({ value: state, updatedAt: Date.now() }).catch((e) => console.error("Firestore write error", key, e));
-    }, [state, db, key]);
+        ref.set({ value: state, updatedAt: rev }).catch((e) => console.error("Firestore write error", key, e));
+    }, [state]);
     return [state, setState];
 }
 /* ---------------------------------- NOTIFICACIONES DE APROBACION ---------------------------------- */
@@ -5121,6 +5365,7 @@ function App() {
     const [parts, setParts] = useCloudSync("expertTaller.parts", initialParts, db);
     const [orders, setOrders] = useCloudSync("expertTaller.orders", initialOrders, db);
     const [appointments, setAppointments] = useCloudSync("expertTaller.appointments", initialAppointments, db);
+    const [mecanicaEntries, setMecanicaEntries] = useCloudSync("expertTaller.mecanica", [], db);
     const [settings, setSettings] = useCloudSync("expertTaller.settings", initialSettings, db);
     // Refleja el nombre y logo del taller en la pesta\u00f1a del navegador (t\u00edtulo + favicon),
     // adem\u00e1s de en el resto de la app (barra lateral, pantallas de acceso, PDFs). El \u00edcono de
@@ -5288,15 +5533,20 @@ function App() {
         triggerPushNotification(null, { title: `Abono registrado · ${order.code}`, body: `${(client === null || client === void 0 ? void 0 : client.name) || "Cliente"} abonó ${money(amount)}` });
         playSound("pago");
     };
-    const changeOrderStatus = (order, newStatus) => {
+    const changeOrderStatus = (order, newStatus, options = {}) => {
+        const skipCollect = options.skipCollect === true;
         const wasCollected = order.status === "listo" || order.status === "entregado";
         const isCollected = newStatus === "listo" || newStatus === "entregado";
         const saldo = orderSaldo(order);
+        // Si el usuario confirmó que el cliente AÚN no paga (ver aviso al marcar "Entregado"),
+        // no se cobra el saldo automáticamente: la orden queda entregada pero con saldo
+        // pendiente, y aparecerá en Caja bajo "Pendientes de pago".
+        const willCollect = isCollected && !wasCollected && saldo > 0 && !skipCollect;
         setOrders((prev) => prev.map((o) => {
             if (o.id !== order.id)
                 return o;
             let pagos = o.pagos || [];
-            if (isCollected && !wasCollected && saldo > 0) {
+            if (willCollect) {
                 pagos = [...pagos, { id: "pg" + Date.now(), amount: saldo, date: new Date().toISOString().slice(0, 10), source: "cobro_final" }];
             }
             else if (!isCollected && wasCollected) {
@@ -5311,7 +5561,7 @@ function App() {
             triggerPushNotification(null, { title: `Orden lista para entregar · ${order.code}`, body: `${(client === null || client === void 0 ? void 0 : client.name) || "Cliente"} · ${vehicle ? `${vehicle.brand} ${vehicle.model} (${vehicle.plate})` : ""}` });
             playSound("ordenLista");
         }
-        if (isCollected && !wasCollected && saldo > 0) {
+        if (willCollect) {
             const client = clients.find((c) => c.id === order.clientId);
             addCajaMovement({
                 type: "ingreso",
@@ -5395,6 +5645,7 @@ function App() {
         vehiculos: "Vehículos",
         inventario: "Inventario",
         agenda: "Agenda",
+        mecanica: "Base Mecánica",
         caja: "Caja",
         ajustes: "Ajustes",
     };
@@ -5440,6 +5691,7 @@ function App() {
                     active === "vehiculos" && React.createElement(VehiculosView, { vehicles: vehicles, setVehicles: setVehicles, clients: clients, orders: orders }),
                     active === "inventario" && React.createElement(InventarioView, { parts: parts, setParts: setParts }),
                     active === "agenda" && React.createElement(AgendaView, { appointments: appointments, setAppointments: setAppointments }),
+                    active === "mecanica" && React.createElement(MecanicaView, { entries: mecanicaEntries, setEntries: setMecanicaEntries, vehicles: vehicles, canEdit: canEditModule(currentRole, "mecanica"), logAudit: logAudit }),
                     active === "caja" && (React.createElement(CajaView, { caja: caja, onAddMovement: addCajaMovement, onRemoveMovement: removeCajaMovement, orders: orders, clients: clients, vehicles: vehicles, onChangeStatus: changeOrderStatus, onRegistrarAbono: registrarAbono })),
                     active === "ajustes" && (React.createElement(AjustesView, { settings: settings, setSettings: setSettings, cloudStatus: cloudStatus, cloudError: cloudError, cloudProjectId: cloudProjectId, db: db, users: users, setUsers: setUsers, roles: roles, setRoles: setRoles, currentUser: currentUser, currentRole: currentRole, themeMode: themeMode, setThemeMode: setThemeMode, soundsEnabled: soundsEnabled, setSoundsEnabled: setSoundsEnabled, onLock: lockNow, auditLog: auditLog, logAudit: logAudit })))))))));
 }
