@@ -887,7 +887,14 @@ function getRole(roles, roleId) {
     return (roles || []).find((r) => r.id === roleId) || null;
 }
 function moduleAccess(role, moduleKey) {
-    return role && role.access ? role.access[moduleKey] || "none" : "none";
+    if (!role)
+        return "none";
+    // El rol Administrador siempre tiene acceso total a todos los módulos, sin importar lo que
+    // haya quedado guardado en el registro de roles (por ejemplo, si el módulo se agregó a la
+    // app después de que este rol se guardó por primera vez).
+    if (role.locked)
+        return "editar";
+    return role.access ? role.access[moduleKey] || "none" : "none";
 }
 function canView(role, moduleKey) {
     return moduleAccess(role, moduleKey) !== "none";
@@ -5392,6 +5399,28 @@ function App() {
     const [proformas, setProformas] = useCloudSync("expertTaller.proformas", initialProformas, db);
     const [users, setUsers] = useCloudSync("expertTaller.users", initialUsers, db);
     const [roles, setRoles] = useCloudSync("expertTaller.roles", initialRoles, db);
+    // Migración suave: si se agregó un módulo nuevo a la app (como "Base Mecánica") después de que
+    // los roles ya se habían guardado, faltará esa clave en su mapa de accesos. Sin esto, el módulo
+    // quedaría oculto por defecto para roles que no sean Administrador. Aquí completamos, una sola
+    // vez, cualquier clave faltante usando la plantilla original del rol (o "ver" si es un rol
+    // personalizado sin plantilla), sin tocar los permisos que el usuario ya configuró a mano.
+    useEffect(() => {
+        const needsPatch = roles.some((r) => NAV_MODULE_KEYS.some((k) => (r.access || {})[k] === undefined));
+        if (!needsPatch)
+            return;
+        setRoles((prev) => prev.map((r) => {
+            const missing = NAV_MODULE_KEYS.some((k) => (r.access || {})[k] === undefined);
+            if (!missing)
+                return r;
+            const template = ROLE_TEMPLATES.find((t) => t.id === r.id);
+            const access = { ...r.access };
+            NAV_MODULE_KEYS.forEach((k) => {
+                if (access[k] === undefined)
+                    access[k] = (template && template.access[k]) || "ver";
+            });
+            return { ...r, access };
+        }));
+    }, [roles]);
     const [auditLog, setAuditLog] = useCloudSync("expertTaller.auditLog", [], db);
     const [fcmTokens, setFcmTokens] = useCloudSync("expertTaller.fcmTokens", [], db);
     // Pide el "token" de este dispositivo para Firebase Cloud Messaging y lo guarda en Firestore, para
