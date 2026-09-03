@@ -161,25 +161,34 @@
     el.style.display = 'block';
     el.textContent = msg;
   }
+  // Solo mostramos la pantalla de error de arranque si falla uno de NUESTROS scripts
+  // esenciales (marcados con data-boot-critical). Firebase Auth carga internamente otros
+  // scripts de Google en segundo plano (p.ej. apis.google.com/js/api.js) que no son
+  // necesarios para el arranque de la app (usamos autenticación anónima); si esos fallan
+  // por falta de señal, no debe tapar toda la pantalla.
   window.addEventListener('error', function (e) {
     var target = e.target;
     if (target && target.tagName === 'SCRIPT' && target.src) {
-      showBootError('No se pudo cargar un script externo:\n' + target.src + '\n\nRevisa tu conexión a internet o bloqueadores de anuncios.');
+      if (target.hasAttribute('data-boot-critical')) {
+        showBootError('No se pudo cargar un script externo:\n' + target.src + '\n\nRevisa tu conexión a internet o bloqueadores de anuncios.');
+      } else {
+        console.warn('Script secundario no cargó (ignorado, no crítico):', target.src);
+      }
     } else if (e.error) {
       showBootError('Error de JavaScript:\n' + (e.error.stack || e.message));
     }
   }, true);
 </script>
 
-<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-<script src="https://cdn.tailwindcss.com"></script>
-<script src="https://unpkg.com/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
-<script src="https://unpkg.com/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-compat.js"></script>
+<script data-boot-critical src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script data-boot-critical src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script data-boot-critical src="https://cdn.tailwindcss.com"></script>
+<script data-boot-critical src="https://unpkg.com/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+<script data-boot-critical src="https://unpkg.com/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.js"></script>
+<script data-boot-critical src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script data-boot-critical src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script data-boot-critical src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script data-boot-critical src="https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-compat.js"></script>
 
 <script>
   if (typeof React === 'undefined' || typeof ReactDOM === 'undefined') {
