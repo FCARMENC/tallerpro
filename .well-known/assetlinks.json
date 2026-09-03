@@ -3,6 +3,6 @@
       "target": {
         "namespace": "android_app",
         "package_name": "io.github.fcarmenc.twa",
-        "sha256_cert_fingerprints": ["CF:E3:8D:3F:54:88:22:BF:F2:3F:3B:85:83:C1:9B:F0:A0:42:5F:F5:80:57:AC:D0:74:7A:CC:10:86:86:08:49"]
+        "sha256_cert_fingerprints": ["60:27:52:CA:CD:58:EA:98:6E:34:17:DB:BE:25:7C:24:E7:2C:5D:BB:8C:3F:46:37:23:33:CB:83:DB:67:3D:34"]
       }
     }]
