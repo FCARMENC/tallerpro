@@ -1,1 +1,8 @@
-
+[{
+      "relation": ["delegate_permission/common.handle_all_urls"],
+      "target": {
+        "namespace": "android_app",
+        "package_name": "io.github.fcarmenc.twa",
+        "sha256_cert_fingerprints": ["EC:0E:7A:2D:1D:F6:5B:25:12:0F:BE:7C:85:58:B1:C4:79:C1:38:84:1D:59:A6:85:76:7A:6A:AA:A7:3C:2C:FD"]
+      }
+    }]
