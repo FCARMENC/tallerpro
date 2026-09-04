@@ -1745,7 +1745,9 @@ function triggerPushNotification(proformaId, payload) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ proformaId: proformaId, secret: NOTIFY_SECRET, ...payload }),
-    }).catch((e) => console.error("No se pudo avisar por push", e));
+    })
+        .then((res) => alert("DIAGNOSTICO notify: respuesta HTTP " + res.status))
+        .catch((e) => { console.error("No se pudo avisar por push", e); alert("DIAGNOSTICO notify: fetch fallo -> " + e); });
 }
 function shareApprovalRequestWhatsApp(pf, client, settings) {
     const link = proformaApprovalLink(pf);
