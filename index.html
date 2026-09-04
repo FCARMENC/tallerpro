@@ -1862,6 +1862,7 @@ const NAV = [
     { key: "agenda", label: "Agenda", icon: CalendarDays },
     { key: "mecanica", label: "Base Mecánica", icon: DatabaseIcon },
     { key: "caja", label: "Caja", icon: Wallet },
+    { key: "solicitudes", label: "Solicitudes", icon: Bell },
     { key: "ajustes", label: "Ajustes", icon: SettingsIcon },
 ];
 function Sidebar({ active, setActive, mobileOpen, setMobileOpen, settings, role, currentUser, onLock, onLogout }) {
@@ -1913,7 +1914,7 @@ function Sidebar({ active, setActive, mobileOpen, setMobileOpen, settings, role,
                     React.createElement(ChevronRight, { size: 14, style: { color: C.textMute, transform: menuOpen ? "rotate(-90deg)" : "rotate(90deg)" }, className: "transition-transform shrink-0" }))))));
 }
 const MOBILE_TAB_KEYS = ["dashboard", "ordenes", "clientes", "caja"];
-function MobileTabBar({ active, setActive, mobileOpen, setMobileOpen, role }) {
+function MobileTabBar({ active, setActive, mobileOpen, setMobileOpen, role, pendingSolicitudesCount = 0 }) {
     const tabs = MOBILE_TAB_KEYS.map((k) => NAV.find((n) => n.key === k)).filter((item) => item && canView(role, item.key));
     return (React.createElement("nav", { className: "fixed bottom-0 inset-x-0 z-30 sm:hidden flex items-stretch", style: {
             background: `${C.surface}F2`, backdropFilter: "blur(8px)", borderTop: `1px solid ${C.border}`,
@@ -1926,7 +1927,8 @@ function MobileTabBar({ active, setActive, mobileOpen, setMobileOpen, role }) {
                 React.createElement(Icon, { size: 19 }),
                 React.createElement("span", { className: "text-[10px] font-medium truncate max-w-full px-1" }, item.label === "Panel" ? item.label : item.label.split(" ")[0])));
         }),
-        React.createElement("button", { onClick: () => setMobileOpen(true), className: "flex-1 flex flex-col items-center justify-center gap-1 py-2.5 transition-colors", style: { color: mobileOpen ? C.accentText : C.textMute } },
+        React.createElement("button", { onClick: () => setMobileOpen(true), className: "relative flex-1 flex flex-col items-center justify-center gap-1 py-2.5 transition-colors", style: { color: mobileOpen ? C.accentText : C.textMute } },
+            pendingSolicitudesCount > 0 && (React.createElement("span", { className: "absolute top-1.5 right-[28%] w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold", style: { background: C.accent, color: "#1A0D05" } }, pendingSolicitudesCount > 9 ? "9+" : pendingSolicitudesCount)),
             React.createElement(MoreHorizontal, { size: 19 }),
             React.createElement("span", { className: "text-[10px] font-medium" }, "M\u00E1s"))));
 }
@@ -3485,6 +3487,56 @@ function NewPartModal({ onClose, onCreate }) {
                 React.createElement(Button, { onClick: submit, className: "flex-1" }, "Guardar repuesto")))));
 }
 /* ---------------------------------- AGENDA ---------------------------------- */
+/* ---------------------------------- SOLICITUDES (formulario público del QR) ---------------------------------- */
+function SolicitudCard({ item, onMarkAtendida, onCreateClient, onDelete }) {
+    const isNueva = item.status !== "atendida";
+    const digits = onlyDigits(item.phone);
+    const last9 = digits.slice(-9);
+    const waLink = last9
+        ? `https://wa.me/51${last9}?text=${encodeURIComponent(`Hola ${item.name}, te escribimos de Expert Taller por tu solicitud de cita.`)}`
+        : null;
+    return (React.createElement(Card, { className: "p-4 space-y-3" },
+        React.createElement("div", { className: "flex items-start justify-between gap-3" },
+            React.createElement("div", { className: "min-w-0" },
+                React.createElement("div", { className: "text-sm font-semibold truncate" }, item.name),
+                item.vehicle && (React.createElement("div", { className: "text-xs mt-0.5", style: { color: C.textMute } }, item.vehicle))),
+            React.createElement(Badge, { color: isNueva ? C.accent : C.success, soft: true }, isNueva ? "Nueva" : "Atendida")),
+        item.need && (React.createElement("p", { className: "text-sm", style: { color: C.textSoft } }, item.need)),
+        React.createElement("div", { className: "text-xs", style: { color: C.textMute } }, new Date(item.createdAt).toLocaleString("es-PE", { dateStyle: "medium", timeStyle: "short" })),
+        React.createElement("div", { className: "flex flex-wrap gap-2 pt-1" },
+            React.createElement("a", { href: `tel:${item.phone}`, className: "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors hover:brightness-110", style: { background: C.surfaceHi, border: `1px solid ${C.borderSoft}` } },
+                React.createElement(Phone, { size: 13 }),
+                " Llamar"),
+            waLink && (React.createElement("a", { href: waLink, target: "_blank", rel: "noreferrer", className: "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors hover:brightness-110", style: { background: C.surfaceHi, border: `1px solid ${C.borderSoft}` } },
+                React.createElement(MessageCircle, { size: 13 }),
+                " WhatsApp")),
+            React.createElement("button", { onClick: () => onCreateClient(item), className: "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors hover:brightness-110", style: { background: C.surfaceHi, border: `1px solid ${C.borderSoft}` } },
+                React.createElement(Users, { size: 13 }),
+                " Crear cliente"),
+            isNueva && (React.createElement("button", { onClick: () => onMarkAtendida(item.id), className: "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors hover:brightness-110 ml-auto", style: { background: C.accentSoft, color: C.accentText } },
+                "Marcar atendida")),
+            React.createElement("button", { onClick: () => onDelete(item.id), className: "inline-flex items-center justify-center w-7 h-7 rounded-lg transition-colors hover:brightness-110", style: { background: C.surfaceHi, border: `1px solid ${C.borderSoft}`, color: C.danger } },
+                React.createElement(Trash2, { size: 13 })))));
+}
+function SolicitudesView({ items, onMarkAtendida, onDelete, onCreateClient }) {
+    const [filter, setFilter] = useState("nuevas");
+    const filtered = items.filter((it) => filter === "todas" ? true : filter === "nuevas" ? it.status !== "atendida" : it.status === "atendida");
+    const pendingCount = items.filter((it) => it.status !== "atendida").length;
+    return (React.createElement("div", { className: "space-y-5" },
+        React.createElement("div", { className: "flex flex-col sm:flex-row sm:items-center justify-between gap-3" },
+            React.createElement("div", null,
+                React.createElement("h1", { style: { fontFamily: "Oswald, sans-serif" }, className: "text-2xl tracking-wide" }, "Solicitudes"),
+                React.createElement("p", { className: "text-sm", style: { color: C.textMute } }, "Citas pedidas desde el formulario del QR / flyer")),
+            pendingCount > 0 && (React.createElement(Badge, { color: C.accent, soft: true }, pendingCount, " pendiente", pendingCount === 1 ? "" : "s"))),
+        React.createElement("div", { className: "flex gap-2" }, [["nuevas", "Nuevas"], ["atendidas", "Atendidas"], ["todas", "Todas"]].map(([key, label]) => (React.createElement("button", { key: key, onClick: () => setFilter(key), className: "px-3.5 py-1.5 rounded-lg text-xs font-medium transition-colors", style: {
+                background: filter === key ? C.accentSoft : C.surfaceHi,
+                color: filter === key ? C.accentText : C.textSoft,
+                border: `1px solid ${filter === key ? "transparent" : C.borderSoft}`,
+            } }, label)))),
+        filtered.length === 0 ? (React.createElement(Card, { className: "p-10 text-center" },
+            React.createElement(Bell, { size: 24, style: { color: C.textMute }, className: "mx-auto mb-2" }),
+            React.createElement("p", { className: "text-sm", style: { color: C.textMute } }, "No hay solicitudes por aqu\u00ED todav\u00EDa."))) : (React.createElement("div", { className: "grid sm:grid-cols-2 gap-3" }, filtered.map((item) => (React.createElement(SolicitudCard, { key: item.id, item: item, onMarkAtendida: onMarkAtendida, onDelete: onDelete, onCreateClient: onCreateClient })))))));
+}
 function AgendaView({ appointments, setAppointments }) {
     const [showNew, setShowNew] = useState(false);
     const grouped = useMemo(() => {
@@ -5186,6 +5238,50 @@ function useCloudSync(key, initialValue, db) {
     }, [state]);
     return [state, setState];
 }
+/* ---------------------------------- SOLICITUDES PÚBLICAS (formulario del QR / flyer) ---------------------------------- */
+// A diferencia de useCloudSync (que sincroniza UN documento fijo por "tabla"), aquí cada
+// solicitud del formulario público (reservar.html) crea su PROPIO documento en Firestore con
+// una clave única ("solicitud_<timestamp>_<random>"). Esto evita que dos personas llenando el
+// formulario al mismo tiempo se pisen entre sí (cada una escribe su propio documento, nadie
+// sobrescribe a nadie). Aquí escuchamos en tiempo real todos los documentos de la colección
+// "tallerData" cuya clave empieza con "solicitud_".
+function useSolicitudesPublicas(db) {
+    const [items, setItems] = useState([]);
+    useEffect(() => {
+        if (!db)
+            return;
+        const unsub = db.collection("tallerData")
+            .where(firebase.firestore.FieldPath.documentId(), ">=", "solicitud_")
+            .where(firebase.firestore.FieldPath.documentId(), "<=", "solicitud_\uf8ff")
+            .onSnapshot((snap) => {
+            const list = [];
+            snap.forEach((doc) => {
+                const data = doc.data();
+                if (data && data.value) {
+                    list.push(Object.assign({ id: doc.id }, data.value));
+                }
+            });
+            list.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+            setItems(list);
+        }, (e) => console.error("Firestore solicitudes sync error", e));
+        return () => unsub();
+    }, [db]);
+    const markAtendida = (id) => {
+        if (!db)
+            return;
+        db.collection("tallerData").doc(id).update({
+            "value.status": "atendida",
+            "value.attendedAt": Date.now(),
+            updatedAt: Date.now(),
+        }).catch((e) => console.error("Error al marcar solicitud como atendida", e));
+    };
+    const deleteSolicitud = (id) => {
+        if (!db)
+            return;
+        db.collection("tallerData").doc(id).delete().catch((e) => console.error("Error al eliminar solicitud", e));
+    };
+    return { items, markAtendida, deleteSolicitud };
+}
 /* ---------------------------------- NOTIFICACIONES DE APROBACION ---------------------------------- */
 // Las notificaciones se derivan directamente de las proformas que el cliente respondio desde el
 // enlace publico (method === "cliente_web"), asi que no hace falta guardarlas aparte en Firestore.
@@ -5383,6 +5479,14 @@ function App() {
     const [appointments, setAppointments] = useCloudSync("expertTaller.appointments", initialAppointments, db);
     const [mecanicaEntries, setMecanicaEntries] = useCloudSync("expertTaller.mecanica", [], db);
     const [settings, setSettings] = useCloudSync("expertTaller.settings", initialSettings, db);
+    const { items: solicitudes, markAtendida: markSolicitudAtendida, deleteSolicitud } = useSolicitudesPublicas(db);
+    const pendingSolicitudesCount = solicitudes.filter((s) => s.status !== "atendida").length;
+    const createClientFromSolicitud = (item) => {
+        const newClient = { id: "c" + Date.now(), name: item.name, phone: item.phone, email: "", address: "", occasional: false };
+        setClients((prev) => [...prev, newClient]);
+        markSolicitudAtendida(item.id);
+        setActive("clientes");
+    };
     // Refleja el nombre y logo del taller en la pesta\u00f1a del navegador (t\u00edtulo + favicon),
     // adem\u00e1s de en el resto de la app (barra lateral, pantallas de acceso, PDFs). El \u00edcono de
     // la pantalla de inicio del celular (cuando la app est\u00e1 instalada) no cambia con esto: ese
@@ -5685,6 +5789,7 @@ function App() {
         agenda: "Agenda",
         mecanica: "Base Mecánica",
         caja: "Caja",
+        solicitudes: "Solicitudes",
         ajustes: "Ajustes",
     };
     return (React.createElement("div", { style: {
@@ -5696,7 +5801,7 @@ function App() {
         React.createElement("style", null, getFonts()),
         React.createElement("div", { className: "flex" },
             React.createElement(Sidebar, { active: active, setActive: setActive, mobileOpen: mobileOpen, setMobileOpen: setMobileOpen, settings: settings, role: currentRole, currentUser: currentUser, onLock: lockNow, onLogout: logout }),
-            React.createElement(MobileTabBar, { active: active, setActive: setActive, mobileOpen: mobileOpen, setMobileOpen: setMobileOpen, role: currentRole }),
+            React.createElement(MobileTabBar, { active: active, setActive: setActive, mobileOpen: mobileOpen, setMobileOpen: setMobileOpen, role: currentRole, pendingSolicitudesCount: pendingSolicitudesCount }),
             React.createElement("div", { className: "flex-1 min-w-0" },
                 React.createElement("header", { className: "sticky top-0 z-30 flex items-center gap-4 px-5 sm:px-8 py-4 backdrop-blur", style: { background: `${C.bg}D9`, borderBottom: `1px solid ${C.border}`, boxShadow: "0 1px 0 rgba(255,255,255,0.03), 0 8px 24px -12px rgba(0,0,0,0.5)" } },
                     React.createElement("button", { className: "sm:hidden transition-transform active:scale-90", onClick: () => setMobileOpen(true) },
@@ -5731,6 +5836,7 @@ function App() {
                     active === "agenda" && React.createElement(AgendaView, { appointments: appointments, setAppointments: setAppointments }),
                     active === "mecanica" && React.createElement(MecanicaView, { entries: mecanicaEntries, setEntries: setMecanicaEntries, vehicles: vehicles, canEdit: canEditModule(currentRole, "mecanica"), logAudit: logAudit }),
                     active === "caja" && (React.createElement(CajaView, { caja: caja, onAddMovement: addCajaMovement, onRemoveMovement: removeCajaMovement, orders: orders, clients: clients, vehicles: vehicles, onChangeStatus: changeOrderStatus, onRegistrarAbono: registrarAbono })),
+                    active === "solicitudes" && (React.createElement(SolicitudesView, { items: solicitudes, onMarkAtendida: markSolicitudAtendida, onDelete: deleteSolicitud, onCreateClient: createClientFromSolicitud })),
                     active === "ajustes" && (React.createElement(AjustesView, { settings: settings, setSettings: setSettings, cloudStatus: cloudStatus, cloudError: cloudError, cloudProjectId: cloudProjectId, db: db, users: users, setUsers: setUsers, roles: roles, setRoles: setRoles, currentUser: currentUser, currentRole: currentRole, themeMode: themeMode, setThemeMode: setThemeMode, soundsEnabled: soundsEnabled, setSoundsEnabled: setSoundsEnabled, onLock: lockNow, auditLog: auditLog, logAudit: logAudit })))))))));
 }
 </script>
