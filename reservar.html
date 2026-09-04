@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Reservar cita · Expert Taller</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" />
+<meta name="theme-color" content="#15171A" />
+<link rel="icon" href="icon-192.png" type="image/png" />
+<style>
+  :root {
+    --bg: #15171A;
+    --card: #1D2024;
+    --border: #2B2F35;
+    --text: #F2F3F4;
+    --muted: #9AA0A8;
+    --accent: #FF6A1A;
+    --accent-dark: #C94E0F;
+    --ok: #22C55E;
+    --err: #EF4444;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Inter', sans-serif;
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    padding: 24px 16px 48px;
+  }
+  .wrap { width: 100%; max-width: 440px; }
+  .logo-row { display: flex; flex-direction: column; align-items: center; margin-bottom: 24px; }
+  .logo-row img { width: 64px; height: 64px; border-radius: 16px; margin-bottom: 12px; }
+  h1 {
+    font-family: 'Oswald', sans-serif;
+    font-weight: 600;
+    font-size: 22px;
+    letter-spacing: 0.3px;
+    margin: 0 0 4px;
+    text-align: center;
+  }
+  .sub { color: var(--muted); font-size: 14px; text-align: center; margin: 0; }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 20px;
+    margin-top: 20px;
+  }
+  label {
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--muted);
+    margin: 16px 0 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+  }
+  label:first-child { margin-top: 0; }
+  input, textarea, select {
+    width: 100%;
+    background: #14161A;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    color: var(--text);
+    font-family: 'Inter', sans-serif;
+    font-size: 15px;
+    padding: 12px 14px;
+  }
+  input:focus, textarea:focus, select:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+  textarea { resize: vertical; min-height: 70px; }
+  .req { color: var(--accent); }
+  button {
+    width: 100%;
+    margin-top: 22px;
+    background: linear-gradient(135deg, var(--accent), var(--accent-dark));
+    color: #14161A;
+    font-family: 'Oswald', sans-serif;
+    font-weight: 600;
+    font-size: 16px;
+    letter-spacing: 0.3px;
+    border: none;
+    border-radius: 12px;
+    padding: 15px;
+    cursor: pointer;
+  }
+  button:disabled { opacity: 0.6; }
+  .msg {
+    margin-top: 14px;
+    font-size: 13px;
+    text-align: center;
+    display: none;
+  }
+  .msg.err { color: var(--err); display: block; }
+  .success {
+    text-align: center;
+    padding: 32px 8px;
+  }
+  .success .check {
+    width: 56px; height: 56px; border-radius: 50%;
+    background: rgba(34,197,94,0.15); color: var(--ok);
+    display: flex; align-items: center; justify-content: center;
+    margin: 0 auto 16px; font-size: 28px;
+  }
+  .success h2 { font-family: 'Oswald', sans-serif; font-size: 19px; margin: 0 0 8px; }
+  .success p { color: var(--muted); font-size: 14px; line-height: 1.5; margin: 0; }
+  .footer-note { text-align: center; color: var(--muted); font-size: 11px; margin-top: 18px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="logo-row">
+    <img src="icon-192.png" alt="Expert Taller" />
+    <h1>Reserva tu cita</h1>
+    <p class="sub">Cuéntanos qué necesita tu vehículo y te contactamos</p>
+  </div>
+
+  <div class="card" id="formCard">
+    <form id="citaForm">
+      <label>Nombre <span class="req">*</span></label>
+      <input type="text" id="fName" required placeholder="Tu nombre" autocomplete="name" />
+
+      <label>Teléfono / WhatsApp <span class="req">*</span></label>
+      <input type="tel" id="fPhone" required placeholder="9xx xxx xxx" autocomplete="tel" inputmode="numeric" />
+
+      <label>Vehículo</label>
+      <input type="text" id="fVehicle" placeholder="Marca, modelo y placa" autocomplete="off" />
+
+      <label>¿Qué necesita?</label>
+      <textarea id="fNeed" placeholder="Ej: cambio de aceite, ruido en frenos, revisión general..."></textarea>
+
+      <button type="submit" id="submitBtn">Enviar solicitud</button>
+      <p class="msg err" id="errMsg"></p>
+    </form>
+  </div>
+
+  <div class="card success" id="successCard" style="display:none;">
+    <div class="check">✓</div>
+    <h2>¡Listo, <span id="successName"></span>!</h2>
+    <p>Recibimos tu solicitud. Nos vamos a comunicar contigo pronto para confirmar tu cita.</p>
+  </div>
+
+  <p class="footer-note">Expert Taller · Gestión de taller</p>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script>
+  // Misma config del proyecto principal (Expert Taller) — la escritura pública queda dentro
+  // de la colección "tallerData", igual que el resto de la app, así que las reglas de
+  // seguridad ya existentes (allow read, write: if request.auth != null) cubren esto sin
+  // tener que tocar nada en Firebase.
+  const FIREBASE_CONFIG = {
+    apiKey: "AIzaSyAsYsXARi9G1NXGI3RXmoe19yYuzSVaoKY",
+    authDomain: "taller-fc741.firebaseapp.com",
+    projectId: "taller-fc741",
+    storageBucket: "taller-fc741.firebasestorage.app",
+    messagingSenderId: "832448264902",
+    appId: "1:832448264902:web:d434c241dae0b0e18775c7",
+  };
+  const NOTIFY_ENDPOINT = "https://pushtaller.vercel.app/api/notify";
+  const NOTIFY_SECRET = "taller-expert-2026-x7kQ9mPzR4";
+
+  firebase.initializeApp(FIREBASE_CONFIG);
+  const db = firebase.firestore();
+  const auth = firebase.auth();
+
+  const form = document.getElementById("citaForm");
+  const submitBtn = document.getElementById("submitBtn");
+  const errMsg = document.getElementById("errMsg");
+  const formCard = document.getElementById("formCard");
+  const successCard = document.getElementById("successCard");
+
+  function showError(text) {
+    errMsg.textContent = text;
+    errMsg.style.display = "block";
+  }
+
+  function triggerPush(name, vehicle, need) {
+    if (!NOTIFY_ENDPOINT) return;
+    const bodyParts = [name];
+    if (vehicle) bodyParts.push(vehicle);
+    if (need) bodyParts.push(need);
+    fetch(NOTIFY_ENDPOINT, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        proformaId: null,
+        secret: NOTIFY_SECRET,
+        title: "Nueva solicitud de cita",
+        body: bodyParts.join(" · "),
+      }),
+    }).catch((e) => console.error("No se pudo avisar por push", e));
+  }
+
+  form.addEventListener("submit", async function (e) {
+    e.preventDefault();
+    errMsg.style.display = "none";
+
+    const name = document.getElementById("fName").value.trim();
+    const phone = document.getElementById("fPhone").value.trim();
+    const vehicle = document.getElementById("fVehicle").value.trim();
+    const need = document.getElementById("fNeed").value.trim();
+
+    if (!name || !phone) {
+      showError("Por favor completa tu nombre y teléfono.");
+      return;
+    }
+
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Enviando...";
+
+    try {
+      // Autenticación anónima: necesaria para que las reglas de Firestore (auth != null)
+      // permitan la escritura, igual que el resto de la app.
+      if (!auth.currentUser) {
+        await auth.signInAnonymously();
+      }
+
+      const key = "solicitud_" + Date.now() + "_" + Math.random().toString(36).slice(2, 8);
+      await db.collection("tallerData").doc(key).set({
+        value: {
+          type: "solicitud_publica",
+          name: name,
+          phone: phone,
+          vehicle: vehicle,
+          need: need,
+          status: "nueva",
+          source: "flyer_qr",
+          createdAt: Date.now(),
+        },
+        updatedAt: Date.now(),
+      });
+
+      triggerPush(name, vehicle, need);
+
+      document.getElementById("successName").textContent = name;
+      formCard.style.display = "none";
+      successCard.style.display = "block";
+    } catch (err) {
+      console.error(err);
+      showError("No se pudo enviar. Revisa tu conexión e intenta de nuevo.");
+      submitBtn.disabled = false;
+      submitBtn.textContent = "Enviar solicitud";
+    }
+  });
+</script>
+</body>
+</html>
