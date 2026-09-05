@@ -5170,7 +5170,6 @@ function useCloudSync(key, initialValue, db) {
     }, [state]);
     useEffect(() => {
         if (!db) {
-            setLoading(false);
             return;
         }
         seededRef.current = false;
