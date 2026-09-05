@@ -1745,9 +1745,7 @@ function triggerPushNotification(proformaId, payload) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ proformaId: proformaId, secret: NOTIFY_SECRET, ...payload }),
-    })
-        .then((res) => res.text().then((body) => alert("DIAGNOSTICO notify: HTTP " + res.status + " -> " + body)))
-        .catch((e) => { console.error("No se pudo avisar por push", e); alert("DIAGNOSTICO notify: fetch fallo -> " + e); });
+    }).catch((e) => console.error("No se pudo avisar por push", e));
 }
 function shareApprovalRequestWhatsApp(pf, client, settings) {
     const link = proformaApprovalLink(pf);
@@ -5147,6 +5145,7 @@ function useFirebase() {
 // de un presupuesto hecha desde el celular del cliente aparezca al instante en el taller).
 function useCloudSync(key, initialValue, db) {
     const [state, setState] = usePersistentState(key, initialValue);
+    const [loading, setLoading] = useState(true);
     const stateRef = useRef(state);
     const skipNextWrite = useRef(false);
     const seededRef = useRef(false);
@@ -5170,8 +5169,10 @@ function useCloudSync(key, initialValue, db) {
         stateRef.current = state;
     }, [state]);
     useEffect(() => {
-        if (!db)
+        if (!db) {
+            setLoading(false);
             return;
+        }
         seededRef.current = false;
         const ref = db.collection("tallerData").doc(key);
         let cancelled = false;
@@ -5192,8 +5193,10 @@ function useCloudSync(key, initialValue, db) {
                 ref.set({ value: stateRef.current, updatedAt: rev }).catch((e) => console.error("Firestore seed error", key, e));
             }
             seededRef.current = true;
-        }).catch((e) => console.error("Firestore read error", key, e));
+            setLoading(false);
+        }).catch((e) => { console.error("Firestore read error", key, e); setLoading(false); });
         const unsub = ref.onSnapshot((snap) => {
+            setLoading(false);
             if (!snap.exists)
                 return;
             const remoteUpdatedAt = snap.data().updatedAt || 0;
@@ -5208,7 +5211,7 @@ function useCloudSync(key, initialValue, db) {
             catch (e) { }
             skipNextWrite.current = true;
             setState(snap.data().value);
-        }, (e) => console.error("Firestore sync error", key, e));
+        }, (e) => { console.error("Firestore sync error", key, e); setLoading(false); });
         return () => {
             cancelled = true;
             unsub();
@@ -5238,7 +5241,7 @@ function useCloudSync(key, initialValue, db) {
         const ref = db.collection("tallerData").doc(key);
         ref.set({ value: state, updatedAt: rev }).catch((e) => console.error("Firestore write error", key, e));
     }, [state]);
-    return [state, setState];
+    return [state, setState, loading];
 }
 /* ---------------------------------- SOLICITUDES PÚBLICAS (formulario del QR / flyer) ---------------------------------- */
 // A diferencia de useCloudSync (que sincroniza UN documento fijo por "tabla"), aquí cada
@@ -5289,7 +5292,7 @@ function useSolicitudesPublicas(db) {
 // enlace publico (method === "cliente_web"), asi que no hace falta guardarlas aparte en Firestore.
 // Que esta "leido" vive solo en este dispositivo (usePersistentState), porque cada celular/PC
 // revisa sus propias notificaciones por separado.
-function NotificationsBell({ proformas, clients, onEnablePush, pushReady, onOpenProforma }) {
+function NotificationsBell({ proformas, clients, onEnablePush, onResetPush, pushReady, onOpenProforma }) {
     const [open, setOpen] = useState(false);
     const [readIds, setReadIds] = usePersistentState("expertTaller.notifRead", []);
     const [permission, setPermission] = useState(() => (typeof Notification !== "undefined" ? Notification.permission : "unsupported"));
@@ -5339,6 +5342,7 @@ function NotificationsBell({ proformas, clients, onEnablePush, pushReady, onOpen
         permission === "granted" && (React.createElement("div", { className: "px-3 py-2 text-[11px] rounded-lg flex items-center gap-2 mb-3", style: { color: pushReady ? C.success : C.textMute, background: C.surfaceHi } },
             React.createElement(CheckCircle2, { size: 12 }),
             pushReady ? "Avisos activos en este dispositivo, incluso con la app cerrada." : "Avisos activos mientras la app este abierta.")),
+        permission === "granted" && pushReady && onResetPush && (React.createElement("button", { onClick: onResetPush, className: "w-full text-left px-3 py-1.5 text-[10px] mb-3 underline", style: { color: C.textMute } }, "¿Llegan avisos duplicados en este celular? Reiniciar registro")),
         items.length === 0 ? (React.createElement("div", { className: "py-8 text-center text-xs", style: { color: C.textMute } }, "Todavia no hay respuestas de clientes.")) : (React.createElement("div", { className: "-mx-6" }, items.slice(0, 20).map((it) => (React.createElement("div", { key: it.id, onClick: () => { setOpen(false); onOpenProforma && onOpenProforma(it.id); }, className: "px-6 py-3 flex items-start gap-3 cursor-pointer transition-colors hover:bg-white/5", style: { borderBottom: `1px solid ${C.borderSoft}` } },
             React.createElement("div", { className: "w-7 h-7 rounded-full flex items-center justify-center shrink-0 mt-0.5", style: { background: it.approved ? C.successSoft : C.dangerSoft, color: it.approved ? C.success : C.danger } }, it.approved ? React.createElement(CheckCircle2, { size: 14 }) : React.createElement(X, { size: 14 })),
             React.createElement("div", { className: "min-w-0 flex-1" },
@@ -5474,8 +5478,8 @@ function App() {
         return () => window.removeEventListener("hashchange", onHashChange);
     }, []);
     const { db, status: cloudStatus, errorMsg: cloudError, projectId: cloudProjectId } = useFirebase();
-    const [clients, setClients] = useCloudSync("expertTaller.clients", initialClients, db);
-    const [vehicles, setVehicles] = useCloudSync("expertTaller.vehicles", initialVehicles, db);
+    const [clients, setClients, clientsLoading] = useCloudSync("expertTaller.clients", initialClients, db);
+    const [vehicles, setVehicles, vehiclesLoading] = useCloudSync("expertTaller.vehicles", initialVehicles, db);
     const [parts, setParts] = useCloudSync("expertTaller.parts", initialParts, db);
     const [orders, setOrders] = useCloudSync("expertTaller.orders", initialOrders, db);
     const [appointments, setAppointments] = useCloudSync("expertTaller.appointments", initialAppointments, db);
@@ -5511,7 +5515,7 @@ function App() {
     // resuelto, igual que este último, para que todo el árbol de componentes lo tome de una vez.
     applyAccentColor(settings === null || settings === void 0 ? void 0 : settings.accentColor, resolvedTheme);
     const [caja, setCaja] = useCloudSync("expertTaller.caja", [], db);
-    const [proformas, setProformas] = useCloudSync("expertTaller.proformas", initialProformas, db);
+    const [proformas, setProformas, proformasLoading] = useCloudSync("expertTaller.proformas", initialProformas, db);
     const [users, setUsers] = useCloudSync("expertTaller.users", initialUsers, db);
     const [roles, setRoles] = useCloudSync("expertTaller.roles", initialRoles, db);
     // Migración suave: si se agregó un módulo nuevo a la app (como "Base Mecánica") después de que
@@ -5556,13 +5560,29 @@ function App() {
             const messaging = firebase.messaging();
             const token = await messaging.getToken({ vapidKey: VAPID_KEY, serviceWorkerRegistration: reg });
             if (token) {
-                setFcmTokens((prev) => (prev.indexOf(token) === -1 ? [...prev, token] : prev));
+                // Si Firebase le dio a este dispositivo un token distinto al que tenia guardado (pasa
+                // de vez en cuando, o al reinstalar), sacamos el viejo de la lista para no duplicar avisos.
+                let previousMine = null;
+                try { previousMine = window.localStorage.getItem("fcmToken.mine"); } catch (e) { }
+                setFcmTokens((prev) => {
+                    const withoutOld = previousMine && previousMine !== token ? prev.filter((t) => t !== previousMine) : prev;
+                    return withoutOld.indexOf(token) === -1 ? [...withoutOld, token] : withoutOld;
+                });
+                try { window.localStorage.setItem("fcmToken.mine", token); } catch (e) { }
                 setPushReady(true);
             }
         }
         catch (e) {
             console.error("No se pudo activar el aviso push en este dispositivo", e);
         }
+    };
+    // Limpia el registro de este dispositivo y lo vuelve a crear de cero. Sirve para cuando ya
+    // quedaron tokens viejos duplicados en la lista (avisos repetidos) y se quiere dejar solo uno.
+    const resetPushRegistration = async () => {
+        try { window.localStorage.removeItem("fcmToken.mine"); } catch (e) { }
+        setFcmTokens([]);
+        setPushReady(false);
+        await ensurePushToken();
     };
     useEffect(() => {
         const isClientRoute = window.location.hash && window.location.hash.indexOf("#aprobar-") === 0;
@@ -5765,6 +5785,12 @@ function App() {
     }, [proformas, clients, hashRoute]);
     const approvalMatch = hashRoute && hashRoute.match(/^#aprobar-(.+)$/);
     if (approvalMatch) {
+        if (proformasLoading || clientsLoading || vehiclesLoading) {
+            return (React.createElement("div", { style: { background: C.bg, color: C.text, minHeight: "100vh" }, className: "flex items-center justify-center p-6" },
+                React.createElement("style", null, getFonts()),
+                React.createElement(Card, { className: "p-8 max-w-sm text-center" },
+                    React.createElement("p", { style: { color: C.textMute } }, "Cargando el presupuesto\u2026"))));
+        }
         const approvalPf = proformas.find((p) => p.id === approvalMatch[1]);
         return (React.createElement(ClientApprovalPage, { pf: approvalPf, client: approvalPf ? resolveProformaClient(approvalPf, clients) : null, vehicle: approvalPf ? resolveProformaVehicle(approvalPf, vehicles) : null, settings: settings, onApprove: (name) => setProformas((prev) => prev.map((p) => p.id === approvalPf.id
                 ? { ...p, status: "aprobada", clientApproval: { approved: true, approvedAt: new Date().toISOString(), approvedBy: name, method: "cliente_web" } }
@@ -5818,7 +5844,7 @@ function App() {
                                 cloudStatus === "connecting" ? "Conectando a la nube…" :
                                     cloudStatus === "error" ? `Error de conexión: ${cloudError}` :
                                         "Trabajando solo en este navegador", className: "hidden sm:flex w-9 h-9 rounded-xl items-center justify-center transition-colors hover:bg-white/5 active:scale-95", style: { background: C.surfaceHi, border: `1px solid ${C.borderSoft}`, color: cloudStatus === "connected" ? C.success : cloudStatus === "error" ? C.danger : C.textMute } }, cloudStatus === "offline" ? React.createElement(CloudOff, { size: 16 }) : React.createElement(CloudIcon, { size: 16 })),
-                        React.createElement(NotificationsBell, { proformas: proformas, clients: clients, onEnablePush: ensurePushToken, pushReady: pushReady, onOpenProforma: openProformaFromNotification }),
+                        React.createElement(NotificationsBell, { proformas: proformas, clients: clients, onEnablePush: ensurePushToken, onResetPush: resetPushRegistration, pushReady: pushReady, onOpenProforma: openProformaFromNotification }),
                         React.createElement("button", { onClick: () => setActive("ajustes"), className: "hidden sm:flex items-center gap-2 pl-1 pr-3 h-9 rounded-xl transition-colors hover:bg-white/5 active:scale-95", style: { background: C.surfaceHi, border: `1px solid ${C.borderSoft}` } },
                             React.createElement(UserAvatar, { user: currentUser, role: currentRole, size: 26 }),
                             React.createElement("span", { className: "text-xs font-medium max-w-[110px] truncate" }, currentUser === null || currentUser === void 0 ? void 0 : currentUser.name)))),
