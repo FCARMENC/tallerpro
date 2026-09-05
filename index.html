@@ -5789,6 +5789,7 @@ function App() {
             return (React.createElement("div", { style: { background: C.bg, color: C.text, minHeight: "100vh" }, className: "flex items-center justify-center p-6" },
                 React.createElement("style", null, getFonts()),
                 React.createElement(Card, { className: "p-8 max-w-sm text-center" },
+                    React.createElement("div", { className: "w-8 h-8 rounded-full animate-spin mx-auto mb-3", style: { border: `3px solid ${C.borderSoft}`, borderTopColor: C.accent } }),
                     React.createElement("p", { style: { color: C.textMute } }, "Cargando el presupuesto\u2026"))));
         }
         const approvalPf = proformas.find((p) => p.id === approvalMatch[1]);
