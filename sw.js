@@ -8,7 +8,7 @@
  * que todos los dispositivos bajen la app de nuevo, sube este número. Si solo editas index.html no
  * hace falta tocar esto: la estrategia "red primero" de más abajo ya trae la versión nueva sola.
  */
-const CACHE_VERSION = "v1";
+const CACHE_VERSION = "v2";
 const CACHE_NAME = "expert-taller-" + CACHE_VERSION;
 
 // Todo lo necesario para que la app cargue sin conexión.
@@ -62,9 +62,13 @@ self.addEventListener("fetch", (event) => {
 
   // El documento principal: intenta la red primero (así siempre ves la última versión publicada
   // cuando hay internet) y si falla (sin conexión), sirve la copia guardada.
+  // OJO: { cache: "no-store" } es clave aquí — sin esto, este mismo fetch() puede devolver una
+  // copia guardada por el caché HTTP normal del navegador (no el de este Service Worker), que es
+  // justamente lo que hacía que la app se viera desactualizada aunque la estrategia ya fuera
+  // "red primero" en el papel.
   if (req.mode === "navigate") {
     event.respondWith(
-      fetch(req)
+      fetch(req, { cache: "no-store" })
         .then((res) => {
           const copy = res.clone();
           caches.open(CACHE_NAME).then((cache) => cache.put(req, copy));
