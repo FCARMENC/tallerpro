@@ -5295,6 +5295,7 @@ function NotificationsBell({ proformas, clients, onEnablePush, onResetPush, push
     const [open, setOpen] = useState(false);
     const [readIds, setReadIds] = usePersistentState("expertTaller.notifRead", []);
     const [permission, setPermission] = useState(() => (typeof Notification !== "undefined" ? Notification.permission : "unsupported"));
+    const [resetState, setResetState] = useState("idle"); // idle | working | done
     const items = useMemo(() => {
         return proformas
             .filter((pf) => pf.clientApproval && pf.clientApproval.method === "cliente_web")
@@ -5332,6 +5333,20 @@ function NotificationsBell({ proformas, clients, onEnablePush, onResetPush, push
             return next;
         });
     };
+    const handleReset = async () => {
+        if (!onResetPush || resetState === "working")
+            return;
+        setResetState("working");
+        try {
+            await onResetPush();
+            setResetState("done");
+        }
+        catch (e) {
+            console.error("No se pudo reiniciar el registro de push", e);
+            setResetState("error");
+        }
+        setTimeout(() => setResetState("idle"), 5000);
+    };
     const panel = open && (React.createElement(Modal, { title: `Aprobaciones de clientes (${items.length})`, onClose: () => setOpen(false) },
         permission !== "granted" && permission !== "unsupported" && (React.createElement("button", { onClick: requestPermission, className: "w-full text-left px-3 py-2.5 text-xs rounded-lg flex items-center gap-2 mb-3", style: { background: C.accentSoft, color: C.accentText } },
             React.createElement(Bell, { size: 13 }),
@@ -5341,7 +5356,7 @@ function NotificationsBell({ proformas, clients, onEnablePush, onResetPush, push
         permission === "granted" && (React.createElement("div", { className: "px-3 py-2 text-[11px] rounded-lg flex items-center gap-2 mb-3", style: { color: pushReady ? C.success : C.textMute, background: C.surfaceHi } },
             React.createElement(CheckCircle2, { size: 12 }),
             pushReady ? "Avisos activos en este dispositivo, incluso con la app cerrada." : "Avisos activos mientras la app este abierta.")),
-        permission === "granted" && pushReady && onResetPush && (React.createElement("button", { onClick: onResetPush, className: "w-full text-left px-3 py-1.5 text-[10px] mb-3 underline", style: { color: C.textMute } }, "¿Llegan avisos duplicados en este celular? Reiniciar registro")),
+        permission === "granted" && pushReady && onResetPush && (React.createElement("button", { onClick: handleReset, disabled: resetState === "working", className: "w-full text-left px-3 py-1.5 text-[10px] mb-3 underline", style: { color: resetState === "done" ? C.success : resetState === "error" ? C.danger : C.textMute } }, resetState === "working" ? "Reiniciando…" : resetState === "done" ? "Listo, se reinició el registro de este dispositivo ✓" : resetState === "error" ? "No se pudo reiniciar, intenta de nuevo" : "¿Llegan avisos duplicados en este celular? Reiniciar registro")),
         items.length === 0 ? (React.createElement("div", { className: "py-8 text-center text-xs", style: { color: C.textMute } }, "Todavia no hay respuestas de clientes.")) : (React.createElement("div", { className: "-mx-6" }, items.slice(0, 20).map((it) => (React.createElement("div", { key: it.id, onClick: () => { setOpen(false); onOpenProforma && onOpenProforma(it.id); }, className: "px-6 py-3 flex items-start gap-3 cursor-pointer transition-colors hover:bg-white/5", style: { borderBottom: `1px solid ${C.borderSoft}` } },
             React.createElement("div", { className: "w-7 h-7 rounded-full flex items-center justify-center shrink-0 mt-0.5", style: { background: it.approved ? C.successSoft : C.dangerSoft, color: it.approved ? C.success : C.danger } }, it.approved ? React.createElement(CheckCircle2, { size: 14 }) : React.createElement(X, { size: 14 })),
             React.createElement("div", { className: "min-w-0 flex-1" },
