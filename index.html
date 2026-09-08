@@ -1862,6 +1862,7 @@ const NAV = [
     { key: "agenda", label: "Agenda", icon: CalendarDays },
     { key: "mecanica", label: "Base Mecánica", icon: DatabaseIcon },
     { key: "caja", label: "Caja", icon: Wallet },
+    { key: "pagos", label: "Pagos programados", icon: Clock },
     { key: "solicitudes", label: "Solicitudes", icon: Bell },
     { key: "ajustes", label: "Ajustes", icon: SettingsIcon },
 ];
@@ -3517,6 +3518,69 @@ function SolicitudCard({ item, onMarkAtendida, onCreateClient, onDelete }) {
                 "Marcar atendida")),
             React.createElement("button", { onClick: () => onDelete(item.id), className: "inline-flex items-center justify-center w-7 h-7 rounded-lg transition-colors hover:brightness-110", style: { background: C.surfaceHi, border: `1px solid ${C.borderSoft}`, color: C.danger } },
                 React.createElement(Trash2, { size: 13 })))));
+}
+function PagosProgramadosView({ items, onSave, onDelete, onToggleActivo, readOnly }) {
+    const emptyForm = { nombre: "", monto: "", recurrente: true, diaMes: "1", fecha: "" };
+    const [form, setForm] = useState(null); // null = cerrado
+    const openNew = () => setForm({ ...emptyForm });
+    const openEdit = (item) => setForm({ ...item, monto: String(item.monto), diaMes: item.diaMes ? String(item.diaMes) : "1" });
+    const submit = () => {
+        if (!form.nombre.trim() || !form.monto)
+            return;
+        onSave({
+            id: form.id || ("pago_" + Date.now() + "_" + Math.random().toString(36).slice(2, 8)),
+            nombre: form.nombre.trim(),
+            monto: Number(form.monto) || 0,
+            recurrente: !!form.recurrente,
+            diaMes: form.recurrente ? Math.min(28, Math.max(1, Number(form.diaMes) || 1)) : null,
+            fecha: !form.recurrente ? (form.fecha || null) : null,
+            activo: form.activo !== false,
+            lastNotifiedKey: form.lastNotifiedKey || null,
+        });
+        setForm(null);
+    };
+    const fmtProximo = (item) => {
+        if (item.recurrente)
+            return `Cada mes, d\u00eda ${item.diaMes}`;
+        if (item.fecha)
+            return new Date(item.fecha + "T00:00:00").toLocaleDateString("es-PE", { day: "2-digit", month: "short", year: "numeric" });
+        return "Sin fecha";
+    };
+    return (React.createElement("div", { className: "space-y-4" },
+        React.createElement("div", { className: "flex items-center justify-between gap-3" },
+            React.createElement("div", null,
+                React.createElement("h2", { className: "text-lg font-semibold", style: { color: C.text, fontFamily: "Oswald" } }, "Pagos programados"),
+                React.createElement("p", { className: "text-xs mt-0.5", style: { color: C.textMute } }, "Avisos autom\u00e1ticos de pagos que t\u00fa debes hacer (alquiler, proveedores, etc.), incluso con la app cerrada.")),
+            !readOnly && !form && (React.createElement("button", { onClick: openNew, className: "px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-1.5 shrink-0", style: { background: C.accent, color: "#14161A" } },
+                React.createElement(Plus, { size: 15 }), "Nuevo"))),
+        form && (React.createElement(Card, { className: "p-4 space-y-3" },
+            React.createElement("input", { value: form.nombre, onChange: (e) => setForm({ ...form, nombre: e.target.value }), placeholder: "Nombre (ej. Alquiler del local)", className: "w-full px-3 py-2 rounded-lg text-sm", style: { background: C.surfaceHi, border: `1px solid ${C.border}`, color: C.text } }),
+            React.createElement("input", { value: form.monto, onChange: (e) => setForm({ ...form, monto: e.target.value }), placeholder: "Monto (S/)", type: "number", inputMode: "decimal", className: "w-full px-3 py-2 rounded-lg text-sm", style: { background: C.surfaceHi, border: `1px solid ${C.border}`, color: C.text } }),
+            React.createElement("div", { className: "flex gap-2" },
+                React.createElement("button", { onClick: () => setForm({ ...form, recurrente: true }), className: "flex-1 px-3 py-2 rounded-lg text-xs font-medium", style: { background: form.recurrente ? C.accentSoft : C.surfaceHi, color: form.recurrente ? C.accentText : C.textMute, border: `1px solid ${form.recurrente ? C.accent : C.border}` } }, "Se repite cada mes"),
+                React.createElement("button", { onClick: () => setForm({ ...form, recurrente: false }), className: "flex-1 px-3 py-2 rounded-lg text-xs font-medium", style: { background: !form.recurrente ? C.accentSoft : C.surfaceHi, color: !form.recurrente ? C.accentText : C.textMute, border: `1px solid ${!form.recurrente ? C.accent : C.border}` } }, "Fecha \u00fanica")),
+            form.recurrente
+                ? React.createElement("div", null,
+                    React.createElement("label", { className: "text-xs", style: { color: C.textMute } }, "D\u00eda del mes (1-28)"),
+                    React.createElement("input", { value: form.diaMes, onChange: (e) => setForm({ ...form, diaMes: e.target.value }), type: "number", min: 1, max: 28, className: "w-full mt-1 px-3 py-2 rounded-lg text-sm", style: { background: C.surfaceHi, border: `1px solid ${C.border}`, color: C.text } }))
+                : React.createElement("div", null,
+                    React.createElement("label", { className: "text-xs", style: { color: C.textMute } }, "Fecha"),
+                    React.createElement("input", { value: form.fecha || "", onChange: (e) => setForm({ ...form, fecha: e.target.value }), type: "date", className: "w-full mt-1 px-3 py-2 rounded-lg text-sm", style: { background: C.surfaceHi, border: `1px solid ${C.border}`, color: C.text } })),
+            React.createElement("div", { className: "flex gap-2 pt-1" },
+                React.createElement("button", { onClick: submit, className: "flex-1 px-3 py-2 rounded-lg text-sm font-medium", style: { background: C.accent, color: "#14161A" } }, "Guardar"),
+                React.createElement("button", { onClick: () => setForm(null), className: "px-3 py-2 rounded-lg text-sm", style: { background: C.surfaceHi, color: C.textMute } }, "Cancelar")))),
+        items.length === 0 && !form
+            ? React.createElement(Card, { className: "p-6 text-center text-sm", style: { color: C.textMute } }, "Todav\u00eda no agregaste ning\u00fan pago programado.")
+            : React.createElement("div", { className: "space-y-2" }, items.map((item) => (React.createElement(Card, { key: item.id, className: "p-3.5 flex items-center justify-between gap-3" },
+                React.createElement("div", { className: "min-w-0" },
+                    React.createElement("p", { className: "text-sm font-medium truncate", style: { color: item.activo === false ? C.textMute : C.text } }, item.nombre),
+                    React.createElement("p", { className: "text-xs mt-0.5", style: { color: C.textMute } }, `S/ ${Number(item.monto).toFixed(2)} \u00b7 ${fmtProximo(item)}${item.activo === false ? " \u00b7 pausado" : ""}`)),
+                !readOnly && (React.createElement("div", { className: "flex items-center gap-1 shrink-0" },
+                    React.createElement("button", { onClick: () => onToggleActivo(item), className: "px-2 py-1.5 rounded-lg text-[11px] font-medium", style: { color: C.textMute, background: C.surfaceHi } }, item.activo === false ? "Activar" : "Pausar"),
+                    React.createElement("button", { onClick: () => openEdit(item), className: "inline-flex items-center justify-center w-7 h-7 rounded-lg", style: { background: C.surfaceHi, border: `1px solid ${C.borderSoft}`, color: C.textMute } },
+                        React.createElement(Pencil, { size: 13 })),
+                    React.createElement("button", { onClick: () => onDelete(item.id), className: "inline-flex items-center justify-center w-7 h-7 rounded-lg", style: { background: C.surfaceHi, border: `1px solid ${C.borderSoft}`, color: C.danger } },
+                        React.createElement(Trash2, { size: 13 }))))))))));
 }
 function SolicitudesView({ items, onMarkAtendida, onDelete, onCreateClient }) {
     const [filter, setFilter] = useState("nuevas");
@@ -5556,6 +5620,16 @@ function App() {
     }, [roles]);
     const [auditLog, setAuditLog] = useCloudSync("expertTaller.auditLog", [], db);
     const [fcmTokens, setFcmTokens] = useCloudSync("expertTaller.fcmTokens", [], db);
+    const [pagosProgramados, setPagosProgramados] = useCloudSync("expertTaller.pagosProgramados", [], db);
+    const savePagoProgramado = (payload) => setPagosProgramados((prev) => {
+        const exists = prev.some((p) => p.id === payload.id);
+        return exists ? prev.map((p) => (p.id === payload.id ? payload : p)) : [...prev, payload];
+    });
+    const deletePagoProgramado = (id) => setPagosProgramados((prev) => prev.filter((p) => p.id !== id));
+    const togglePagoProgramadoActivo = (item) => {
+        const currentlyActive = item.activo !== false;
+        setPagosProgramados((prev) => prev.map((p) => (p.id === item.id ? { ...p, activo: !currentlyActive } : p)));
+    };
     // Pide el "token" de este dispositivo para Firebase Cloud Messaging y lo guarda en Firestore, para
     // que la funcion de Vercel sepa a que celulares/PCs avisar cuando un cliente responda.
     const [pushReady, setPushReady] = useState(false);
@@ -5879,6 +5953,7 @@ function App() {
                     active === "agenda" && React.createElement(AgendaView, { appointments: appointments, setAppointments: setAppointments }),
                     active === "mecanica" && React.createElement(MecanicaView, { entries: mecanicaEntries, setEntries: setMecanicaEntries, vehicles: vehicles, canEdit: canEditModule(currentRole, "mecanica"), logAudit: logAudit }),
                     active === "caja" && (React.createElement(CajaView, { caja: caja, onAddMovement: addCajaMovement, onRemoveMovement: removeCajaMovement, orders: orders, clients: clients, vehicles: vehicles, onChangeStatus: changeOrderStatus, onRegistrarAbono: registrarAbono })),
+                    active === "pagos" && (React.createElement(PagosProgramadosView, { items: pagosProgramados, onSave: savePagoProgramado, onDelete: deletePagoProgramado, onToggleActivo: togglePagoProgramadoActivo, readOnly: !canEditModule(currentRole, "pagos") })),
                     active === "solicitudes" && (React.createElement(SolicitudesView, { items: solicitudes, onMarkAtendida: markSolicitudAtendida, onDelete: deleteSolicitud, onCreateClient: createClientFromSolicitud })),
                     active === "ajustes" && (React.createElement(AjustesView, { settings: settings, setSettings: setSettings, cloudStatus: cloudStatus, cloudError: cloudError, cloudProjectId: cloudProjectId, db: db, users: users, setUsers: setUsers, roles: roles, setRoles: setRoles, currentUser: currentUser, currentRole: currentRole, themeMode: themeMode, setThemeMode: setThemeMode, soundsEnabled: soundsEnabled, setSoundsEnabled: setSoundsEnabled, onLock: lockNow, auditLog: auditLog, logAudit: logAudit })))))))));
 }
