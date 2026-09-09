@@ -2924,6 +2924,17 @@ function FindingsModal({ order, findings, onClose, onSave }) {
             resetDraft();
     };
     const submit = () => {
+        // Si queda un hallazgo a medio llenar (con título) que nunca se agregó a la lista con
+        // "Agregar hallazgo", lo incluimos igual en vez de perderlo en silencio al guardar.
+        const pendingTitle = (draft.title || "").trim();
+        if (pendingTitle) {
+            const clean = { title: pendingTitle, note: (draft.note || "").trim(), photos: draft.photos };
+            const finalItems = isEditing
+                ? items.map((it) => (it.id === editingId ? { ...it, ...clean } : it))
+                : [...items, { id: "fd" + Date.now() + Math.random().toString(36).slice(2, 6), createdAt: new Date().toISOString(), ...clean }];
+            onSave(finalItems);
+            return;
+        }
         onSave(items);
     };
     return (React.createElement(Modal, { title: `Hallazgos del servicio · ${order.code}`, onClose: onClose, wide: true },
