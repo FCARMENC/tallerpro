@@ -1549,6 +1549,7 @@ function buildServiceReportDoc(order, client, vehicle, settings) {
     const textX = marginX + logoOffset;
     const accentRgb = pdfAccentRgb(settings);
     const findings = order.findings || [];
+    const photoWarnings = [];
     doc.setFont("helvetica", "bold");
     doc.setFontSize(16);
     doc.setTextColor(30, 30, 30);
@@ -1674,7 +1675,11 @@ function buildServiceReportDoc(order, client, vehicle, settings) {
                     const fmt = item.photo.dataUrl.indexOf("image/png") !== -1 ? "PNG" : "JPEG";
                     doc.addImage(item.photo.dataUrl, fmt, x, y, imgW, imgH);
                 }
-                catch (e) { /* si una imagen no puede embeberse, se omite y se continúa */ }
+                catch (e) {
+                    // Guardamos el motivo real en vez de ocultarlo — se lo mostramos al usuario
+                    // después (ver doc._photoWarnings), porque el celular no tiene consola a mano.
+                    photoWarnings.push(`${item.label}: ${(e && e.message) || "no se pudo incrustar"}`);
+                }
                 doc.setFont("helvetica", "normal");
                 doc.setFontSize(7.5);
                 doc.setTextColor(120, 120, 120);
@@ -1690,14 +1695,19 @@ function buildServiceReportDoc(order, client, vehicle, settings) {
     doc.setFontSize(7.8);
     doc.setTextColor(140, 140, 140);
     doc.text("Reporte generado desde la orden de trabajo, con los hallazgos registrados por el técnico durante el servicio.", marginX, pageHeight - 8, { maxWidth: pageWidth - marginX * 2 });
+    doc._photoWarnings = photoWarnings;
     return doc;
 }
 function downloadServiceReportPDF(order, client, vehicle, settings) {
     const doc = buildServiceReportDoc(order, client, vehicle, settings);
+    if (doc._photoWarnings && doc._photoWarnings.length)
+        console.warn("Fotos no incrustadas en el reporte:", doc._photoWarnings);
     doc.save(`Reporte-servicio-${order.code}.pdf`);
+    return { warnings: doc._photoWarnings || [] };
 }
 async function shareServiceReportWhatsApp(order, client, vehicle, settings) {
     const doc = buildServiceReportDoc(order, client, vehicle, settings);
+    const warnings = doc._photoWarnings || [];
     const fileName = `Reporte-servicio-${order.code}.pdf`;
     const findings = order.findings || [];
     const findingsList = findings.length > 0
@@ -1709,12 +1719,12 @@ async function shareServiceReportWhatsApp(order, client, vehicle, settings) {
         const file = new File([blob], fileName, { type: "application/pdf" });
         if (navigator.canShare && navigator.canShare({ files: [file] })) {
             await navigator.share({ files: [file], title: `Reporte de servicio ${order.code}`, text });
-            return { ok: true, method: "share" };
+            return { ok: true, method: "share", warnings: warnings };
         }
     }
     catch (e) {
         if (e && e.name === "AbortError")
-            return { ok: false, method: "cancelled" };
+            return { ok: false, method: "cancelled", warnings: warnings };
         // si falla el share nativo, seguimos con el respaldo de abajo
     }
     doc.save(fileName);
@@ -1724,7 +1734,7 @@ async function shareServiceReportWhatsApp(order, client, vehicle, settings) {
         ? `https://wa.me/51${last9}?text=${encodeURIComponent(text + "\n\n(Adjunta el PDF que se acaba de descargar a tu equipo)")}`
         : `https://wa.me/?text=${encodeURIComponent(text + "\n\n(Adjunta el PDF que se acaba de descargar a tu equipo)")}`;
     window.open(waUrl, "_blank");
-    return { ok: true, method: "fallback" };
+    return { ok: true, method: "fallback", warnings: warnings };
 }
 /* ---------------------------------- PDF · HISTORIAL COMPLETO DEL VEHÍCULO ---------------------------------- */
 // A diferencia del reporte de servicio (una sola orden), este junta TODAS las visitas que tiene
@@ -2299,7 +2309,9 @@ function OrderDetail({ order, client, vehicle, parts, onClose, onStatusChange, o
     const handleDownloadReport = () => {
         setReportError("");
         try {
-            downloadServiceReportPDF(order, client, vehicle, settings || {});
+            const res = downloadServiceReportPDF(order, client, vehicle, settings || {});
+            if (res && res.warnings && res.warnings.length)
+                setReportError(`El PDF se descargó, pero ${res.warnings.length} foto(s) no se pudieron incluir: ${res.warnings.join(" · ")}`);
         }
         catch (e) {
             setReportError((e && e.message) || "No se pudo generar el PDF.");
@@ -2309,7 +2321,9 @@ function OrderDetail({ order, client, vehicle, parts, onClose, onStatusChange, o
         setReportError("");
         setReportBusy(true);
         try {
-            await shareServiceReportWhatsApp(order, client, vehicle, settings || {});
+            const res = await shareServiceReportWhatsApp(order, client, vehicle, settings || {});
+            if (res && res.warnings && res.warnings.length)
+                setReportError(`Se envió el PDF, pero ${res.warnings.length} foto(s) no se pudieron incluir: ${res.warnings.join(" · ")}`);
         }
         catch (e) {
             setReportError((e && e.message) || "No se pudo compartir el PDF.");
