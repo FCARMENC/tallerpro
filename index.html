@@ -1726,6 +1726,174 @@ async function shareServiceReportWhatsApp(order, client, vehicle, settings) {
     window.open(waUrl, "_blank");
     return { ok: true, method: "fallback" };
 }
+/* ---------------------------------- PDF · HISTORIAL COMPLETO DEL VEHÍCULO ---------------------------------- */
+// A diferencia del reporte de servicio (una sola orden), este junta TODAS las visitas que tiene
+// registradas un vehículo en el taller, en orden cronológico, con lo que se hizo y el total de
+// cada una. Pensado para cuando el cliente pide "mándame todo lo que se le hizo a mi carro".
+function buildVehicleHistoryDoc(vehicle, client, allOrders, settings) {
+    if (!window.jspdf || !window.jspdf.jsPDF) {
+        throw new Error("La librería de generación de PDF no cargó. Revisa tu conexión a internet.");
+    }
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ unit: "mm", format: "a4" });
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const marginX = 15;
+    let y = 18;
+    const logoOffset = addTallerHeaderLogo(doc, settings, marginX);
+    const textX = marginX + logoOffset;
+    const accentRgb = pdfAccentRgb(settings);
+    const orders = [...allOrders].filter((o) => o.vehicleId === vehicle.id).sort((a, b) => a.entry.localeCompare(b.entry));
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(16);
+    doc.setTextColor(30, 30, 30);
+    doc.text(settings.tallerNombre || "Taller Mecánico", textX, y);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.setTextColor(90, 90, 90);
+    let subY = y + 6;
+    [settings.address, settings.phone && `Tel: ${settings.phone}`, settings.ruc && `RUC: ${settings.ruc}`]
+        .filter(Boolean)
+        .forEach((line) => { doc.text(line, textX, subY); subY += 4.5; });
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(17);
+    doc.setTextColor(...accentRgb);
+    doc.text("HISTORIAL DEL VEHÍCULO", pageWidth - marginX, y, { align: "right" });
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    doc.setTextColor(60, 60, 60);
+    doc.text(`Fecha: ${fmtDatePE(new Date().toISOString().slice(0, 10))}`, pageWidth - marginX, y + 6, { align: "right" });
+    y = Math.max(subY, y + 18) + 6;
+    doc.setDrawColor(220, 220, 220);
+    doc.line(marginX, y, pageWidth - marginX, y);
+    y += 8;
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    doc.setTextColor(30, 30, 30);
+    doc.text("Cliente", marginX, y);
+    doc.text("Vehículo", pageWidth / 2 + 5, y);
+    y += 5;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9.5);
+    doc.setTextColor(70, 70, 70);
+    doc.text((client && client.name) || "-", marginX, y);
+    doc.text((`${vehicle.brand || ""} ${vehicle.model || ""} ${vehicle.year ? "(" + vehicle.year + ")" : ""}`).trim() || "-", pageWidth / 2 + 5, y);
+    y += 5;
+    if (client && client.phone)
+        doc.text(client.phone, marginX, y);
+    if (vehicle.plate)
+        doc.text(`Placa: ${vehicle.plate}`, pageWidth / 2 + 5, y);
+    y += 10;
+    if (!orders.length) {
+        doc.setFont("helvetica", "italic");
+        doc.setFontSize(10);
+        doc.setTextColor(120, 120, 120);
+        doc.text("Todavía no hay visitas registradas para este vehículo.", marginX, y);
+    }
+    orders.forEach((order, idx) => {
+        if (y > pageHeight - 45) {
+            doc.addPage();
+            y = 18;
+        }
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(11.5);
+        doc.setTextColor(...accentRgb);
+        doc.text(`${idx + 1}. ${order.code}  \u00b7  ${fmtDatePE(order.entry)}`, marginX, y);
+        y += 6;
+        if (order.description) {
+            doc.setFont("helvetica", "normal");
+            doc.setFontSize(9);
+            doc.setTextColor(90, 90, 90);
+            const descLines = doc.splitTextToSize(`Motivo: ${order.description}`, pageWidth - marginX * 2);
+            doc.text(descLines, marginX, y);
+            y += descLines.length * 4.3 + 2;
+        }
+        const findings = order.findings || [];
+        if (findings.length) {
+            doc.setFont("helvetica", "normal");
+            doc.setFontSize(9);
+            doc.setTextColor(90, 90, 90);
+            const fLines = doc.splitTextToSize(`Hallazgos: ${findings.map((f) => f.title).join(", ")}`, pageWidth - marginX * 2);
+            doc.text(fLines, marginX, y);
+            y += fLines.length * 4.3 + 2;
+        }
+        const svcRows = [
+            ...(order.services || []).map((s) => ["Servicio", s.name, "", money(s.price)]),
+            ...(order.parts || []).map((p) => ["Repuesto", p.name, String(p.qty), money(p.price * p.qty)]),
+        ];
+        if (svcRows.length > 0) {
+            if (y > pageHeight - 35) {
+                doc.addPage();
+                y = 18;
+            }
+            doc.autoTable({
+                startY: y,
+                head: [["Tipo", "Descripción", "Cant.", "Precio"]],
+                body: svcRows,
+                theme: "grid",
+                styles: { font: "helvetica", fontSize: 8.3, cellPadding: 2.2, textColor: [40, 40, 40] },
+                headStyles: { fillColor: accentRgb, textColor: [255, 255, 255], fontStyle: "bold" },
+                columnStyles: { 0: { cellWidth: 22 }, 2: { cellWidth: 16, halign: "center" }, 3: { cellWidth: 24, halign: "right" } },
+                margin: { left: marginX, right: marginX },
+            });
+            y = doc.lastAutoTable.finalY + 3;
+        }
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(9.5);
+        doc.setTextColor(30, 30, 30);
+        doc.text(`Total de esta visita: ${money(orderTotal(order))}`, pageWidth - marginX, y, { align: "right" });
+        y += 6;
+        doc.setDrawColor(230, 230, 230);
+        doc.line(marginX, y, pageWidth - marginX, y);
+        y += 8;
+    });
+    if (orders.length) {
+        if (y > pageHeight - 25) {
+            doc.addPage();
+            y = 18;
+        }
+        const granTotal = orders.reduce((s, o) => s + orderTotal(o), 0);
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(11);
+        doc.setTextColor(30, 30, 30);
+        doc.text(`Total hist\u00f3rico (${orders.length} visita${orders.length === 1 ? "" : "s"}): ${money(granTotal)}`, pageWidth - marginX, y, { align: "right" });
+    }
+    doc.setFont("helvetica", "italic");
+    doc.setFontSize(7.8);
+    doc.setTextColor(140, 140, 140);
+    doc.text("Historial generado con todas las visitas registradas de este veh\u00edculo en el taller.", marginX, pageHeight - 8, { maxWidth: pageWidth - marginX * 2 });
+    return doc;
+}
+function downloadVehicleHistoryPDF(vehicle, client, orders, settings) {
+    const doc = buildVehicleHistoryDoc(vehicle, client, orders, settings);
+    doc.save(`Historial-${vehicle.plate}.pdf`);
+}
+async function shareVehicleHistoryWhatsApp(vehicle, client, allOrders, settings) {
+    const doc = buildVehicleHistoryDoc(vehicle, client, allOrders, settings);
+    const fileName = `Historial-${vehicle.plate}.pdf`;
+    const count = [...allOrders].filter((o) => o.vehicleId === vehicle.id).length;
+    const text = `Hola ${(client && client.name) || ""}, te comparto el historial completo de tu ${vehicle.brand || ""} ${vehicle.model || ""} (placa ${vehicle.plate}) con ${count} visita${count === 1 ? "" : "s"} registrada${count === 1 ? "" : "s"} en ${settings.tallerNombre || "el taller"}.\n\nTe adjunto el detalle en PDF.`;
+    try {
+        const blob = doc.output("blob");
+        const file = new File([blob], fileName, { type: "application/pdf" });
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+            await navigator.share({ files: [file], title: `Historial ${vehicle.plate}`, text });
+            return { ok: true, method: "share" };
+        }
+    }
+    catch (e) {
+        if (e && e.name === "AbortError")
+            return { ok: false, method: "cancelled" };
+    }
+    doc.save(fileName);
+    const digits = onlyDigits(client && client.phone);
+    const last9 = digits.slice(-9);
+    const waUrl = last9
+        ? `https://wa.me/51${last9}?text=${encodeURIComponent(text + "\n\n(Adjunta el PDF que se acaba de descargar a tu equipo)")}`
+        : `https://wa.me/?text=${encodeURIComponent(text + "\n\n(Adjunta el PDF que se acaba de descargar a tu equipo)")}`;
+    window.open(waUrl, "_blank");
+    return { ok: true, method: "fallback" };
+}
 /* ---------------------------------- APROBACIÓN/RECHAZO DE PROFORMA POR WHATSAPP ---------------------------------- */
 // Nota: la respuesta (aprobación o rechazo) se guarda en localStorage del navegador. Si el
 // cliente abre el enlace en el mismo dispositivo/navegador (o se comparte el enlace de este
@@ -3330,11 +3498,26 @@ function NewClientModal({ onClose, onCreate }) {
                 React.createElement(Button, { onClick: submit, className: "flex-1" }, "Guardar cliente")))));
 }
 /* ---------------------------------- VEHÍCULOS ---------------------------------- */
-function VehiculosView({ vehicles, setVehicles, clients, orders }) {
+function VehiculosView({ vehicles, setVehicles, clients, orders, settings }) {
     const [query, setQuery] = useState("");
     const [showNew, setShowNew] = useState(false);
     const [showOccasional, setShowOccasional] = useState(false);
+    const [busyVehicleId, setBusyVehicleId] = useState(null);
+    const [historyError, setHistoryError] = useState("");
     const findClient = (id) => clients.find((c) => c.id === id);
+    const handleShareHistory = async (vehicle) => {
+        setHistoryError("");
+        setBusyVehicleId(vehicle.id);
+        try {
+            await shareVehicleHistoryWhatsApp(vehicle, findClient(vehicle.clientId), orders, settings || {});
+        }
+        catch (e) {
+            setHistoryError((e && e.message) || "No se pudo generar el historial.");
+        }
+        finally {
+            setBusyVehicleId(null);
+        }
+    };
     const occasionalCount = vehicles.filter((v) => { var _a; return (_a = findClient(v.clientId)) === null || _a === void 0 ? void 0 : _a.occasional; }).length;
     const filtered = vehicles.filter((v) => {
         var _a;
@@ -3354,6 +3537,7 @@ function VehiculosView({ vehicles, setVehicles, clients, orders }) {
                 React.createElement(Search, { size: 16, className: "absolute left-3 top-1/2 -translate-y-1/2", style: { color: C.textMute } }),
                 React.createElement(Input, { placeholder: "Buscar por placa o marca", value: query, onChange: (e) => setQuery(e.target.value), className: "pl-9" })),
             occasionalCount > 0 && (React.createElement("button", { type: "button", onClick: () => setShowOccasional((v) => !v), className: "text-xs font-medium shrink-0", style: { color: showOccasional ? C.accentText : C.textMute } }, showOccasional ? `Ocultar ocasionales (${occasionalCount})` : `Mostrar ocasionales (${occasionalCount})`))),
+        historyError && (React.createElement("div", { className: "px-3 py-2 rounded-lg text-xs", style: { background: C.dangerSoft, color: C.danger } }, historyError)),
         React.createElement("div", { className: "grid sm:grid-cols-2 xl:grid-cols-3 gap-4" }, filtered.map((v) => {
             var _a;
             const lastOrder = [...orders].filter((o) => o.vehicleId === v.id).sort((a, b) => b.entry.localeCompare(a.entry))[0];
@@ -3377,7 +3561,10 @@ function VehiculosView({ vehicles, setVehicles, clients, orders }) {
                     React.createElement("span", { className: "text-xs truncate min-w-0 flex items-center gap-1.5", style: { color: C.textSoft } },
                         (_a = findClient(v.clientId)) === null || _a === void 0 ? void 0 : _a.name,
                         findClient(v.clientId) && findClient(v.clientId).occasional && React.createElement(Badge, { color: C.textSoft, soft: C.surfaceHi }, "Ocasional")),
-                    lastOrder && React.createElement(Badge, { color: statusOf(lastOrder.status).color, soft: statusOf(lastOrder.status).soft }, lastOrder.code))));
+                    React.createElement("div", { className: "flex items-center gap-2 shrink-0" },
+                        lastOrder && React.createElement(Badge, { color: statusOf(lastOrder.status).color, soft: statusOf(lastOrder.status).soft }, lastOrder.code),
+                        React.createElement("button", { type: "button", title: "Enviar historial completo por WhatsApp", disabled: busyVehicleId === v.id, onClick: () => handleShareHistory(v), className: "inline-flex items-center justify-center w-7 h-7 rounded-lg shrink-0 disabled:opacity-50", style: { background: C.surfaceHi, border: `1px solid ${C.borderSoft}`, color: C.textMute } },
+                            React.createElement(FileText, { size: 13 }))))));
         })),
         showNew && (React.createElement(NewVehicleModal, { clients: clients, onClose: () => setShowNew(false), onCreate: (vehicle) => { setVehicles((prev) => [...prev, vehicle]); setShowNew(false); } }))));
 }
@@ -5948,7 +6135,7 @@ function App() {
                     active === "ordenes" && (React.createElement(OrdenesView, { orders: orders, setOrders: setOrders, clients: clients, setClients: setClients, vehicles: vehicles, setVehicles: setVehicles, parts: parts, onChangeStatus: changeOrderStatus, onRegistrarAbono: registrarAbono, settings: settings, logAudit: logAudit, currentUser: currentUser })),
                     active === "proformas" && (React.createElement(ProformasView, { proformas: proformas, setProformas: setProformas, clients: clients, vehicles: vehicles, settings: settings, focusRequest: proformaFocus, logAudit: logAudit })),
                     active === "clientes" && React.createElement(ClientesView, { clients: clients, setClients: setClients, vehicles: vehicles, setVehicles: setVehicles, orders: orders }),
-                    active === "vehiculos" && React.createElement(VehiculosView, { vehicles: vehicles, setVehicles: setVehicles, clients: clients, orders: orders }),
+                    active === "vehiculos" && React.createElement(VehiculosView, { vehicles: vehicles, setVehicles: setVehicles, clients: clients, orders: orders, settings: settings }),
                     active === "inventario" && React.createElement(InventarioView, { parts: parts, setParts: setParts }),
                     active === "agenda" && React.createElement(AgendaView, { appointments: appointments, setAppointments: setAppointments }),
                     active === "mecanica" && React.createElement(MecanicaView, { entries: mecanicaEntries, setEntries: setMecanicaEntries, vehicles: vehicles, canEdit: canEditModule(currentRole, "mecanica"), logAudit: logAudit }),
