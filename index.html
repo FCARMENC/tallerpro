@@ -745,6 +745,21 @@ function compressPhotoFile(file, maxSide = 1280, quality = 0.72) {
         reader.readAsDataURL(file);
     });
 }
+// Lee un PDF (u otro archivo que no sea imagen) tal cual, sin comprimir — a diferencia de las fotos,
+// un PDF no se puede achicar sin perder contenido. Por eso ponemos un límite de tamaño, para no
+// inflar demasiado localStorage/Firestore con un solo archivo.
+function readFileAsDataUrl(file, maxBytes = 6 * 1024 * 1024) {
+    return new Promise((resolve, reject) => {
+        if (file.size > maxBytes) {
+            reject(new Error(`El archivo pesa demasiado (m\u00E1x. ${Math.round(maxBytes / 1024 / 1024)} MB).`));
+            return;
+        }
+        const reader = new FileReader();
+        reader.onerror = () => reject(new Error("No se pudo leer el archivo."));
+        reader.onload = () => resolve(String(reader.result));
+        reader.readAsDataURL(file);
+    });
+}
 /* ---------------------------------- USUARIOS Y PERMISOS ---------------------------------- */
 // Cada módulo del sistema tiene un nivel de acceso por rol: "none" (oculto), "ver" (solo lectura)
 // o "editar" (lectura y escritura). Además hay 3 permisos transversales: verMontos (ver precios y
@@ -2696,6 +2711,20 @@ function PhotoThumb({ src, onRemove }) {
         React.createElement("button", { onClick: onRemove, className: "absolute top-1 right-1 w-5 h-5 rounded-full flex items-center justify-center", style: { background: "rgba(10,11,12,0.75)", color: C.text } },
             React.createElement(X, { size: 12 }))));
 }
+// Como PhotoThumb, pero también admite adjuntos que no son imagen (por ahora, PDF): en vez de
+// mostrar una miniatura, muestra un ícono de documento con el nombre del archivo, y al tocarlo lo
+// abre en una pestaña nueva (el navegador lo muestra o lo descarga, según el dispositivo).
+function AttachmentThumb({ item, onRemove }) {
+    const isPdf = item.type === "application/pdf";
+    return (React.createElement("div", { className: "relative rounded-lg overflow-hidden", style: { border: `1px solid ${C.border}` } },
+        isPdf
+            ? React.createElement("a", { href: item.dataUrl, target: "_blank", rel: "noopener noreferrer", className: "w-full h-20 flex flex-col items-center justify-center gap-1 px-1 text-center", style: { background: C.surfaceHi, color: C.textMute } },
+                React.createElement(FileText, { size: 18 }),
+                React.createElement("span", { className: "text-[9px] truncate w-full" }, item.name || "PDF"))
+            : React.createElement("img", { src: item.dataUrl, className: "w-full h-20 object-cover" }),
+        onRemove && React.createElement("button", { onClick: onRemove, className: "absolute top-1 right-1 w-5 h-5 rounded-full flex items-center justify-center", style: { background: "rgba(10,11,12,0.75)", color: C.text } },
+            React.createElement(X, { size: 12 }))));
+}
 function ReceptionModal({ order, client, vehicle, onClose, onSave }) {
     const [data, setData] = useState(() => order.checkin
         ? { ...order.checkin, items: order.checkin.items.map((x) => ({ ...x })), photos: [...order.checkin.photos] }
@@ -3911,12 +3940,17 @@ function MecanicaFormModal({ title, initial, brandOptions, onClose, onSubmit }) 
         if (files.length === 0)
             return;
         setBusyPhotos(true);
-        Promise.all(files.map((file) => compressPhotoFile(file).then((dataUrl) => ({ id: "mp" + Date.now() + Math.random().toString(36).slice(2, 6), dataUrl }))))
+        Promise.all(files.map((file) => file.type === "application/pdf"
+            ? readFileAsDataUrl(file).then((dataUrl) => ({ id: "mp" + Date.now() + Math.random().toString(36).slice(2, 6), dataUrl, name: file.name, type: file.type }))
+            : compressPhotoFile(file).then((dataUrl) => ({ id: "mp" + Date.now() + Math.random().toString(36).slice(2, 6), dataUrl, name: file.name, type: "image/jpeg" }))))
             .then((newPhotos) => {
             setDraft((d) => ({ ...d, photos: [...d.photos, ...newPhotos] }));
             setBusyPhotos(false);
         })
-            .catch(() => setBusyPhotos(false));
+            .catch((err) => {
+            setBusyPhotos(false);
+            alert((err && err.message) || "No se pudo cargar el archivo.");
+        });
         e.target.value = "";
     };
     const removePhoto = (id) => setDraft((d) => ({ ...d, photos: d.photos.filter((p) => p.id !== id) }));
@@ -3939,7 +3973,7 @@ function MecanicaFormModal({ title, initial, brandOptions, onClose, onSubmit }) 
             React.createElement(Field, { label: "Notas (opcional)" },
                 React.createElement(TextArea, { rows: 3, value: draft.note, onChange: (e) => setDraft((d) => ({ ...d, note: e.target.value })), placeholder: "Detalle, s\u00EDntoma, c\u00F3mo se resolvi\u00F3\u2026" })),
             React.createElement("div", null,
-                draft.photos.length > 0 && React.createElement("div", { className: "grid grid-cols-4 sm:grid-cols-5 gap-2 mb-2" }, draft.photos.map((p) => React.createElement(PhotoThumb, { key: p.id, src: p.dataUrl, onRemove: () => removePhoto(p.id) }))),
+                draft.photos.length > 0 && React.createElement("div", { className: "grid grid-cols-4 sm:grid-cols-5 gap-2 mb-2" }, draft.photos.map((p) => React.createElement(AttachmentThumb, { key: p.id, item: p, onRemove: () => removePhoto(p.id) }))),
                 React.createElement("div", { className: "flex gap-2" },
                     React.createElement("label", { className: "flex-1 inline-flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold cursor-pointer text-center", style: { background: C.surfaceHi, color: C.text, border: `1px solid ${C.border}` } },
                         React.createElement(Camera, { size: 14 }),
@@ -3949,8 +3983,8 @@ function MecanicaFormModal({ title, initial, brandOptions, onClose, onSubmit }) 
                     React.createElement("label", { className: "flex-1 inline-flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold cursor-pointer text-center", style: { background: C.surfaceHi, color: C.text, border: `1px solid ${C.border}` } },
                         React.createElement(Upload, { size: 14 }),
                         " ",
-                        busyPhotos ? "Cargando…" : "Elegir de galer\u00EDa",
-                        React.createElement("input", { type: "file", accept: "image/*", multiple: true, className: "hidden", onChange: handleFiles })))),
+                        busyPhotos ? "Cargando…" : "Elegir foto o PDF",
+                        React.createElement("input", { type: "file", accept: "image/*,application/pdf", multiple: true, className: "hidden", onChange: handleFiles })))),
             React.createElement("div", { className: "flex gap-3 pt-2" },
                 React.createElement(Button, { variant: "ghost", onClick: onClose, className: "flex-1" }, "Cancelar"),
                 React.createElement(Button, { onClick: submit, className: "flex-1", disabled: !canSubmit || busyPhotos }, "Guardar ficha")))));
@@ -3969,8 +4003,12 @@ function MecanicaDetailModal({ entry, brandOptions, canEdit, onClose, onSave, on
                 heading),
             entry.note && React.createElement("p", { className: "text-sm", style: { color: C.textSoft } }, entry.note),
             photos.length > 0
-                ? React.createElement("div", { className: "grid grid-cols-2 sm:grid-cols-3 gap-2" }, photos.map((p) => React.createElement("img", { key: p.id, src: p.dataUrl, className: "w-full h-32 object-cover rounded-xl", style: { border: `1px solid ${C.borderSoft}` } })))
-                : React.createElement("p", { className: "text-xs text-center py-4", style: { color: C.textMute } }, "Esta ficha no tiene fotos."),
+                ? React.createElement("div", { className: "grid grid-cols-2 sm:grid-cols-3 gap-2" }, photos.map((p) => p.type === "application/pdf"
+                    ? React.createElement("a", { key: p.id, href: p.dataUrl, target: "_blank", rel: "noopener noreferrer", className: "w-full h-32 rounded-xl flex flex-col items-center justify-center gap-1.5 px-2 text-center", style: { border: `1px solid ${C.borderSoft}`, background: C.surfaceHi, color: C.textMute } },
+                        React.createElement(FileText, { size: 24 }),
+                        React.createElement("span", { className: "text-[10px] truncate w-full" }, p.name || "PDF"))
+                    : React.createElement("img", { key: p.id, src: p.dataUrl, className: "w-full h-32 object-cover rounded-xl", style: { border: `1px solid ${C.borderSoft}` } })))
+                : React.createElement("p", { className: "text-xs text-center py-4", style: { color: C.textMute } }, "Esta ficha no tiene archivos adjuntos."),
             canEdit && (React.createElement("div", { className: "flex gap-3 pt-2" },
                 React.createElement(Button, { variant: "danger", onClick: onDelete, className: "flex-1" },
                     React.createElement(Trash2, { size: 15 }),
