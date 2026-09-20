@@ -2057,6 +2057,7 @@ const NAV = [
     { key: "caja", label: "Caja", icon: Wallet },
     { key: "pagos", label: "Pagos programados", icon: Clock },
     { key: "solicitudes", label: "Solicitudes", icon: Bell },
+    { key: "avisos", label: "Avisos al equipo", icon: Smartphone },
     { key: "ajustes", label: "Ajustes", icon: SettingsIcon },
 ];
 function Sidebar({ active, setActive, mobileOpen, setMobileOpen, settings, role, currentUser, onLock, onLogout }) {
@@ -3822,6 +3823,30 @@ function PagosProgramadosView({ items, onSave, onDelete, onToggleActivo, readOnl
                         React.createElement(Pencil, { size: 13 })),
                     React.createElement("button", { onClick: () => onDelete(item.id), className: "inline-flex items-center justify-center w-7 h-7 rounded-lg", style: { background: C.surfaceHi, border: `1px solid ${C.borderSoft}`, color: C.danger } },
                         React.createElement(Trash2, { size: 13 }))))))))));
+}
+function AvisosBroadcastView({ history, onSend, sending, error, deviceCount }) {
+    const [text, setText] = useState("");
+    const submit = () => {
+        if (!text.trim() || sending)
+            return;
+        onSend(text).then((res) => { if (res && res.ok) setText(""); });
+    };
+    return (React.createElement("div", { className: "space-y-4" },
+        React.createElement("div", null,
+            React.createElement("h2", { className: "text-lg font-semibold", style: { color: C.text, fontFamily: "Oswald" } }, "Avisos al equipo"),
+            React.createElement("p", { className: "text-xs mt-0.5", style: { color: C.textMute } }, `Manda un mensaje como notificaci\u00f3n a todos los celulares con avisos activados${deviceCount ? ` (ahora mismo, ${deviceCount})` : ""}, incluso si tienen la app cerrada.`)),
+        React.createElement(Card, { className: "p-4 space-y-3" },
+            React.createElement(TextArea, { rows: 3, value: text, onChange: (e) => setText(e.target.value), placeholder: "Ej: Ma\u00f1ana el taller abre a las 9am por feriado\u2026" }),
+            error && React.createElement("div", { className: "px-3 py-2 rounded-lg text-xs", style: { background: C.dangerSoft, color: C.danger } }, error),
+            React.createElement(Button, { onClick: submit, disabled: !text.trim() || sending, className: "w-full" },
+                React.createElement(Smartphone, { size: 15 }),
+                " ", sending ? "Enviando\u2026" : "Enviar a todos los dispositivos")),
+        React.createElement("div", { className: "space-y-2" },
+            history.length === 0
+                ? React.createElement(Card, { className: "p-6 text-center text-sm", style: { color: C.textMute } }, "Todav\u00eda no enviaste ning\u00fan aviso.")
+                : history.map((item) => React.createElement(Card, { key: item.id, className: "p-3.5" },
+                    React.createElement("p", { className: "text-sm", style: { color: C.text } }, item.text),
+                    React.createElement("p", { className: "text-[11px] mt-1.5", style: { color: C.textMute } }, `${new Date(item.sentAt).toLocaleString("es-PE", { dateStyle: "medium", timeStyle: "short" })}${item.sentBy ? " \u00b7 " + item.sentBy : ""}`))))));
 }
 function SolicitudesView({ items, onMarkAtendida, onDelete, onCreateClient }) {
     const [filter, setFilter] = useState("nuevas");
@@ -5871,6 +5896,36 @@ function App() {
     const [auditLog, setAuditLog] = useCloudSync("expertTaller.auditLog", [], db);
     const [fcmTokens, setFcmTokens] = useCloudSync("expertTaller.fcmTokens", [], db);
     const [pagosProgramados, setPagosProgramados] = useCloudSync("expertTaller.pagosProgramados", [], db);
+    const [avisosBroadcast, setAvisosBroadcast] = useCloudSync("expertTaller.avisosBroadcast", [], db);
+    const [broadcastSending, setBroadcastSending] = useState(false);
+    const [broadcastError, setBroadcastError] = useState("");
+    const sendBroadcast = async (text) => {
+        const trimmed = (text || "").trim();
+        if (!trimmed)
+            return { ok: false };
+        setBroadcastSending(true);
+        setBroadcastError("");
+        try {
+            const res = await fetch(NOTIFY_ENDPOINT, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ proformaId: null, secret: NOTIFY_SECRET, title: "\uD83D\uDCE2 Aviso del taller", body: trimmed }),
+            });
+            if (!res.ok) {
+                const data = await res.json().catch(() => ({}));
+                throw new Error(data.error || `El servidor respondi\u00f3 ${res.status}`);
+            }
+            setAvisosBroadcast((prev) => [{ id: "av" + Date.now() + Math.random().toString(36).slice(2, 6), text: trimmed, sentAt: Date.now(), sentBy: (currentUser && currentUser.name) || "" }, ...prev].slice(0, 100));
+            return { ok: true };
+        }
+        catch (e) {
+            setBroadcastError((e && e.message) || "No se pudo enviar el aviso.");
+            return { ok: false };
+        }
+        finally {
+            setBroadcastSending(false);
+        }
+    };
     const savePagoProgramado = (payload) => setPagosProgramados((prev) => {
         const exists = prev.some((p) => p.id === payload.id);
         return exists ? prev.map((p) => (p.id === payload.id ? payload : p)) : [...prev, payload];
@@ -6205,6 +6260,7 @@ function App() {
                     active === "caja" && (React.createElement(CajaView, { caja: caja, onAddMovement: addCajaMovement, onRemoveMovement: removeCajaMovement, orders: orders, clients: clients, vehicles: vehicles, onChangeStatus: changeOrderStatus, onRegistrarAbono: registrarAbono })),
                     active === "pagos" && (React.createElement(PagosProgramadosView, { items: pagosProgramados, onSave: savePagoProgramado, onDelete: deletePagoProgramado, onToggleActivo: togglePagoProgramadoActivo, readOnly: !canEditModule(currentRole, "pagos") })),
                     active === "solicitudes" && (React.createElement(SolicitudesView, { items: solicitudes, onMarkAtendida: markSolicitudAtendida, onDelete: deleteSolicitud, onCreateClient: createClientFromSolicitud })),
+                    active === "avisos" && (React.createElement(AvisosBroadcastView, { history: avisosBroadcast, onSend: sendBroadcast, sending: broadcastSending, error: broadcastError, deviceCount: fcmTokens.length })),
                     active === "ajustes" && (React.createElement(AjustesView, { settings: settings, setSettings: setSettings, cloudStatus: cloudStatus, cloudError: cloudError, cloudProjectId: cloudProjectId, db: db, users: users, setUsers: setUsers, roles: roles, setRoles: setRoles, currentUser: currentUser, currentRole: currentRole, themeMode: themeMode, setThemeMode: setThemeMode, soundsEnabled: soundsEnabled, setSoundsEnabled: setSoundsEnabled, onLock: lockNow, auditLog: auditLog, logAudit: logAudit })))))))));
 }
 </script>
