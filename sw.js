@@ -8,7 +8,7 @@
  * que todos los dispositivos bajen la app de nuevo, sube este número. Si solo editas index.html no
  * hace falta tocar esto: la estrategia "red primero" de más abajo ya trae la versión nueva sola.
  */
-const CACHE_VERSION = "v2";
+const CACHE_VERSION = "v3";
 const CACHE_NAME = "expert-taller-" + CACHE_VERSION;
 
 // Todo lo necesario para que la app cargue sin conexión.
@@ -98,27 +98,25 @@ self.addEventListener("fetch", (event) => {
 });
 
 /* ---------------------------------- AVISOS PUSH EN SEGUNDO PLANO ---------------------------------- */
-importScripts("https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js");
-importScripts("https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-compat.js");
-
-firebase.initializeApp({
-  apiKey: "AIzaSyAsYsXARi9G1NXGI3RXmoe19yYuzSVaoKY",
-  authDomain: "taller-fc741.firebaseapp.com",
-  projectId: "taller-fc741",
-  storageBucket: "taller-fc741.firebasestorage.app",
-  messagingSenderId: "832448264902",
-  appId: "1:832448264902:web:d434c241dae0b0e18775c7",
-});
-
-const messaging = firebase.messaging();
-messaging.onBackgroundMessage((payload) => {
-  const title = (payload.notification && payload.notification.title) || "Expert Taller";
+// Escuchamos el evento "push" directo del navegador en vez de usar el ayudante
+// onBackgroundMessage() del SDK de Firebase: así no dependemos de cómo esa librería decida
+// (según la versión) si el navegador ya lo muestra solo o si nos toca a nosotros mostrarlo — acá
+// siempre lo mostramos nosotros mismos, de forma predecible.
+self.addEventListener("push", (event) => {
+  let payload = {};
+  try {
+    payload = event.data ? event.data.json() : {};
+  } catch (e) {
+    payload = {};
+  }
+  const notification = payload.notification || {};
+  const title = notification.title || "Expert Taller";
   const options = {
-    body: payload.notification && payload.notification.body,
+    body: notification.body || "",
     icon: "./icon-192.png",
     data: payload.data || {},
   };
-  self.registration.showNotification(title, options);
+  event.waitUntil(self.registration.showNotification(title, options));
 });
 
 self.addEventListener("notificationclick", (event) => {
