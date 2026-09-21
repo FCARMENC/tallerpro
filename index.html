@@ -3846,7 +3846,8 @@ function AvisosBroadcastView({ history, onSend, sending, error, deviceCount }) {
                 ? React.createElement(Card, { className: "p-6 text-center text-sm", style: { color: C.textMute } }, "Todav\u00eda no enviaste ning\u00fan aviso.")
                 : history.map((item) => React.createElement(Card, { key: item.id, className: "p-3.5" },
                     React.createElement("p", { className: "text-sm", style: { color: C.text } }, item.text),
-                    React.createElement("p", { className: "text-[11px] mt-1.5", style: { color: C.textMute } }, `${new Date(item.sentAt).toLocaleString("es-PE", { dateStyle: "medium", timeStyle: "short" })}${item.sentBy ? " \u00b7 " + item.sentBy : ""}`))))));
+                    React.createElement("p", { className: "text-[11px] mt-1.5", style: { color: C.textMute } }, `${new Date(item.sentAt).toLocaleString("es-PE", { dateStyle: "medium", timeStyle: "short" })}${item.sentBy ? " \u00b7 " + item.sentBy : ""}`),
+                    typeof item.sent === "number" && (React.createElement("p", { className: "text-[11px] mt-1 font-medium", style: { color: item.sent > 0 ? C.success : C.danger } }, item.sent > 0 ? `Enviado a ${item.sent} dispositivo${item.sent === 1 ? "" : "s"}` : "No hab\u00eda ning\u00fan dispositivo registrado en ese momento")))))));
 }
 function SolicitudesView({ items, onMarkAtendida, onDelete, onCreateClient }) {
     const [filter, setFilter] = useState("nuevas");
@@ -5915,7 +5916,8 @@ function App() {
                 const data = await res.json().catch(() => ({}));
                 throw new Error(data.error || `El servidor respondi\u00f3 ${res.status}`);
             }
-            setAvisosBroadcast((prev) => [{ id: "av" + Date.now() + Math.random().toString(36).slice(2, 6), text: trimmed, sentAt: Date.now(), sentBy: (currentUser && currentUser.name) || "" }, ...prev].slice(0, 100));
+            const data = await res.json().catch(() => ({}));
+            setAvisosBroadcast((prev) => [{ id: "av" + Date.now() + Math.random().toString(36).slice(2, 6), text: trimmed, sentAt: Date.now(), sentBy: (currentUser && currentUser.name) || "", sent: typeof data.sent === "number" ? data.sent : null, note: data.note || "" }, ...prev].slice(0, 100));
             return { ok: true };
         }
         catch (e) {
