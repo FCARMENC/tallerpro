@@ -2128,7 +2128,7 @@ function MobileTabBar({ active, setActive, mobileOpen, setMobileOpen, role, pend
             React.createElement("span", { className: "text-[10px] font-medium" }, "M\u00E1s"))));
 }
 /* ---------------------------------- DASHBOARD ---------------------------------- */
-function Dashboard({ orders, clients, vehicles, parts, appointments, goTo, settings, verMontos = true }) {
+function Dashboard({ orders, clients, vehicles, parts, appointments, goTo, settings, verMontos = true, currentUser }) {
     const greeting = useMemo(() => randomGreeting(), []);
     const active = orders.filter((o) => o.status !== "entregado");
     const inShop = orders.filter((o) => !["listo", "entregado"].includes(o.status));
@@ -2149,7 +2149,7 @@ function Dashboard({ orders, clients, vehicles, parts, appointments, goTo, setti
             React.createElement("h1", { style: { fontFamily: "Oswald, sans-serif" }, className: "text-2xl tracking-wide" },
                 greeting,
                 ", ",
-                (settings.ownerName || "").trim().split(/\s+/)[0] || ""),
+                (((currentUser && currentUser.name) || settings.ownerName || "").trim().split(/\s+/)[0] || "")),
             React.createElement("p", { className: "text-sm mt-1", style: { color: C.textMute } }, "Esto es lo que est\u00E1 pasando hoy en el taller.")),
         React.createElement("div", { className: "grid grid-cols-2 lg:grid-cols-4 gap-4" }, kpis.map((k, i) => {
             const Icon = k.icon;
@@ -3824,12 +3824,22 @@ function PagosProgramadosView({ items, onSave, onDelete, onToggleActivo, readOnl
                     React.createElement("button", { onClick: () => onDelete(item.id), className: "inline-flex items-center justify-center w-7 h-7 rounded-lg", style: { background: C.surfaceHi, border: `1px solid ${C.borderSoft}`, color: C.danger } },
                         React.createElement(Trash2, { size: 13 }))))))))));
 }
-function AvisosBroadcastView({ history, onSend, sending, error, deviceCount }) {
+function AvisosBroadcastView({ history, onSend, sending, error, deviceCount, settings, setSettings }) {
     const [text, setText] = useState("");
+    const savedReminder = settings.recordatorioEquipo || {};
+    const [reminderOn, setReminderOn] = useState(!!savedReminder.activo);
+    const [reminderMsg, setReminderMsg] = useState(savedReminder.mensaje || "No olvides registrar las \u00f3rdenes y movimientos de hoy en el sistema \uD83D\uDCAA");
+    const [reminderSaved, setReminderSaved] = useState(false);
     const submit = () => {
         if (!text.trim() || sending)
             return;
         onSend(text).then((res) => { if (res && res.ok) setText(""); });
+    };
+    const saveReminder = () => {
+        const finalMsg = reminderMsg.trim() || "No olvides registrar las \u00f3rdenes y movimientos de hoy en el sistema \uD83D\uDCAA";
+        setSettings((prev) => ({ ...prev, recordatorioEquipo: { activo: reminderOn, mensaje: finalMsg, lastSentKey: (prev.recordatorioEquipo && prev.recordatorioEquipo.lastSentKey) || null } }));
+        setReminderSaved(true);
+        setTimeout(() => setReminderSaved(false), 3000);
     };
     return (React.createElement("div", { className: "space-y-4" },
         React.createElement("div", null,
@@ -3841,6 +3851,15 @@ function AvisosBroadcastView({ history, onSend, sending, error, deviceCount }) {
             React.createElement(Button, { onClick: submit, disabled: !text.trim() || sending, className: "w-full" },
                 React.createElement(Smartphone, { size: 15 }),
                 " ", sending ? "Enviando\u2026" : "Enviar a todos los dispositivos")),
+        React.createElement(Card, { className: "p-4 space-y-3" },
+            React.createElement("div", { className: "flex items-center justify-between gap-3" },
+                React.createElement("div", { className: "min-w-0" },
+                    React.createElement("p", { className: "text-sm font-medium", style: { color: C.text } }, "Recordatorio autom\u00e1tico diario"),
+                    React.createElement("p", { className: "text-[11px] mt-0.5", style: { color: C.textMute } }, "Se manda solo, una vez al d\u00eda, para que el equipo no se olvide de usar el sistema.")),
+                React.createElement("button", { type: "button", onClick: () => setReminderOn((v) => !v), className: "shrink-0 w-12 h-7 rounded-full relative transition-colors", style: { background: reminderOn ? C.accent : C.surfaceHi, border: `1px solid ${reminderOn ? C.accent : C.border}` } },
+                    React.createElement("span", { className: "absolute top-0.5 w-5 h-5 rounded-full transition-transform", style: { background: "#fff", transform: reminderOn ? "translateX(22px)" : "translateX(2px)" } }))),
+            reminderOn && React.createElement(TextArea, { rows: 2, value: reminderMsg, onChange: (e) => setReminderMsg(e.target.value), placeholder: "Mensaje del recordatorio" }),
+            React.createElement(Button, { variant: "subtle", onClick: saveReminder, className: "w-full" }, reminderSaved ? "Guardado \u2713" : "Guardar")),
         React.createElement("div", { className: "space-y-2" },
             history.length === 0
                 ? React.createElement(Card, { className: "p-6 text-center text-sm", style: { color: C.textMute } }, "Todav\u00eda no enviaste ning\u00fan aviso.")
@@ -6256,7 +6275,7 @@ function App() {
                         "Tu rol (",
                         (currentRole === null || currentRole === void 0 ? void 0 : currentRole.name) || "sin rol",
                         ") no tiene permiso para ver esta secci\u00F3n."))) : (React.createElement(React.Fragment, null,
-                    active === "dashboard" && (React.createElement(Dashboard, { orders: orders, clients: clients, vehicles: vehicles, parts: parts, appointments: appointments, goTo: setActive, settings: settings, verMontos: canSeeMoney(currentRole) })),
+                    active === "dashboard" && (React.createElement(Dashboard, { orders: orders, clients: clients, vehicles: vehicles, parts: parts, appointments: appointments, goTo: setActive, settings: settings, verMontos: canSeeMoney(currentRole), currentUser: currentUser })),
                     active === "ordenes" && (React.createElement(OrdenesView, { orders: orders, setOrders: setOrders, clients: clients, setClients: setClients, vehicles: vehicles, setVehicles: setVehicles, parts: parts, onChangeStatus: changeOrderStatus, onRegistrarAbono: registrarAbono, settings: settings, logAudit: logAudit, currentUser: currentUser })),
                     active === "proformas" && (React.createElement(ProformasView, { proformas: proformas, setProformas: setProformas, clients: clients, vehicles: vehicles, settings: settings, focusRequest: proformaFocus, logAudit: logAudit })),
                     active === "clientes" && React.createElement(ClientesView, { clients: clients, setClients: setClients, vehicles: vehicles, setVehicles: setVehicles, orders: orders }),
@@ -6267,7 +6286,7 @@ function App() {
                     active === "caja" && (React.createElement(CajaView, { caja: caja, onAddMovement: addCajaMovement, onRemoveMovement: removeCajaMovement, orders: orders, clients: clients, vehicles: vehicles, onChangeStatus: changeOrderStatus, onRegistrarAbono: registrarAbono })),
                     active === "pagos" && (React.createElement(PagosProgramadosView, { items: pagosProgramados, onSave: savePagoProgramado, onDelete: deletePagoProgramado, onToggleActivo: togglePagoProgramadoActivo, readOnly: !canEditModule(currentRole, "pagos") })),
                     active === "solicitudes" && (React.createElement(SolicitudesView, { items: solicitudes, onMarkAtendida: markSolicitudAtendida, onDelete: deleteSolicitud, onCreateClient: createClientFromSolicitud })),
-                    active === "avisos" && (React.createElement(AvisosBroadcastView, { history: avisosBroadcast, onSend: sendBroadcast, sending: broadcastSending, error: broadcastError, deviceCount: fcmTokens.length })),
+                    active === "avisos" && (React.createElement(AvisosBroadcastView, { history: avisosBroadcast, onSend: sendBroadcast, sending: broadcastSending, error: broadcastError, deviceCount: fcmTokens.length, settings: settings, setSettings: setSettings })),
                     active === "ajustes" && (React.createElement(AjustesView, { settings: settings, setSettings: setSettings, cloudStatus: cloudStatus, cloudError: cloudError, cloudProjectId: cloudProjectId, db: db, users: users, setUsers: setUsers, roles: roles, setRoles: setRoles, currentUser: currentUser, currentRole: currentRole, themeMode: themeMode, setThemeMode: setThemeMode, soundsEnabled: soundsEnabled, setSoundsEnabled: setSoundsEnabled, onLock: lockNow, auditLog: auditLog, logAudit: logAudit })))))))));
 }
 </script>
