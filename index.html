@@ -5971,11 +5971,16 @@ function App() {
             console.error("No se pudo activar el aviso push en este dispositivo", e);
         }
     };
-    // Limpia el registro de este dispositivo y lo vuelve a crear de cero. Sirve para cuando ya
-    // quedaron tokens viejos duplicados en la lista (avisos repetidos) y se quiere dejar solo uno.
+    // Limpia el registro de ESTE dispositivo y lo vuelve a crear de cero — sin tocar el token de
+    // otros celulares/tablets que también tengan la app instalada (antes vaciaba la lista entera,
+    // lo cual borraba también el registro de los demás dispositivos).
     const resetPushRegistration = async () => {
+        let previousMine = null;
+        try { previousMine = window.localStorage.getItem("fcmToken.mine"); } catch (e) { }
+        if (previousMine) {
+            setFcmTokens((prev) => prev.filter((t) => t !== previousMine));
+        }
         try { window.localStorage.removeItem("fcmToken.mine"); } catch (e) { }
-        setFcmTokens([]);
         setPushReady(false);
         await ensurePushToken();
     };
