@@ -5715,7 +5715,7 @@ function NotificationsBell({ proformas, clients, onEnablePush, onResetPush, push
         permission === "granted" && (React.createElement("div", { className: "px-3 py-2 text-[11px] rounded-lg flex items-center gap-2 mb-3", style: { color: pushReady ? C.success : C.textMute, background: C.surfaceHi } },
             React.createElement(CheckCircle2, { size: 12 }),
             pushReady ? "Avisos activos en este dispositivo, incluso con la app cerrada." : "Avisos activos mientras la app este abierta.")),
-        permission === "granted" && pushReady && onResetPush && (React.createElement("button", { onClick: handleReset, disabled: resetState === "working", className: "w-full text-left px-3 py-1.5 text-[10px] mb-3 underline", style: { color: resetState === "done" ? C.success : resetState === "error" ? C.danger : C.textMute } }, resetState === "working" ? "Reiniciando…" : resetState === "done" ? "Listo, se reinició el registro de este dispositivo ✓" : resetState === "error" ? "No se pudo reiniciar, intenta de nuevo" : "¿Llegan avisos duplicados en este celular? Reiniciar registro")),
+        permission === "granted" && onResetPush && (React.createElement("button", { onClick: handleReset, disabled: resetState === "working", className: "w-full text-left px-3 py-1.5 text-[10px] mb-3 underline", style: { color: resetState === "done" ? C.success : resetState === "error" ? C.danger : C.textMute } }, resetState === "working" ? "Reiniciando…" : resetState === "done" ? "Listo, se reinició el registro de este dispositivo ✓" : resetState === "error" ? "No se pudo reiniciar, intenta de nuevo" : pushReady ? "¿Llegan avisos duplicados en este celular? Reiniciar registro" : "¿No llegan avisos con la app cerrada? Reintentar registro")),
         items.length === 0 ? (React.createElement("div", { className: "py-8 text-center text-xs", style: { color: C.textMute } }, "Todavia no hay respuestas de clientes.")) : (React.createElement("div", { className: "-mx-6" }, items.slice(0, 20).map((it) => (React.createElement("div", { key: it.id, onClick: () => { setOpen(false); onOpenProforma && onOpenProforma(it.id); }, className: "px-6 py-3 flex items-start gap-3 cursor-pointer transition-colors hover:bg-white/5", style: { borderBottom: `1px solid ${C.borderSoft}` } },
             React.createElement("div", { className: "w-7 h-7 rounded-full flex items-center justify-center shrink-0 mt-0.5", style: { background: it.approved ? C.successSoft : C.dangerSoft, color: it.approved ? C.success : C.danger } }, it.approved ? React.createElement(CheckCircle2, { size: 14 }) : React.createElement(X, { size: 14 })),
             React.createElement("div", { className: "min-w-0 flex-1" },
@@ -5966,10 +5966,14 @@ function App() {
     };
     const ensurePushToken = async () => {
         try {
-            if (!VAPID_KEY || !window.firebase || !firebase.messaging)
+            if (!VAPID_KEY || !window.firebase || !firebase.messaging) {
+                alert("DIAGNOSTICO push: falta VAPID_KEY o Firebase Messaging no cargó");
                 return;
-            if (!("serviceWorker" in navigator))
+            }
+            if (!("serviceWorker" in navigator)) {
+                alert("DIAGNOSTICO push: este navegador no soporta Service Worker");
                 return;
+            }
             const reg = (await navigator.serviceWorker.getRegistration("sw.js")) || (await navigator.serviceWorker.register("sw.js"));
             const messaging = firebase.messaging();
             const token = await messaging.getToken({ vapidKey: VAPID_KEY, serviceWorkerRegistration: reg });
@@ -5985,8 +5989,12 @@ function App() {
                 try { window.localStorage.setItem("fcmToken.mine", token); } catch (e) { }
                 setPushReady(true);
             }
+            else {
+                alert("DIAGNOSTICO push: getToken() no devolvi\u00f3 ning\u00fan token (sin error, pero vac\u00edo)");
+            }
         }
         catch (e) {
+            alert("DIAGNOSTICO push: fall\u00f3 con -> " + ((e && e.message) || e));
             console.error("No se pudo activar el aviso push en este dispositivo", e);
         }
     };
