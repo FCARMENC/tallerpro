@@ -2130,6 +2130,23 @@ function MobileTabBar({ active, setActive, mobileOpen, setMobileOpen, role, pend
 /* ---------------------------------- DASHBOARD ---------------------------------- */
 function Dashboard({ orders, clients, vehicles, parts, appointments, goTo, settings, verMontos = true, currentUser }) {
     const greeting = useMemo(() => randomGreeting(), []);
+    const proximaCita = useMemo(() => {
+        const ahora = new Date();
+        const conInicio = appointments
+            .filter((a) => a.date && a.time)
+            .map((a) => ({ ...a, _inicio: new Date(`${a.date}T${a.time}:00`) }));
+        const relevantes = conInicio.filter((a) => {
+            const min = (a._inicio.getTime() - ahora.getTime()) / 60000;
+            return min >= -30 && min <= 720; // desde 30 min atrás (por si acaba de empezar) hasta 12h hacia adelante
+        });
+        relevantes.sort((a, b) => a._inicio - b._inicio);
+        const next = relevantes[0];
+        if (!next)
+            return null;
+        const min = (next._inicio.getTime() - ahora.getTime()) / 60000;
+        const cuando = min <= 0 ? "Ahora" : min < 60 ? `En ${Math.round(min)} min` : `Hoy, ${next.time}`;
+        return { ...next, _cuando: cuando };
+    }, [appointments]);
     const active = orders.filter((o) => o.status !== "entregado");
     const inShop = orders.filter((o) => !["listo", "entregado"].includes(o.status));
     const monthRevenue = orders.reduce((s, o) => s + orderTotal(o), 0);
@@ -2151,6 +2168,13 @@ function Dashboard({ orders, clients, vehicles, parts, appointments, goTo, setti
                 ", ",
                 (((currentUser && currentUser.name) || settings.ownerName || "").trim().split(/\s+/)[0] || "")),
             React.createElement("p", { className: "text-sm mt-1", style: { color: C.textMute } }, "Esto es lo que est\u00E1 pasando hoy en el taller.")),
+        proximaCita && (React.createElement(Card, { hover: true, onClick: () => goTo("agenda"), className: "p-4 flex items-center gap-3", style: { border: `1px solid ${C.accent}` } },
+            React.createElement("div", { className: "w-10 h-10 rounded-lg flex items-center justify-center shrink-0", style: { background: C.accentSoft } },
+                React.createElement(Clock, { size: 17, style: { color: C.accent } })),
+            React.createElement("div", { className: "min-w-0 flex-1" },
+                React.createElement("p", { className: "text-sm font-medium" }, `Cita: ${proximaCita.client}${proximaCita.vehicle ? " \u00b7 " + proximaCita.vehicle : ""}`),
+                React.createElement("p", { className: "text-xs mt-0.5", style: { color: C.textMute } }, `${proximaCita.service || "Servicio"} \u00b7 ${proximaCita._cuando}`)),
+            React.createElement(Badge, { color: C.accent, soft: C.accentSoft }, proximaCita._cuando))),
         React.createElement("div", { className: "grid grid-cols-2 lg:grid-cols-4 gap-4" }, kpis.map((k, i) => {
             const Icon = k.icon;
             return (React.createElement(Card, { key: k.label, hover: true, onClick: () => goTo(k.goTo), className: "anim-in relative overflow-hidden p-5", style: { animationDelay: `${i * 60}ms` } },
@@ -3829,7 +3853,11 @@ function AvisosBroadcastView({ history, onSend, sending, error, deviceCount, set
     const savedReminder = settings.recordatorioEquipo || {};
     const [reminderOn, setReminderOn] = useState(!!savedReminder.activo);
     const [reminderMsg, setReminderMsg] = useState(savedReminder.mensaje || "No olvides registrar las \u00f3rdenes y movimientos de hoy en el sistema \uD83D\uDCAA");
+    const [reminderHora, setReminderHora] = useState(savedReminder.hora || "08:00");
     const [reminderSaved, setReminderSaved] = useState(false);
+    const savedCitas = settings.recordatorioCitas || {};
+    const [citasMinAntes, setCitasMinAntes] = useState(savedCitas.minutosAntes != null ? String(savedCitas.minutosAntes) : "0");
+    const [citasSaved, setCitasSaved] = useState(false);
     const submit = () => {
         if (!text.trim() || sending)
             return;
@@ -3837,9 +3865,15 @@ function AvisosBroadcastView({ history, onSend, sending, error, deviceCount, set
     };
     const saveReminder = () => {
         const finalMsg = reminderMsg.trim() || "No olvides registrar las \u00f3rdenes y movimientos de hoy en el sistema \uD83D\uDCAA";
-        setSettings((prev) => ({ ...prev, recordatorioEquipo: { activo: reminderOn, mensaje: finalMsg, lastSentKey: (prev.recordatorioEquipo && prev.recordatorioEquipo.lastSentKey) || null } }));
+        setSettings((prev) => ({ ...prev, recordatorioEquipo: { activo: reminderOn, mensaje: finalMsg, hora: reminderHora || "08:00", lastSentKey: (prev.recordatorioEquipo && prev.recordatorioEquipo.lastSentKey) || null } }));
         setReminderSaved(true);
         setTimeout(() => setReminderSaved(false), 3000);
+    };
+    const saveCitas = () => {
+        const min = Math.max(0, Math.min(180, Number(citasMinAntes) || 0));
+        setSettings((prev) => ({ ...prev, recordatorioCitas: { minutosAntes: min } }));
+        setCitasSaved(true);
+        setTimeout(() => setCitasSaved(false), 3000);
     };
     return (React.createElement("div", { className: "space-y-4" },
         React.createElement("div", null,
@@ -3855,11 +3889,20 @@ function AvisosBroadcastView({ history, onSend, sending, error, deviceCount, set
             React.createElement("div", { className: "flex items-center justify-between gap-3" },
                 React.createElement("div", { className: "min-w-0" },
                     React.createElement("p", { className: "text-sm font-medium", style: { color: C.text } }, "Recordatorio autom\u00e1tico diario"),
-                    React.createElement("p", { className: "text-[11px] mt-0.5", style: { color: C.textMute } }, "Se manda solo, una vez al d\u00eda, para que el equipo no se olvide de usar el sistema.")),
+                    React.createElement("p", { className: "text-[11px] mt-0.5", style: { color: C.textMute } }, "Se manda solo, una vez al d\u00eda a la hora que elijas, para que el equipo no se olvide de usar el sistema.")),
                 React.createElement("button", { type: "button", onClick: () => setReminderOn((v) => !v), className: "shrink-0 w-12 h-7 rounded-full relative transition-colors", style: { background: reminderOn ? C.accent : C.surfaceHi, border: `1px solid ${reminderOn ? C.accent : C.border}` } },
                     React.createElement("span", { className: "absolute top-0.5 w-5 h-5 rounded-full transition-transform", style: { background: "#fff", transform: reminderOn ? "translateX(22px)" : "translateX(2px)" } }))),
             reminderOn && React.createElement(TextArea, { rows: 2, value: reminderMsg, onChange: (e) => setReminderMsg(e.target.value), placeholder: "Mensaje del recordatorio" }),
+            reminderOn && React.createElement(Field, { label: "Hora del recordatorio" },
+                React.createElement(Input, { type: "time", value: reminderHora, onChange: (e) => setReminderHora(e.target.value) })),
             React.createElement(Button, { variant: "subtle", onClick: saveReminder, className: "w-full" }, reminderSaved ? "Guardado \u2713" : "Guardar")),
+        React.createElement(Card, { className: "p-4 space-y-3" },
+            React.createElement("div", null,
+                React.createElement("p", { className: "text-sm font-medium", style: { color: C.text } }, "Recordatorio de citas"),
+                React.createElement("p", { className: "text-[11px] mt-0.5", style: { color: C.textMute } }, "Adem\u00e1s del aviso justo a la hora de cada cita, manda uno antes tambi\u00e9n (0 = solo a la hora exacta).")),
+            React.createElement(Field, { label: "Minutos antes de cada cita" },
+                React.createElement(Input, { type: "number", min: 0, max: 180, value: citasMinAntes, onChange: (e) => setCitasMinAntes(e.target.value) })),
+            React.createElement(Button, { variant: "subtle", onClick: saveCitas, className: "w-full" }, citasSaved ? "Guardado \u2713" : "Guardar")),
         React.createElement("div", { className: "space-y-2" },
             history.length === 0
                 ? React.createElement(Card, { className: "p-6 text-center text-sm", style: { color: C.textMute } }, "Todav\u00eda no enviaste ning\u00fan aviso.")
@@ -3889,6 +3932,7 @@ function SolicitudesView({ items, onMarkAtendida, onDelete, onCreateClient }) {
 }
 function AgendaView({ appointments, setAppointments }) {
     const [showNew, setShowNew] = useState(false);
+    const [editing, setEditing] = useState(null);
     const grouped = useMemo(() => {
         const map = {};
         [...appointments].sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time)).forEach((a) => {
@@ -3901,6 +3945,16 @@ function AgendaView({ appointments, setAppointments }) {
         const date = new Date(d + "T00:00:00");
         return date.toLocaleDateString("es-PE", { weekday: "long", day: "numeric", month: "long" });
     };
+    const saveAppointment = (appt) => {
+        setAppointments((prev) => (prev.some((a) => a.id === appt.id) ? prev.map((a) => (a.id === appt.id ? appt : a)) : [...prev, appt]));
+        setShowNew(false);
+        setEditing(null);
+    };
+    const deleteAppointment = (id) => {
+        if (!window.confirm("\u00bfEliminar esta cita? Esta acci\u00f3n no se puede deshacer."))
+            return;
+        setAppointments((prev) => prev.filter((a) => a.id !== id));
+    };
     return (React.createElement("div", { className: "space-y-5" },
         React.createElement("div", { className: "flex flex-col sm:flex-row sm:items-center justify-between gap-3" },
             React.createElement("h1", { style: { fontFamily: "Oswald, sans-serif" }, className: "text-2xl tracking-wide" }, "Agenda"),
@@ -3910,31 +3964,35 @@ function AgendaView({ appointments, setAppointments }) {
         React.createElement("div", { className: "space-y-6" }, Object.keys(grouped).map((date) => (React.createElement("div", { key: date },
             React.createElement("div", { className: "text-xs uppercase tracking-wide mb-3", style: { color: C.textMute } }, fmtDate(date)),
             React.createElement("div", { className: "space-y-3" }, grouped[date].map((a) => (React.createElement(Card, { key: a.id, className: "p-4 flex items-center gap-4" },
-                React.createElement("div", { className: "w-14 h-14 rounded-xl flex flex-col items-center justify-center shrink-0", style: { background: C.accentSoft } },
-                    React.createElement(Clock, { size: 14, style: { color: C.accent } }),
-                    React.createElement("span", { className: "text-xs font-mono mt-1", style: { color: C.accentText } }, a.time)),
-                React.createElement("div", { className: "min-w-0 flex-1" },
-                    React.createElement("div", { className: "text-sm font-medium" }, a.service),
-                    React.createElement("div", { className: "text-xs mt-0.5", style: { color: C.textMute } },
-                        a.client,
-                        " \u00B7 ",
-                        a.vehicle)),
-                React.createElement(Badge, { color: C.info, soft: C.infoSoft }, a.tech))))))))),
-        showNew && (React.createElement(NewAppointmentModal, { onClose: () => setShowNew(false), onCreate: (appt) => { setAppointments((prev) => [...prev, appt]); setShowNew(false); } }))));
+                React.createElement("button", { type: "button", onClick: () => setEditing(a), className: "flex items-center gap-4 flex-1 min-w-0 text-left" },
+                    React.createElement("div", { className: "w-14 h-14 rounded-xl flex flex-col items-center justify-center shrink-0", style: { background: C.accentSoft } },
+                        React.createElement(Clock, { size: 14, style: { color: C.accent } }),
+                        React.createElement("span", { className: "text-xs font-mono mt-1", style: { color: C.accentText } }, a.time)),
+                    React.createElement("div", { className: "min-w-0 flex-1" },
+                        React.createElement("div", { className: "text-sm font-medium" }, a.service),
+                        React.createElement("div", { className: "text-xs mt-0.5", style: { color: C.textMute } },
+                            a.client,
+                            " \u00B7 ",
+                            a.vehicle))),
+                React.createElement(Badge, { color: C.info, soft: C.infoSoft }, a.tech),
+                React.createElement("button", { type: "button", onClick: () => deleteAppointment(a.id), className: "inline-flex items-center justify-center w-8 h-8 rounded-lg shrink-0", style: { background: C.surfaceHi, border: `1px solid ${C.borderSoft}`, color: C.danger } },
+                    React.createElement(Trash2, { size: 14 })))))))))),
+        showNew && (React.createElement(NewAppointmentModal, { onClose: () => setShowNew(false), onCreate: saveAppointment })),
+        editing && (React.createElement(NewAppointmentModal, { initial: editing, onClose: () => setEditing(null), onCreate: saveAppointment }))));
 }
-function NewAppointmentModal({ onClose, onCreate }) {
-    const [date, setDate] = useState("");
-    const [time, setTime] = useState("");
-    const [client, setClient] = useState("");
-    const [vehicle, setVehicle] = useState("");
-    const [service, setService] = useState("");
-    const [tech, setTech] = useState(TECHS[0]);
+function NewAppointmentModal({ initial, onClose, onCreate }) {
+    const [date, setDate] = useState((initial && initial.date) || "");
+    const [time, setTime] = useState((initial && initial.time) || "");
+    const [client, setClient] = useState((initial && initial.client) || "");
+    const [vehicle, setVehicle] = useState((initial && initial.vehicle) || "");
+    const [service, setService] = useState((initial && initial.service) || "");
+    const [tech, setTech] = useState((initial && initial.tech) || TECHS[0]);
     const submit = () => {
         if (!date || !time || !client || !service)
             return;
-        onCreate({ id: "a" + Date.now(), date, time, client, vehicle, service, tech });
+        onCreate({ id: (initial && initial.id) || "a" + Date.now(), date, time, client, vehicle, service, tech });
     };
-    return (React.createElement(Modal, { title: "Nueva cita", onClose: onClose },
+    return (React.createElement(Modal, { title: initial ? "Editar cita" : "Nueva cita", onClose: onClose },
         React.createElement("div", { className: "space-y-4" },
             React.createElement("div", { className: "grid grid-cols-2 gap-4" },
                 React.createElement(Field, { label: "Fecha" },
@@ -3951,7 +4009,7 @@ function NewAppointmentModal({ onClose, onCreate }) {
                 React.createElement(Select, { value: tech, onChange: (e) => setTech(e.target.value) }, TECHS.map((t) => React.createElement("option", { key: t, value: t }, t)))),
             React.createElement("div", { className: "flex gap-3 pt-2" },
                 React.createElement(Button, { variant: "ghost", onClick: onClose, className: "flex-1" }, "Cancelar"),
-                React.createElement(Button, { onClick: submit, className: "flex-1" }, "Guardar cita")))));
+                React.createElement(Button, { onClick: submit, className: "flex-1" }, initial ? "Guardar cambios" : "Guardar cita")))));
 }
 /* ---------------------------------- BASE MECÁNICA (diagramas/fotos de referencia) ----------------------------------
    Biblioteca de referencia técnica organizada por marca/modelo de vehículo: diagramas, fotos de
@@ -5650,7 +5708,7 @@ function useSolicitudesPublicas(db) {
 // enlace publico (method === "cliente_web"), asi que no hace falta guardarlas aparte en Firestore.
 // Que esta "leido" vive solo en este dispositivo (usePersistentState), porque cada celular/PC
 // revisa sus propias notificaciones por separado.
-function NotificationsBell({ proformas, clients, onEnablePush, onResetPush, pushReady, onOpenProforma }) {
+function NotificationsBell({ proformas, clients, onEnablePush, onResetPush, pushReady, pushError, onOpenProforma }) {
     const [open, setOpen] = useState(false);
     const [readIds, setReadIds] = usePersistentState("expertTaller.notifRead", []);
     const [permission, setPermission] = useState(() => (typeof Notification !== "undefined" ? Notification.permission : "unsupported"));
@@ -5716,6 +5774,7 @@ function NotificationsBell({ proformas, clients, onEnablePush, onResetPush, push
             React.createElement(CheckCircle2, { size: 12 }),
             pushReady ? "Avisos activos en este dispositivo, incluso con la app cerrada." : "Avisos activos mientras la app este abierta.")),
         permission === "granted" && onResetPush && (React.createElement("button", { onClick: handleReset, disabled: resetState === "working", className: "w-full text-left px-3 py-1.5 text-[10px] mb-3 underline", style: { color: resetState === "done" ? C.success : resetState === "error" ? C.danger : C.textMute } }, resetState === "working" ? "Reiniciando…" : resetState === "done" ? "Listo, se reinició el registro de este dispositivo ✓" : resetState === "error" ? "No se pudo reiniciar, intenta de nuevo" : pushReady ? "¿Llegan avisos duplicados en este celular? Reiniciar registro" : "¿No llegan avisos con la app cerrada? Reintentar registro")),
+        permission === "granted" && !pushReady && pushError && (React.createElement("div", { className: "px-3 py-2 rounded-lg text-[11px] mb-3", style: { background: C.dangerSoft, color: C.danger } }, pushError)),
         items.length === 0 ? (React.createElement("div", { className: "py-8 text-center text-xs", style: { color: C.textMute } }, "Todavia no hay respuestas de clientes.")) : (React.createElement("div", { className: "-mx-6" }, items.slice(0, 20).map((it) => (React.createElement("div", { key: it.id, onClick: () => { setOpen(false); onOpenProforma && onOpenProforma(it.id); }, className: "px-6 py-3 flex items-start gap-3 cursor-pointer transition-colors hover:bg-white/5", style: { borderBottom: `1px solid ${C.borderSoft}` } },
             React.createElement("div", { className: "w-7 h-7 rounded-full flex items-center justify-center shrink-0 mt-0.5", style: { background: it.approved ? C.successSoft : C.dangerSoft, color: it.approved ? C.success : C.danger } }, it.approved ? React.createElement(CheckCircle2, { size: 14 }) : React.createElement(X, { size: 14 })),
             React.createElement("div", { className: "min-w-0 flex-1" },
@@ -5959,19 +6018,21 @@ function App() {
     // Pide el "token" de este dispositivo para Firebase Cloud Messaging y lo guarda en Firestore, para
     // que la funcion de Vercel sepa a que celulares/PCs avisar cuando un cliente responda.
     const [pushReady, setPushReady] = useState(false);
+    const [pushError, setPushError] = useState("");
     const [proformaFocus, setProformaFocus] = useState(null);
     const openProformaFromNotification = (id) => {
         setActive("proformas");
         setProformaFocus({ id, ts: Date.now() });
     };
     const ensurePushToken = async () => {
+        setPushError("");
         try {
             if (!VAPID_KEY || !window.firebase || !firebase.messaging) {
-                alert("DIAGNOSTICO push: falta VAPID_KEY o Firebase Messaging no cargó");
+                setPushError("Este navegador no cargó bien la librería de avisos. Prueba recargando la página.");
                 return;
             }
             if (!("serviceWorker" in navigator)) {
-                alert("DIAGNOSTICO push: este navegador no soporta Service Worker");
+                setPushError("Este navegador no soporta avisos en segundo plano.");
                 return;
             }
             const reg = (await navigator.serviceWorker.getRegistration("sw.js")) || (await navigator.serviceWorker.register("sw.js"));
@@ -5990,11 +6051,18 @@ function App() {
                 setPushReady(true);
             }
             else {
-                alert("DIAGNOSTICO push: getToken() no devolvi\u00f3 ning\u00fan token (sin error, pero vac\u00edo)");
+                setPushError("No se pudo activar en este dispositivo. Prueba de nuevo en un momento.");
             }
         }
         catch (e) {
-            alert("DIAGNOSTICO push: fall\u00f3 con -> " + ((e && e.message) || e));
+            const raw = (e && e.message) || String(e);
+            // "push service error" es Google (Firebase) fallando al conectar con su propio servicio de
+            // avisos — normalmente porque el dispositivo no tiene Google Play Services actualizado, o
+            // la red bloquea esa conexión. No es algo que el código de la app pueda arreglar directo.
+            const esFalloServicioGoogle = /push service|AbortError|registration failed/i.test(raw);
+            setPushError(esFalloServicioGoogle
+                ? "Este dispositivo no pudo conectarse al servicio de avisos de Google. Revisa que tenga Google Play Services actualizado (Play Store → buscarlo → Actualizar), prueba con otra red (WiFi/datos), o reinicia el dispositivo. Si no tiene Google Play Services (como algunos Huawei), los avisos no van a poder funcionar ahí."
+                : `No se pudo activar: ${raw}`);
             console.error("No se pudo activar el aviso push en este dispositivo", e);
         }
     };
@@ -6272,7 +6340,7 @@ function App() {
                                 cloudStatus === "connecting" ? "Conectando a la nube…" :
                                     cloudStatus === "error" ? `Error de conexión: ${cloudError}` :
                                         "Trabajando solo en este navegador", className: "hidden sm:flex w-9 h-9 rounded-xl items-center justify-center transition-colors hover:bg-white/5 active:scale-95", style: { background: C.surfaceHi, border: `1px solid ${C.borderSoft}`, color: cloudStatus === "connected" ? C.success : cloudStatus === "error" ? C.danger : C.textMute } }, cloudStatus === "offline" ? React.createElement(CloudOff, { size: 16 }) : React.createElement(CloudIcon, { size: 16 })),
-                        React.createElement(NotificationsBell, { proformas: proformas, clients: clients, onEnablePush: ensurePushToken, onResetPush: resetPushRegistration, pushReady: pushReady, onOpenProforma: openProformaFromNotification }),
+                        React.createElement(NotificationsBell, { proformas: proformas, clients: clients, onEnablePush: ensurePushToken, onResetPush: resetPushRegistration, pushReady: pushReady, pushError: pushError, onOpenProforma: openProformaFromNotification }),
                         React.createElement("button", { onClick: () => setActive("ajustes"), className: "hidden sm:flex items-center gap-2 pl-1 pr-3 h-9 rounded-xl transition-colors hover:bg-white/5 active:scale-95", style: { background: C.surfaceHi, border: `1px solid ${C.borderSoft}` } },
                             React.createElement(UserAvatar, { user: currentUser, role: currentRole, size: 26 }),
                             React.createElement("span", { className: "text-xs font-medium max-w-[110px] truncate" }, currentUser === null || currentUser === void 0 ? void 0 : currentUser.name)))),
