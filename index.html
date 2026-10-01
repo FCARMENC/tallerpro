@@ -3287,21 +3287,66 @@ function ProformaDetail({ pf, client, vehicle, settings, onClose, onStatusChange
 }
 function NewProformaModal({ clients, vehicles, code, onClose, onCreate }) {
     var _a;
-    const [isGuest, setIsGuest] = useState(false);
-    const [clientId, setClientId] = useState(((_a = clients[0]) === null || _a === void 0 ? void 0 : _a.id) || "");
-    const [vehicleId, setVehicleId] = useState("");
-    const [guestName, setGuestName] = useState("");
-    const [guestPhone, setGuestPhone] = useState("");
-    const [guestPlate, setGuestPlate] = useState("");
-    const [guestBrand, setGuestBrand] = useState("");
-    const [guestModel, setGuestModel] = useState("");
-    const [guestYear, setGuestYear] = useState("");
-    const [validDays, setValidDays] = useState(7);
-    const [incluyeIgv, setIncluyeIgv] = useState(true);
-    const [notes, setNotes] = useState("");
-    const [items, setItems] = useState([{ id: "it0", description: "", qty: 1, price: "" }]);
+    // Si el bloqueo autom\u00e1tico por inactividad se activa mientras se est\u00e1 llenando esta
+    // proforma, este modal se desmonta de golpe y se perder\u00eda todo lo escrito. Para evitar eso,
+    // guardamos un borrador en localStorage con cada cambio y lo recuperamos solos al volver a
+    // abrir "Nueva proforma" (se borra al guardar o al cancelar a prop\u00f3sito).
+    const DRAFT_KEY = "expertTaller.proformaDraft";
+    const readDraft = () => {
+        try {
+            const raw = window.localStorage.getItem(DRAFT_KEY);
+            return raw ? JSON.parse(raw) : null;
+        }
+        catch (e) {
+            return null;
+        }
+    };
+    const [draftFound] = useState(readDraft);
+    const [showRestoreNote, setShowRestoreNote] = useState(!!draftFound);
+    const clearDraft = () => { try { window.localStorage.removeItem(DRAFT_KEY); } catch (e) { } };
+    const d = draftFound || {};
+    const [isGuest, setIsGuest] = useState(d.isGuest || false);
+    const [clientId, setClientId] = useState(d.clientId || ((_a = clients[0]) === null || _a === void 0 ? void 0 : _a.id) || "");
+    const [vehicleId, setVehicleId] = useState(d.vehicleId || "");
+    const [guestName, setGuestName] = useState(d.guestName || "");
+    const [guestPhone, setGuestPhone] = useState(d.guestPhone || "");
+    const [guestPlate, setGuestPlate] = useState(d.guestPlate || "");
+    const [guestBrand, setGuestBrand] = useState(d.guestBrand || "");
+    const [guestModel, setGuestModel] = useState(d.guestModel || "");
+    const [guestYear, setGuestYear] = useState(d.guestYear || "");
+    const [validDays, setValidDays] = useState(d.validDays || 7);
+    const [incluyeIgv, setIncluyeIgv] = useState(d.incluyeIgv != null ? d.incluyeIgv : true);
+    const [notes, setNotes] = useState(d.notes || "");
+    const [items, setItems] = useState(d.items && d.items.length ? d.items : [{ id: "it0", description: "", qty: 1, price: "" }]);
     const [photos, setPhotos] = useState([]);
     const [busyPhotos, setBusyPhotos] = useState(false);
+    const discardDraft = () => {
+        clearDraft();
+        setShowRestoreNote(false);
+        setIsGuest(false);
+        setClientId(((_a = clients[0]) === null || _a === void 0 ? void 0 : _a.id) || "");
+        setVehicleId("");
+        setGuestName("");
+        setGuestPhone("");
+        setGuestPlate("");
+        setGuestBrand("");
+        setGuestModel("");
+        setGuestYear("");
+        setValidDays(7);
+        setIncluyeIgv(true);
+        setNotes("");
+        setItems([{ id: "it0", description: "", qty: 1, price: "" }]);
+    };
+    const closeAndClear = () => {
+        clearDraft();
+        onClose();
+    };
+    useEffect(() => {
+        try {
+            window.localStorage.setItem(DRAFT_KEY, JSON.stringify({ isGuest, clientId, vehicleId, guestName, guestPhone, guestPlate, guestBrand, guestModel, guestYear, validDays, incluyeIgv, notes, items }));
+        }
+        catch (e) { }
+    }, [isGuest, clientId, vehicleId, guestName, guestPhone, guestPlate, guestBrand, guestModel, guestYear, validDays, incluyeIgv, notes, items]);
     const handlePhotoFiles = (e) => {
         const files = Array.from(e.target.files || []);
         if (files.length === 0)
@@ -3401,8 +3446,12 @@ function NewProformaModal({ clients, vehicles, code, onClose, onCreate }) {
         else {
             onCreate({ ...base, clientId, vehicleId });
         }
+        clearDraft();
     };
-    return (React.createElement(Modal, { title: "Nueva proforma", onClose: onClose, wide: true },
+    return (React.createElement(Modal, { title: "Nueva proforma", onClose: closeAndClear, wide: true },
+        showRestoreNote && (React.createElement("div", { className: "mb-4 px-3 py-2.5 rounded-lg text-xs flex items-center justify-between gap-3", style: { background: C.accentSoft, color: C.accentText } },
+            React.createElement("span", null, "Recuperamos los datos de una proforma que hab\u00edas empezado a llenar."),
+            React.createElement("button", { type: "button", onClick: discardDraft, className: "underline shrink-0" }, "Descartar y empezar de nuevo"))),
         React.createElement("div", { className: "space-y-4" },
             React.createElement("div", { className: "flex gap-2 p-1 rounded-xl", style: { background: C.surfaceHi } },
                 React.createElement("button", { type: "button", onClick: () => setIsGuest(false), className: "flex-1 text-xs font-medium py-2 rounded-lg transition-colors", style: { background: !isGuest ? C.surface : "transparent", color: !isGuest ? C.text : C.textMute, boxShadow: !isGuest ? C.shadow : "none" } }, "Cliente registrado"),
@@ -3441,12 +3490,24 @@ function NewProformaModal({ clients, vehicles, code, onClose, onCreate }) {
                     React.createElement("button", { type: "button", onClick: addItem, className: "text-xs font-medium flex items-center gap-1 shrink-0", style: { color: C.accentText } },
                         React.createElement(Plus, { size: 13 }),
                         " Agregar \u00EDtem")),
-                React.createElement("div", { className: "space-y-2" }, items.map((it) => (React.createElement("div", { key: it.id, className: "flex flex-wrap sm:flex-nowrap gap-2 items-start" },
-                    React.createElement(Input, { placeholder: "Descripci\u00F3n (servicio o repuesto)", value: it.description, onChange: (e) => updateItem(it.id, { description: e.target.value }), className: "flex-1 basis-full sm:basis-auto" }),
-                    React.createElement(Input, { type: "number", min: "1", placeholder: "Cant.", value: it.qty, onChange: (e) => updateItem(it.id, { qty: e.target.value }), style: { width: "72px" } }),
-                    React.createElement(Input, { type: "number", min: "0", placeholder: "Precio", value: it.price, onChange: (e) => updateItem(it.id, { price: e.target.value }), style: { width: "96px" } }),
-                    React.createElement("button", { type: "button", onClick: () => removeItem(it.id), className: "w-9 h-9 shrink-0 rounded-lg flex items-center justify-center transition-colors hover:bg-white/5", style: { background: C.surfaceHi, color: C.textMute } },
-                        React.createElement(Trash2, { size: 14 }))))))),
+                React.createElement("div", { className: "space-y-2.5" }, items.map((it, idx) => {
+                    const lineTotal = (Number(it.qty) || 0) * (Number(it.price) || 0);
+                    return React.createElement("div", { key: it.id, className: "rounded-xl p-3", style: { background: C.surfaceHi, border: `1px solid ${C.borderSoft}` } },
+                        React.createElement("div", { className: "flex items-center gap-2 mb-2.5" },
+                            React.createElement("span", { className: "text-[11px] font-mono w-5 text-center shrink-0", style: { color: C.textMute } }, idx + 1),
+                            React.createElement(Input, { placeholder: "Descripci\u00F3n (servicio o repuesto)", value: it.description, onChange: (e) => updateItem(it.id, { description: e.target.value }), className: "flex-1" }),
+                            React.createElement("button", { type: "button", onClick: () => removeItem(it.id), className: "w-8 h-8 shrink-0 rounded-lg flex items-center justify-center transition-colors hover:bg-white/5", style: { color: C.danger } },
+                                React.createElement(Trash2, { size: 14 }))),
+                        React.createElement("div", { className: "flex items-center gap-2.5 pl-7 flex-wrap" },
+                            React.createElement("div", { className: "flex items-center gap-1.5" },
+                                React.createElement("span", { className: "text-[10px] uppercase tracking-wide", style: { color: C.textMute } }, "Cant."),
+                                React.createElement(Input, { type: "number", min: "1", value: it.qty, onChange: (e) => updateItem(it.id, { qty: e.target.value }), style: { width: "56px" } })),
+                            React.createElement("span", { className: "text-xs", style: { color: C.textMute } }, "\u00D7"),
+                            React.createElement("div", { className: "flex items-center gap-1.5" },
+                                React.createElement("span", { className: "text-[10px] uppercase tracking-wide", style: { color: C.textMute } }, "S/"),
+                                React.createElement(Input, { type: "number", min: "0", value: it.price, onChange: (e) => updateItem(it.id, { price: e.target.value }), style: { width: "84px" } })),
+                            React.createElement("span", { className: "ml-auto text-sm font-mono font-semibold", style: { color: C.accentText } }, money(lineTotal))));
+                }))),
             React.createElement("div", { className: "grid sm:grid-cols-2 gap-4" },
                 React.createElement(Field, { label: "Validez (d\u00EDas)" },
                     React.createElement(Input, { type: "number", min: "1", value: validDays, onChange: (e) => setValidDays(e.target.value) })),
@@ -3460,7 +3521,7 @@ function NewProformaModal({ clients, vehicles, code, onClose, onCreate }) {
                 React.createElement("span", { style: { color: C.textMute } }, "Total estimado"),
                 React.createElement("span", { className: "font-mono font-semibold", style: { color: C.accentText } }, money(total))),
             React.createElement("div", { className: "flex gap-3 pt-2" },
-                React.createElement(Button, { variant: "ghost", onClick: onClose, className: "flex-1" }, "Cancelar"),
+                React.createElement(Button, { variant: "ghost", onClick: closeAndClear, className: "flex-1" }, "Cancelar"),
                 React.createElement(Button, { onClick: submit, disabled: !canSubmit, className: "flex-1" },
                     "Crear proforma ",
                     code)))));
