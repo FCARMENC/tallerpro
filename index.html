@@ -1968,6 +1968,7 @@ function Button({ children, onClick, variant = "primary", className = "", type =
         primary: { background: `linear-gradient(180deg, #FF7A32 0%, ${C.accent} 100%)`, color: "#1A0D05", boxShadow: `0 1px 0 rgba(255,255,255,0.25) inset, ${C.shadowGlow}` },
         ghost: { background: "transparent", color: C.textSoft, border: `1px solid ${C.border}` },
         subtle: { background: C.surfaceHi, color: C.text, boxShadow: `0 1px 0 rgba(255,255,255,0.04) inset` },
+        soft: { background: C.accentSoft, color: C.accentText, border: `1px solid ${C.accent}55` },
         danger: { background: C.dangerSoft, color: C.danger },
         whatsapp: { background: "linear-gradient(180deg, #2FE182 0%, #21C25E 100%)", color: "#062010", boxShadow: "0 1px 0 rgba(255,255,255,0.25) inset, 0 8px 20px -8px rgba(37,211,102,0.6)" },
     };
@@ -4277,14 +4278,17 @@ function CajaView({ caja: cajaTodos, liquidaciones = [], onLiquidar, onDeshacerL
         { label: "Saldo en caja", value: money(saldo), icon: Wallet, color: C.accent, soft: C.accentSoft },
     ];
     return (React.createElement("div", { className: "space-y-5" },
-        React.createElement("div", { className: "flex flex-col sm:flex-row sm:items-center justify-between gap-3" },
+        React.createElement("div", { className: "flex flex-wrap items-center justify-between gap-3" },
             React.createElement("h1", { style: { fontFamily: "Oswald, sans-serif" }, className: "text-2xl tracking-wide" }, "Caja"),
-            React.createElement("div", { className: "flex flex-wrap gap-2" },
-                canEdit && (React.createElement(Button, { variant: "ghost", onClick: () => setShowLiquidar(true), disabled: caja.length === 0 },
-                    "🧾 Liquidar caja")),
-                React.createElement(Button, { onClick: () => setShowNew(true) },
+            React.createElement("div", { className: "flex items-center justify-end gap-2 ml-auto" },
+                canEdit && (React.createElement(Button, { variant: "soft", onClick: () => setShowLiquidar(true), disabled: caja.length === 0, className: "!px-3.5" },
+                    React.createElement(Wallet, { size: 16 }),
+                    " Liquidar",
+                    React.createElement("span", { className: "hidden sm:inline" }, " caja"))),
+                React.createElement(Button, { onClick: () => setShowNew(true), className: "!px-3.5" },
                     React.createElement(Plus, { size: 16 }),
-                    " Nuevo movimiento"))),
+                    " Nuevo",
+                    React.createElement("span", { className: "hidden sm:inline" }, " movimiento")))),
         React.createElement("div", { className: "grid grid-cols-1 sm:grid-cols-3 gap-4" }, kpis.map((k) => {
             const Icon = k.icon;
             return (React.createElement(Card, { key: k.label, className: "p-5 relative overflow-hidden" },
