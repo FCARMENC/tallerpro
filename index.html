@@ -6,8 +6,8 @@
 <title>Expert · Gestión de taller</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500&display=swap" />
-<meta name="theme-color" id="meta-theme-color" content="#15171A" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap" />
+<meta name="theme-color" id="meta-theme-color" content="#09090B" />
 <meta name="mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -31,24 +31,24 @@
 </script>
 <style>
   :root {
-    --boot-bg: #15171A;
-    --boot-text: #F3F1EC;
-    --boot-muted: #6C7278;
-    --boot-bar-bg: #262A2F;
-    --boot-error-bg: #1D2024;
-    --boot-error-border: #31363C;
-    --boot-error-text: #F0546B;
+    --boot-bg: #09090B;
+    --boot-text: #FAFAFA;
+    --boot-muted: #71717A;
+    --boot-bar-bg: #1C1C21;
+    --boot-error-bg: #141417;
+    --boot-error-border: #27272A;
+    --boot-error-text: #F87171;
   }
   html[data-theme="light"] {
-    --boot-bg: #F6F3EE;
-    --boot-text: #221D17;
-    --boot-muted: #8B8272;
-    --boot-bar-bg: #EFEAE0;
+    --boot-bg: #F4F4F5;
+    --boot-text: #09090B;
+    --boot-muted: #A1A1AA;
+    --boot-bar-bg: #E4E4E7;
     --boot-error-bg: #FFFFFF;
-    --boot-error-border: #E2DACB;
-    --boot-error-text: #CC2E51;
+    --boot-error-border: #E4E4E7;
+    --boot-error-text: #DC2626;
   }
-  html, body { background: var(--boot-bg); margin: 0; color: var(--boot-text); font-family: 'Inter', -apple-system, sans-serif; }
+  html, body { background: var(--boot-bg); margin: 0; color: var(--boot-text); font-family: 'Geist', system-ui, -apple-system, sans-serif; }
   /* Evita el gesto de "jalar hacia abajo para recargar" del navegador/WebView, para que la
      app se sienta como una app nativa y no se reinicie (pidiendo PIN/huella de nuevo) cada
      vez que alguien hace scroll hasta arriba del todo y sigue jalando. */
@@ -67,17 +67,17 @@
   #boot-status.boot-hide { opacity: 0; pointer-events: none; transition: opacity 0.35s ease; }
 
   .boot-mark {
-    width: 64px; height: 64px; border-radius: 16px;
-    background: linear-gradient(145deg, #23262B, #1A1D21);
-    border: 1px solid #31363C;
+    width: 64px; height: 64px; border-radius: 18px;
+    background: linear-gradient(145deg, #1C1C21, #141417);
+    border: 1px solid rgba(255,255,255,0.08);
     display: flex; align-items: center; justify-content: center;
-    box-shadow: 0 8px 24px -8px rgba(255,106,26,0.35), 0 1px 2px rgba(0,0,0,0.4);
+    box-shadow: 0 8px 28px -8px rgba(255,106,26,0.4), 0 1px 2px rgba(0,0,0,0.5);
     animation: bootPulse 1.8s ease-in-out infinite;
   }
   .boot-mark svg { width: 30px; height: 30px; }
 
   .boot-brand {
-    font-family: 'Oswald', sans-serif;
+    font-family: 'Geist', system-ui, sans-serif;
     font-size: 26px;
     letter-spacing: 0.14em;
     color: var(--boot-text);
@@ -452,79 +452,106 @@ function CloudOff(p) { return (React.createElement(IconBase, { ...p },
 // componente para leerlo de un Context.
 const THEMES = {
     dark: {
-        bg: "#15171A",
-        surface: "#1D2024",
-        surfaceHi: "#262A2F",
-        border: "#31363C",
-        borderSoft: "#282C31",
-        text: "#F3F1EC",
-        textSoft: "#ABB1B8",
-        textMute: "#6C7278",
-        textMuteSoft: "rgba(108,114,120,0.14)",
+        bg: "#09090B",
+        rail: "#0C0C0F",
+        surface: "#141417",
+        surfaceHi: "#1C1C21",
+        border: "rgba(255,255,255,0.08)",
+        borderSoft: "rgba(255,255,255,0.045)",
+        raised: "#18181C",
+        hl: "rgba(255,255,255,0.04)",
+        text: "#FAFAFA",
+        textSoft: "#A1A1AA",
+        textMute: "#71717A",
+        textMuteSoft: "rgba(113,113,122,0.16)",
         accent: "#FF6A1A",
-        accentSoft: "rgba(255,106,26,0.14)",
+        accentSoft: "rgba(255,106,26,0.12)",
         accentText: "#FFB380",
-        success: "#3ECF8E",
-        successSoft: "rgba(62,207,142,0.14)",
-        warning: "#F5B942",
-        warningSoft: "rgba(245,185,66,0.14)",
-        danger: "#F0546B",
-        dangerSoft: "rgba(240,84,107,0.14)",
-        purple: "#B48CF2",
-        purpleSoft: "rgba(180,140,242,0.14)",
-        info: "#4FA3E3",
-        infoSoft: "rgba(79,163,227,0.14)",
-        shadow: "0 1px 2px rgba(0,0,0,0.3), 0 8px 24px -8px rgba(0,0,0,0.45)",
-        shadowLg: "0 4px 12px rgba(0,0,0,0.35), 0 24px 48px -16px rgba(0,0,0,0.55)",
-        shadowGlow: "0 8px 24px -8px rgba(255,106,26,0.35)",
+        success: "#34D399",
+        successSoft: "rgba(52,211,153,0.12)",
+        warning: "#FBBF24",
+        warningSoft: "rgba(251,191,36,0.12)",
+        danger: "#F87171",
+        dangerSoft: "rgba(248,113,113,0.12)",
+        purple: "#A78BFA",
+        purpleSoft: "rgba(167,139,250,0.12)",
+        info: "#60A5FA",
+        infoSoft: "rgba(96,165,250,0.12)",
+        shadow: "0 1px 2px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.03)",
+        shadowLg: "0 20px 50px -12px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.04)",
+        shadowGlow: "0 8px 24px -6px rgba(255,106,26,0.45)",
     },
     light: {
-        bg: "#F6F3EE",
+        bg: "#F4F4F5",
+        rail: "#FFFFFF",
         surface: "#FFFFFF",
-        surfaceHi: "#EFEAE0",
-        border: "#E2DACB",
-        borderSoft: "#EAE3D6",
-        text: "#221D17",
-        textSoft: "#5C5548",
-        textMute: "#8B8272",
-        textMuteSoft: "rgba(139,130,114,0.14)",
+        surfaceHi: "#F4F4F5",
+        border: "rgba(0,0,0,0.08)",
+        borderSoft: "rgba(0,0,0,0.04)",
+        raised: "#FFFFFF",
+        hl: "rgba(255,255,255,1)",
+        text: "#09090B",
+        textSoft: "#52525B",
+        textMute: "#A1A1AA",
+        textMuteSoft: "rgba(161,161,170,0.14)",
         accent: "#FF6A1A",
-        accentSoft: "rgba(255,106,26,0.14)",
-        accentText: "#C2450C",
-        success: "#1F8F5F",
-        successSoft: "rgba(31,143,95,0.12)",
-        warning: "#A8670A",
-        warningSoft: "rgba(168,103,10,0.12)",
-        danger: "#CC2E51",
-        dangerSoft: "rgba(204,46,81,0.12)",
-        purple: "#7A49CE",
-        purpleSoft: "rgba(122,73,206,0.12)",
-        info: "#1B76B4",
-        infoSoft: "rgba(27,118,180,0.12)",
-        shadow: "0 1px 2px rgba(30,22,12,0.06), 0 8px 24px -8px rgba(30,22,12,0.10)",
-        shadowLg: "0 4px 14px rgba(30,22,12,0.08), 0 24px 48px -16px rgba(30,22,12,0.14)",
-        shadowGlow: "0 8px 24px -8px rgba(255,106,26,0.30)",
+        accentSoft: "rgba(255,106,26,0.10)",
+        accentText: "#C2410C",
+        success: "#059669",
+        successSoft: "rgba(5,150,105,0.10)",
+        warning: "#D97706",
+        warningSoft: "rgba(217,119,6,0.10)",
+        danger: "#DC2626",
+        dangerSoft: "rgba(220,38,38,0.10)",
+        purple: "#7C3AED",
+        purpleSoft: "rgba(124,58,237,0.10)",
+        info: "#2563EB",
+        infoSoft: "rgba(37,99,235,0.10)",
+        shadow: "0 1px 2px rgba(0,0,0,0.04), 0 4px 16px -4px rgba(0,0,0,0.08)",
+        shadowLg: "0 8px 30px -6px rgba(0,0,0,0.12), 0 0 0 1px rgba(0,0,0,0.03)",
+        shadowGlow: "0 8px 24px -6px rgba(255,106,26,0.28)",
     },
 };
 const C = { ...THEMES.dark };
 const getFonts = () => `
-@import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap');
 
-*{ -webkit-tap-highlight-color: transparent; }
+*{ -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
 ::selection{ background: ${C.accent}; color: #1A0D05; }
 
-::-webkit-scrollbar{ width: 10px; height: 10px; }
+::-webkit-scrollbar{ width: 8px; height: 8px; }
 ::-webkit-scrollbar-track{ background: transparent; }
-::-webkit-scrollbar-thumb{ background: ${C.surfaceHi}; border-radius: 999px; border: 2px solid ${C.bg}; }
-::-webkit-scrollbar-thumb:hover{ background: ${C.border}; }
+::-webkit-scrollbar-thumb{ background: ${C.surfaceHi}; border-radius: 999px; border: 2px solid transparent; background-clip: padding-box; }
+::-webkit-scrollbar-thumb:hover{ background: ${C.textMute}; background-clip: padding-box; }
 html{ scrollbar-color: ${C.surfaceHi} transparent; }
 
 :focus-visible{ outline: 2px solid ${C.accent}; outline-offset: 2px; border-radius: 6px; }
 
-@keyframes fadeInUp{ from{ opacity:0; transform: translateY(6px); } to{ opacity:1; transform: translateY(0); } }
-@keyframes modalIn{ from{ opacity:0; transform: translateY(16px) scale(0.98); } to{ opacity:1; transform: translateY(0) scale(1); } }
-.anim-in{ animation: fadeInUp 0.35s cubic-bezier(0.16,1,0.3,1) both; }
-.modal-in{ animation: modalIn 0.28s cubic-bezier(0.16,1,0.3,1) both; }
+html{ -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
+h1{ letter-spacing: -0.03em !important; font-weight: 600; }
+h2,h3,h4{ letter-spacing: -0.02em !important; font-weight: 600; }
+[style*="'Geist',"]{ font-weight: 600; letter-spacing: -0.02em; }
+.font-mono, [style*="Geist Mono"]{ font-family: 'Geist Mono', ui-monospace, monospace; font-variant-numeric: tabular-nums; }
+.row-hover{ transition: background 0.15s ease; }
+.row-hover:hover{ background: ${C.surfaceHi}; }
+.uppercase{ text-transform: none !important; letter-spacing: 0.01em !important; }
+input.uppercase, textarea.uppercase{ text-transform: uppercase !important; letter-spacing: 0.08em !important; }
+.rounded-xl{ border-radius: 12px !important; }
+.rounded-2xl{ border-radius: 16px !important; }
+.card-hover{ transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease; }
+.card-hover:hover{ border-color: ${C.border} !important; box-shadow: ${C.shadowLg} !important; transform: translateY(-1px); }
+.kpi-cell{ background: ${C.surface}; transition: background 0.15s ease; text-align: left; }
+button.kpi-cell:hover{ background: ${C.surfaceHi}; }
+.modal-sheet{ border-radius: 20px; }
+@media (max-width: 639px){
+  .modal-sheet{ border-radius: 20px 20px 0 0; padding-bottom: env(safe-area-inset-bottom); }
+}
+
+@keyframes fadeInUp{ from{ opacity:0; transform: translateY(8px); } to{ opacity:1; transform: translateY(0); } }
+@keyframes modalIn{ from{ opacity:0; transform: translateY(20px) scale(0.97); } to{ opacity:1; transform: translateY(0) scale(1); } }
+@keyframes slideInRight{ from{ opacity:0; transform: translateX(12px); } to{ opacity:1; transform: translateX(0); } }
+.anim-in{ animation: fadeInUp 0.4s cubic-bezier(0.16,1,0.3,1) both; }
+.modal-in{ animation: modalIn 0.32s cubic-bezier(0.16,1,0.3,1) both; }
 @keyframes shake{ 10%,90%{ transform: translateX(-1px);} 20%,80%{ transform: translateX(2px);} 30%,50%,70%{ transform: translateX(-4px);} 40%,60%{ transform: translateX(4px);} }
 .anim-shake{ animation: shake 0.4s cubic-bezier(0.36,0.07,0.19,0.97) both; }
 
@@ -1951,42 +1978,64 @@ function shareApprovalRequestWhatsApp(pf, client, settings) {
     window.open(waUrl, "_blank");
 }
 function Badge({ color, soft, children }) {
-    return (React.createElement("span", { className: "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium whitespace-nowrap shrink-0", style: { background: soft, color, boxShadow: `inset 0 0 0 1px ${color}22` } },
-        React.createElement("span", { className: "w-1.5 h-1.5 rounded-full shrink-0", style: { background: color, boxShadow: `0 0 6px ${color}` } }),
+    return (React.createElement("span", { className: "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold tracking-wide whitespace-nowrap shrink-0", style: { background: soft, color } },
+        React.createElement("span", { className: "w-1.5 h-1.5 rounded-full shrink-0", style: { background: color } }),
         children));
 }
 function Card({ children, className = "", style = {}, hover = false, onClick }) {
-    return (React.createElement("div", { onClick: onClick, className: `rounded-2xl transition-all duration-300 ${hover ? "hover:-translate-y-0.5" : ""} ${onClick ? "cursor-pointer" : ""} ${className}`, style: {
-            background: `linear-gradient(180deg, ${C.surfaceHi}55 0%, ${C.surface} 14%)`,
+    return (React.createElement("div", { onClick: onClick, className: `rounded-2xl transition-all duration-200 ${hover ? "card-hover" : ""} ${onClick ? "cursor-pointer" : ""} ${className}`, style: {
+            background: C.surface,
             border: `1px solid ${C.border}`,
             boxShadow: C.shadow,
             ...style,
         } }, children));
 }
+// Panel de indicadores: una sola tarjeta dividida en celdas por líneas finas (como el tablero de
+// un vehículo). Se usa en el Panel y en Caja. Cada celda lleva una marca de color a la izquierda.
+function KpiStrip({ items, className = "" }) {
+    const n = items.length;
+    const lg = n === 3 ? "lg:grid-cols-3" : n === 2 ? "lg:grid-cols-2" : "lg:grid-cols-4";
+    const sm = n === 3 ? "sm:grid-cols-3" : "";
+    return (React.createElement("div", { className: `grid grid-cols-2 ${sm} ${lg} gap-3 ${className}` }, items.map((k, i) => {
+            const Icon = k.icon;
+            const Tag = k.onClick ? "button" : "div";
+            return (React.createElement(Tag, { key: k.label, onClick: k.onClick, className: `relative block w-full p-4 sm:p-5 rounded-2xl text-left transition-all duration-200 ${k.onClick ? "card-hover cursor-pointer" : ""}`, style: {
+                    background: C.surface,
+                    border: `1px solid ${C.border}`,
+                    boxShadow: C.shadow,
+                } },
+                React.createElement("div", { className: "flex items-center justify-between gap-2 mb-3" },
+                    React.createElement("span", { className: "text-[12px] font-medium", style: { color: C.textMute } }, k.label),
+                    Icon && React.createElement("div", { className: "w-8 h-8 rounded-xl flex items-center justify-center", style: { background: k.soft || C.surfaceHi } },
+                        React.createElement(Icon, { size: 16, style: { color: k.color } }))),
+                React.createElement("div", { style: { fontFamily: "'Geist', system-ui, sans-serif", letterSpacing: "-0.03em" }, className: "text-[26px] sm:text-[28px] font-semibold leading-none" }, k.value),
+                k.hint && React.createElement("div", { className: "text-[11px] mt-1.5", style: { color: C.textMute } }, k.hint)));
+        })));
+}
+
 function Button({ children, onClick, variant = "primary", className = "", type = "button", disabled }) {
     const styles = {
-        primary: { background: `linear-gradient(180deg, #FF7A32 0%, ${C.accent} 100%)`, color: "#1A0D05", boxShadow: `0 1px 0 rgba(255,255,255,0.25) inset, ${C.shadowGlow}` },
+        primary: { background: C.accent, color: "#1A0D05", boxShadow: `0 1px 0 rgba(255,255,255,0.2) inset, ${C.shadowGlow}` },
         ghost: { background: "transparent", color: C.textSoft, border: `1px solid ${C.border}` },
-        subtle: { background: C.surfaceHi, color: C.text, boxShadow: `0 1px 0 rgba(255,255,255,0.04) inset` },
-        soft: { background: C.accentSoft, color: C.accentText, border: `1px solid ${C.accent}55` },
-        danger: { background: C.dangerSoft, color: C.danger },
-        whatsapp: { background: "linear-gradient(180deg, #2FE182 0%, #21C25E 100%)", color: "#062010", boxShadow: "0 1px 0 rgba(255,255,255,0.25) inset, 0 8px 20px -8px rgba(37,211,102,0.6)" },
+        subtle: { background: C.surfaceHi, color: C.text, border: `1px solid ${C.borderSoft}` },
+        soft: { background: C.accentSoft, color: C.accentText, border: `1px solid ${C.accent}40` },
+        danger: { background: C.dangerSoft, color: C.danger, border: `1px solid ${C.danger}40` },
+        whatsapp: { background: "#25D366", color: "#062010", boxShadow: "0 1px 0 rgba(255,255,255,0.2) inset, 0 6px 16px -6px rgba(37,211,102,0.5)" },
     };
     return (React.createElement("button", { type: type, disabled: disabled, onClick: onClick, className: `inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all duration-150 hover:brightness-110 active:scale-[0.97] disabled:opacity-40 disabled:hover:brightness-100 disabled:active:scale-100 ${className}`, style: styles[variant] }, children));
 }
 function Field({ label, children }) {
     return (React.createElement("label", { className: "flex flex-col gap-1.5 text-sm" },
-        React.createElement("span", { style: { color: C.textSoft } }, label),
+        React.createElement("span", { className: "text-[12px] font-medium tracking-wide", style: { color: C.textMute } }, label),
         children));
 }
 const getInputStyle = () => ({
-    background: C.bg,
+    background: C.surfaceHi,
     border: `1px solid ${C.border}`,
     color: C.text,
-    boxShadow: "inset 0 1px 2px rgba(0,0,0,0.25)",
 });
-const inputClass = "px-3 py-2.5 rounded-xl text-sm outline-none transition-all duration-150 focus:ring-2 focus:ring-offset-0 w-full placeholder:text-[13px]";
-const getInputRingStyle = () => ({ "--tw-ring-color": C.accent });
+const inputClass = "px-3.5 py-2.5 rounded-xl text-sm outline-none transition-all duration-150 focus:ring-2 focus:ring-offset-0 w-full placeholder:text-[13px]";
+const getInputRingStyle = () => ({ "--tw-ring-color": `${C.accent}88` });
 const Input = React.forwardRef(function Input(props, ref) {
     return React.createElement("input", { ...props, ref, className: `${inputClass} ${props.className || ""}`, style: { ...getInputStyle(), ...getInputRingStyle(), ...props.style } });
 });
@@ -1997,13 +2046,15 @@ function TextArea(props) {
     return React.createElement("textarea", { ...props, className: `${inputClass} ${props.className || ""}`, style: { ...getInputStyle(), ...getInputRingStyle(), ...props.style, resize: "none" } });
 }
 function Modal({ title, onClose, children, wide }) {
-    return ReactDOM.createPortal(React.createElement("div", { className: "fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6", style: { background: "rgba(10,11,12,0.75)", backdropFilter: "blur(3px)" }, onClick: onClose },
-        React.createElement("div", { onClick: (e) => e.stopPropagation(), className: `modal-in w-full ${wide ? "sm:max-w-2xl" : "sm:max-w-md"} max-h-[92vh] overflow-y-auto rounded-3xl`, style: { background: C.surface, border: `1px solid ${C.border}`, boxShadow: C.shadowLg } },
-            React.createElement("div", { className: "sticky top-0 flex items-center justify-between gap-3 px-6 py-4 backdrop-blur", style: { background: `${C.surface}F2`, borderBottom: `1px solid ${C.border}` } },
-                React.createElement("h3", { style: { fontFamily: "Oswald, sans-serif" }, className: "text-lg tracking-wide uppercase truncate min-w-0" }, title),
-                React.createElement("button", { onClick: onClose, className: "w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-colors hover:bg-white/5", style: { color: C.textMute } },
-                    React.createElement(X, { size: 20 }))),
-            React.createElement("div", { className: "p-6" }, children))), document.body);
+    return ReactDOM.createPortal(React.createElement("div", { className: "fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-6", style: { background: "rgba(0,0,0,0.65)", backdropFilter: "blur(8px)" }, onClick: onClose },
+        React.createElement("div", { onClick: (e) => e.stopPropagation(), className: `modal-in modal-sheet w-full ${wide ? "sm:max-w-2xl" : "sm:max-w-md"} max-h-[92vh] overflow-y-auto`, style: { background: C.raised, border: `1px solid ${C.border}`, boxShadow: C.shadowLg } },
+            React.createElement("div", { className: "sticky top-0 z-10 px-5 sm:px-6 pt-2 sm:pt-0 backdrop-blur-xl", style: { background: `${C.raised}F5`, borderBottom: `1px solid ${C.borderSoft}` } },
+                React.createElement("div", { className: "sm:hidden mx-auto mb-1.5 h-1 w-10 rounded-full", style: { background: C.border } }),
+                React.createElement("div", { className: "flex items-center justify-between gap-3 py-3.5 sm:py-4" },
+                    React.createElement("h3", { style: { fontFamily: "'Geist', system-ui, sans-serif" }, className: "text-lg font-semibold truncate min-w-0" }, title),
+                    React.createElement("button", { onClick: onClose, className: "w-8 h-8 rounded-xl flex items-center justify-center shrink-0 transition-colors", style: { color: C.textMute, background: C.surfaceHi } },
+                        React.createElement(X, { size: 18 })))),
+            React.createElement("div", { className: "p-5 sm:p-6" }, children))), document.body);
 }
 /* ---------------------------------- TICKET (signature element) ---------------------------------- */
 function Ticket({ order, client, vehicle, onOpen }) {
@@ -2014,37 +2065,31 @@ function Ticket({ order, client, vehicle, onOpen }) {
     const saldo = orderSaldo(order);
     const partial = total > 0 && abonado > 0 && saldo > 0;
     const pendingDelivery = order.status === "entregado" && total > 0 && saldo > 0;
-    return (React.createElement("div", { onClick: onOpen, className: "group relative rounded-2xl cursor-pointer transition-all duration-300 hover:-translate-y-1", style: {
-            background: `linear-gradient(165deg, ${C.surfaceHi}66 0%, ${C.surface} 22%)`,
+    return (React.createElement("div", { onClick: onOpen, className: "group relative rounded-2xl cursor-pointer transition-all duration-200 card-hover", style: {
+            background: C.surface,
             border: `1px solid ${C.border}`,
             boxShadow: C.shadow,
-        }, onMouseEnter: (e) => (e.currentTarget.style.boxShadow = `${C.shadowLg}, 0 0 0 1px ${st.color}33`), onMouseLeave: (e) => (e.currentTarget.style.boxShadow = C.shadow) },
-        React.createElement("div", { className: "absolute -top-2 left-6 w-4 h-4 rounded-full", style: { background: C.bg, border: `1px solid ${C.border}` } }),
-        React.createElement("div", { className: "absolute -top-2 right-6 w-4 h-4 rounded-full hidden sm:block", style: { background: C.bg, border: `1px solid ${C.border}` } }),
-        React.createElement("div", { className: "flex items-start justify-between px-5 pt-5 pb-4" },
-            React.createElement("div", { className: "min-w-0" },
-                React.createElement("div", { className: "flex items-center gap-2", style: { color: C.textMute } },
-                    React.createElement(KeyRound, { size: 13 }),
-                    React.createElement("span", { className: "text-[11px] font-mono tracking-widest" }, order.code)),
-                React.createElement("div", { style: { fontFamily: "Oswald, sans-serif" }, className: "text-lg mt-1 tracking-wide truncate" }, vehicle ? `${vehicle.brand} ${vehicle.model}` : "—"),
-                React.createElement("div", { className: "text-xs mt-0.5 truncate", style: { color: C.textSoft } }, client === null || client === void 0 ? void 0 : client.name)),
-            React.createElement("span", { className: "shrink-0 font-mono text-xs px-2.5 py-1.5 rounded-lg tracking-widest", style: { background: C.bg, color: C.text, border: `1px solid ${C.border}`, boxShadow: "inset 0 1px 2px rgba(0,0,0,0.3)" } }, vehicle === null || vehicle === void 0 ? void 0 : vehicle.plate)),
-        React.createElement("div", { className: "mx-5 bg-[length:8px_1px] bg-repeat-x h-px", style: { backgroundImage: `linear-gradient(90deg, ${C.border} 50%, transparent 50%)` } }),
-        React.createElement("div", { className: `flex items-center justify-between px-5 ${partial ? "pt-4 pb-2" : "py-4"}` },
-            React.createElement(Badge, { color: st.color, soft: st.soft }, st.label),
-            React.createElement("span", { className: "flex items-center gap-1.5" },
-                ((_a = order.checkin) === null || _a === void 0 ? void 0 : _a.completed) && React.createElement("span", { title: "Recepci\u00F3n digital registrada", style: { color: C.info } },
-                    React.createElement(Camera, { size: 14 })),
-                total > 0 && saldo <= 0 && React.createElement("span", { title: "Cobrado" }, "\uD83D\uDCB0"),
-                React.createElement("span", { style: { fontFamily: "JetBrains Mono, monospace", color: C.text }, className: "text-sm font-medium" }, money(total)))),
-        (partial || pendingDelivery) && (React.createElement("div", { className: "flex items-center justify-between px-5 pb-4 text-xs", style: { fontFamily: "JetBrains Mono, monospace" } },
-            abonado > 0 ? (React.createElement("span", { style: { color: C.success } },
-                "Abonado ",
-                money(abonado))) : (React.createElement("span", { style: { color: C.warning } }, "Entregado sin pago")),
-            React.createElement("span", { style: { color: C.warning } },
-                "Saldo ",
-                money(saldo))))));
+        } },
+        React.createElement("div", { className: "absolute left-0 top-3 bottom-3 w-[3px] rounded-r-full", style: { background: st.color } }),
+        React.createElement("div", { className: "flex items-start justify-between gap-3 px-5 pt-4 pb-3" },
+            React.createElement("div", { className: "min-w-0 flex-1" },
+                React.createElement("div", { className: "flex items-center gap-2 mb-1" },
+                    React.createElement("span", { className: "text-[11px] font-mono tracking-wider", style: { color: C.textMute } }, order.code),
+                    React.createElement(Badge, { color: st.color, soft: st.soft }, st.label)),
+                React.createElement("div", { style: { fontFamily: "'Geist', system-ui, sans-serif" }, className: "text-[15px] font-semibold truncate" }, vehicle ? `${vehicle.brand} ${vehicle.model}` : "—"),
+                React.createElement("div", { className: "text-[12px] mt-0.5 truncate", style: { color: C.textSoft } }, client === null || client === void 0 ? void 0 : client.name)),
+            React.createElement("div", { className: "shrink-0 text-right" },
+                React.createElement("div", { className: "font-mono text-[12px] font-semibold px-2.5 py-1 rounded-lg tracking-wider", style: { background: C.surfaceHi, color: C.text, border: `1px solid ${C.borderSoft}` } }, vehicle === null || vehicle === void 0 ? void 0 : vehicle.plate),
+                React.createElement("div", { className: "mt-2 flex items-center justify-end gap-1.5" },
+                    ((_a = order.checkin) === null || _a === void 0 ? void 0 : _a.completed) && React.createElement("span", { title: "Recepción digital registrada", style: { color: C.info } },
+                        React.createElement(Camera, { size: 13 })),
+                    total > 0 && saldo <= 0 && React.createElement("span", { title: "Cobrado", className: "text-[11px]" }, "💰"),
+                    React.createElement("span", { style: { fontFamily: "'Geist Mono', ui-monospace, monospace", color: C.text }, className: "text-[13px] font-semibold" }, money(total))))),
+        (partial || pendingDelivery) && (React.createElement("div", { className: "flex items-center justify-between px-5 pb-3.5 pt-0 text-[11px]", style: { fontFamily: "'Geist Mono', ui-monospace, monospace" } },
+            abonado > 0 ? (React.createElement("span", { style: { color: C.success } }, "Abonado ", money(abonado))) : (React.createElement("span", { style: { color: C.warning } }, "Entregado sin pago")),
+            React.createElement("span", { style: { color: C.warning } }, "Saldo ", money(saldo))))));
 }
+
 /* ---------------------------------- SIDEBAR ---------------------------------- */
 const NAV = [
     { key: "dashboard", label: "Panel", icon: LayoutDashboard },
@@ -2061,75 +2106,83 @@ const NAV = [
     { key: "avisos", label: "Avisos al equipo", icon: Smartphone },
     { key: "ajustes", label: "Ajustes", icon: SettingsIcon },
 ];
+const NAV_GROUP = {
+    dashboard: 1, ordenes: 1, proformas: 1, clientes: 1, vehiculos: 1,
+    inventario: 2, agenda: 2, mecanica: 2,
+    caja: 3, pagos: 3,
+    solicitudes: 4, avisos: 4, ajustes: 4,
+};
 function Sidebar({ active, setActive, mobileOpen, setMobileOpen, settings, role, currentUser, onLock, onLogout }) {
     const [menuOpen, setMenuOpen] = useState(false);
     const visibleNav = NAV.filter((item) => canView(role, item.key));
+    const GROUP_LABELS = { 1: "Operación", 2: "Taller", 3: "Finanzas", 4: "Sistema" };
     return (React.createElement(React.Fragment, null,
-        mobileOpen && (React.createElement("div", { className: "fixed inset-0 z-40 sm:hidden", style: { background: "rgba(0,0,0,0.6)" }, onClick: () => setMobileOpen(false) })),
-        React.createElement("aside", { className: `fixed sm:sticky top-0 z-50 h-screen w-64 flex flex-col transition-transform sm:translate-x-0 ${mobileOpen ? "translate-x-0" : "-translate-x-full"}`, style: { background: C.surface, borderRight: `1px solid ${C.border}`, boxShadow: "4px 0 24px rgba(0,0,0,0.25)" } },
-            React.createElement("div", { className: "flex items-center gap-2.5 px-6 py-6" },
-                settings.logoDataUrl ? (React.createElement("div", { className: "w-9 h-9 rounded-xl overflow-hidden shrink-0", style: { background: C.surfaceHi, border: `1px solid ${C.borderSoft}` } },
-                    React.createElement("img", { src: settings.logoDataUrl, alt: "Logo del taller", className: "w-full h-full object-contain" }))) : (React.createElement("div", { className: "w-9 h-9 rounded-xl flex items-center justify-center shrink-0", style: { background: `linear-gradient(160deg, ${C.accent} 0%, #C94E0F 100%)`, boxShadow: C.shadowGlow } },
-                    React.createElement(Wrench, { size: 18, style: { color: "#1A0D05" } }))),
+        mobileOpen && (React.createElement("div", { className: "fixed inset-0 z-40 sm:hidden", style: { background: "rgba(0,0,0,0.55)", backdropFilter: "blur(4px)" }, onClick: () => setMobileOpen(false) })),
+        React.createElement("aside", { className: `fixed sm:sticky top-0 z-50 h-screen w-[260px] flex flex-col transition-transform duration-300 sm:translate-x-0 ${mobileOpen ? "translate-x-0" : "-translate-x-full"}`, style: { background: C.rail, borderRight: `1px solid ${C.borderSoft}` } },
+            React.createElement("div", { className: "flex items-center gap-3 px-5 pt-6 pb-5" },
+                settings.logoDataUrl ? (React.createElement("div", { className: "w-10 h-10 rounded-2xl overflow-hidden shrink-0", style: { background: C.surface, border: `1px solid ${C.borderSoft}`, boxShadow: C.shadow } },
+                    React.createElement("img", { src: settings.logoDataUrl, alt: "Logo", className: "w-full h-full object-contain" }))) : (React.createElement("div", { className: "w-10 h-10 rounded-2xl flex items-center justify-center shrink-0", style: { background: C.accent, boxShadow: C.shadowGlow } },
+                    React.createElement(Wrench, { size: 20, style: { color: "#1A0D05" } }))),
                 React.createElement("div", { className: "min-w-0" },
-                    React.createElement("div", { style: { fontFamily: "Oswald, sans-serif", letterSpacing: "0.06em" }, className: "text-xl leading-none truncate max-w-[160px]" }, settings.tallerNombre || "EXPERT"),
-                    React.createElement("div", { className: "text-[10px] uppercase tracking-widest truncate max-w-[160px]", style: { color: C.textMute } }, "Gesti\u00F3n de taller"))),
-            React.createElement("nav", { className: "flex-1 px-3 space-y-1" }, visibleNav.map((item) => {
+                    React.createElement("div", { style: { fontFamily: "'Geist', system-ui, sans-serif", letterSpacing: "-0.02em" }, className: "text-[17px] font-semibold leading-tight truncate max-w-[160px]" }, settings.tallerNombre || "EXPERT"),
+                    React.createElement("div", { className: "text-[11px] mt-0.5 truncate max-w-[160px]", style: { color: C.textMute } }, "Gestión de taller"))),
+            React.createElement("nav", { className: "flex-1 px-3 py-1 overflow-y-auto space-y-0.5" }, visibleNav.map((item, idx) => {
                 const Icon = item.icon;
                 const isActive = active === item.key;
-                return (React.createElement("button", { key: item.key, onClick: () => {
-                        setActive(item.key);
-                        setMobileOpen(false);
-                    }, className: "relative w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm transition-all duration-150 hover:bg-white/5", style: {
-                        background: isActive ? C.accentSoft : "transparent",
-                        color: isActive ? C.accentText : C.textSoft,
-                        fontWeight: isActive ? 600 : 500,
-                    } },
-                    isActive && (React.createElement("span", { className: "absolute left-0 top-1/2 -translate-y-1/2 w-1 h-5 rounded-full", style: { background: C.accent, boxShadow: `0 0 8px ${C.accent}` } })),
-                    React.createElement(Icon, { size: 17 }),
-                    item.label,
-                    isActive && React.createElement(ChevronRight, { size: 14, className: "ml-auto" })));
+                const group = NAV_GROUP[item.key];
+                const prev = idx > 0 ? NAV_GROUP[visibleNav[idx - 1].key] : group;
+                const showLabel = idx === 0 || group !== prev;
+                return (React.createElement(React.Fragment, { key: item.key },
+                    showLabel && React.createElement("div", { className: `px-3 ${idx === 0 ? "pt-1" : "pt-4"} pb-1.5 text-[10px] font-semibold uppercase tracking-wider`, style: { color: C.textMute } }, GROUP_LABELS[group] || ""),
+                    React.createElement("button", { onClick: () => { setActive(item.key); setMobileOpen(false); }, className: "relative w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] transition-all duration-150", style: {
+                            background: isActive ? C.accentSoft : "transparent",
+                            color: isActive ? C.accentText : C.textSoft,
+                            fontWeight: isActive ? 600 : 500,
+                        } },
+                        isActive && React.createElement("span", { className: "absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full", style: { background: C.accent } }),
+                        React.createElement(Icon, { size: 18, style: { color: isActive ? C.accent : C.textMute, flexShrink: 0 } }),
+                        React.createElement("span", { className: "truncate" }, item.label))));
             })),
-            React.createElement("div", { className: "p-4 relative" },
-                menuOpen && (React.createElement("div", { className: "fixed inset-0 z-10", onClick: () => setMenuOpen(false) })),
-                menuOpen && (React.createElement("div", { className: "absolute bottom-full left-4 right-4 mb-2 z-20 rounded-xl overflow-hidden anim-in", style: { background: C.surfaceHi, border: `1px solid ${C.border}`, boxShadow: C.shadowLg } },
-                    canView(role, "ajustes") && (React.createElement("button", { onClick: () => { setActive("ajustes"); setMobileOpen(false); setMenuOpen(false); }, className: "w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-left transition-colors hover:bg-white/5", style: { color: C.textSoft } },
-                        React.createElement(SettingsIcon, { size: 15 }),
-                        " Ajustes")),
-                    React.createElement("button", { onClick: () => { setMenuOpen(false); onLock(); }, className: "w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-left transition-colors hover:bg-white/5", style: { color: C.textSoft } },
-                        React.createElement(KeyRound, { size: 15 }),
-                        " Bloquear pantalla"),
-                    React.createElement("button", { onClick: () => { setMenuOpen(false); onLogout(); }, className: "w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-left transition-colors hover:bg-white/5", style: { color: C.danger } },
-                        React.createElement(X, { size: 15 }),
-                        " Cerrar sesi\u00F3n"))),
-                React.createElement("button", { onClick: () => setMenuOpen((v) => !v), className: "w-full flex items-center gap-3 px-3 py-3 rounded-xl transition-colors hover:brightness-110 cursor-pointer text-left", style: { background: C.surfaceHi, border: `1px solid ${C.borderSoft}` } },
-                    React.createElement(UserAvatar, { user: currentUser, role: role, size: 36 }),
+            React.createElement("div", { className: "px-3 pb-4 pt-2 relative" },
+                menuOpen && (React.createElement("div", { className: "absolute bottom-full left-3 right-3 mb-2 z-20 rounded-2xl overflow-hidden anim-in", style: { background: C.surface, border: `1px solid ${C.border}`, boxShadow: C.shadowLg } },
+                    canView(role, "ajustes") && (React.createElement("button", { onClick: () => { setActive("ajustes"); setMobileOpen(false); setMenuOpen(false); }, className: "w-full flex items-center gap-2.5 px-4 py-3 text-sm text-left transition-colors hover:bg-white/5", style: { color: C.textSoft } },
+                        React.createElement(SettingsIcon, { size: 15 }), " Ajustes")),
+                    React.createElement("button", { onClick: () => { setMenuOpen(false); onLock(); }, className: "w-full flex items-center gap-2.5 px-4 py-3 text-sm text-left transition-colors hover:bg-white/5", style: { color: C.textSoft } },
+                        React.createElement(KeyRound, { size: 15 }), " Bloquear pantalla"),
+                    React.createElement("button", { onClick: () => { setMenuOpen(false); onLogout(); }, className: "w-full flex items-center gap-2.5 px-4 py-3 text-sm text-left transition-colors hover:bg-white/5", style: { color: C.danger, borderTop: `1px solid ${C.borderSoft}` } },
+                        React.createElement(X, { size: 15 }), " Cerrar sesión"))),
+                React.createElement("button", { onClick: () => setMenuOpen((v) => !v), className: "w-full flex items-center gap-3 px-3 py-2.5 rounded-2xl transition-all cursor-pointer text-left", style: { background: C.surface, border: `1px solid ${C.borderSoft}` } },
+                    React.createElement(UserAvatar, { user: currentUser, role: role, size: 34 }),
                     React.createElement("div", { className: "leading-tight min-w-0 flex-1" },
-                        React.createElement("div", { className: "text-sm font-medium truncate" }, (currentUser === null || currentUser === void 0 ? void 0 : currentUser.name) || settings.ownerName || "Sin nombre"),
-                        React.createElement("div", { className: "text-xs truncate", style: { color: C.textMute } }, (role === null || role === void 0 ? void 0 : role.name) || settings.ownerRole || "Jefe de taller")),
+                        React.createElement("div", { className: "text-[13px] font-medium truncate" }, (currentUser === null || currentUser === void 0 ? void 0 : currentUser.name) || settings.ownerName || "Sin nombre"),
+                        React.createElement("div", { className: "text-[11px] truncate", style: { color: C.textMute } }, (role === null || role === void 0 ? void 0 : role.name) || settings.ownerRole || "Jefe de taller")),
                     React.createElement(ChevronRight, { size: 14, style: { color: C.textMute, transform: menuOpen ? "rotate(-90deg)" : "rotate(90deg)" }, className: "transition-transform shrink-0" }))))));
 }
+
 const MOBILE_TAB_KEYS = ["dashboard", "ordenes", "clientes", "caja"];
 function MobileTabBar({ active, setActive, mobileOpen, setMobileOpen, role, pendingSolicitudesCount = 0 }) {
     const tabs = MOBILE_TAB_KEYS.map((k) => NAV.find((n) => n.key === k)).filter((item) => item && canView(role, item.key));
     return (React.createElement("nav", { className: "fixed bottom-0 inset-x-0 z-30 sm:hidden flex items-stretch", style: {
-            background: `${C.surface}F2`, backdropFilter: "blur(8px)", borderTop: `1px solid ${C.border}`,
-            paddingBottom: "env(safe-area-inset-bottom)", boxShadow: "0 -8px 24px -12px rgba(0,0,0,0.5)",
+            background: `${C.rail}F8`, backdropFilter: "blur(16px)", borderTop: `1px solid ${C.borderSoft}`,
+            paddingBottom: "env(safe-area-inset-bottom)",
         } },
         tabs.map((item) => {
             const Icon = item.icon;
             const isActive = !mobileOpen && active === item.key;
-            return (React.createElement("button", { key: item.key, onClick: () => { setActive(item.key); setMobileOpen(false); }, className: "flex-1 flex flex-col items-center justify-center gap-1 py-2.5 transition-colors", style: { color: isActive ? C.accentText : C.textMute } },
-                React.createElement(Icon, { size: 19 }),
-                React.createElement("span", { className: "text-[10px] font-medium truncate max-w-full px-1" }, item.label === "Panel" ? item.label : item.label.split(" ")[0])));
+            return (React.createElement("button", { key: item.key, onClick: () => { setActive(item.key); setMobileOpen(false); }, className: "relative flex-1 flex flex-col items-center justify-center gap-0.5 py-2.5 transition-colors", style: { color: isActive ? C.accent : C.textMute } },
+                React.createElement("div", { className: "relative" },
+                    React.createElement(Icon, { size: 22, strokeWidth: isActive ? 2.2 : 1.8 }),
+                    isActive && React.createElement("span", { className: "absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full", style: { background: C.accent } })),
+                React.createElement("span", { className: "text-[10px] font-medium truncate max-w-full px-1", style: { color: isActive ? C.accentText : undefined } }, item.label === "Panel" ? item.label : item.label.split(" ")[0])));
         }),
-        React.createElement("button", { onClick: () => setMobileOpen(true), className: "relative flex-1 flex flex-col items-center justify-center gap-1 py-2.5 transition-colors", style: { color: mobileOpen ? C.accentText : C.textMute } },
-            pendingSolicitudesCount > 0 && (React.createElement("span", { className: "absolute top-1.5 right-[28%] w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold", style: { background: C.accent, color: "#1A0D05" } }, pendingSolicitudesCount > 9 ? "9+" : pendingSolicitudesCount)),
-            React.createElement(MoreHorizontal, { size: 19 }),
-            React.createElement("span", { className: "text-[10px] font-medium" }, "M\u00E1s"))));
+        React.createElement("button", { onClick: () => setMobileOpen(true), className: "relative flex-1 flex flex-col items-center justify-center gap-0.5 py-2.5 transition-colors", style: { color: mobileOpen ? C.accent : C.textMute } },
+            pendingSolicitudesCount > 0 && (React.createElement("span", { className: "absolute top-1.5 right-[26%] min-w-[16px] h-4 px-1 rounded-full flex items-center justify-center text-[9px] font-bold", style: { background: C.accent, color: "#1A0D05" } }, pendingSolicitudesCount > 9 ? "9+" : pendingSolicitudesCount)),
+            React.createElement(MoreHorizontal, { size: 22 }),
+            React.createElement("span", { className: "text-[10px] font-medium" }, "Más"))));
 }
+
 /* ---------------------------------- DASHBOARD ---------------------------------- */
-function Dashboard({ orders, clients, vehicles, parts, appointments, goTo, settings, verMontos = true, currentUser }) {
+function Dashboard({ orders, clients, vehicles, parts, appointments, goTo, settings, verMontos = true, currentUser, proformas = [], canOpen = () => true }) {
     const greeting = useMemo(() => randomGreeting(), []);
     const proximaCita = useMemo(() => {
         const ahora = new Date();
@@ -2154,21 +2207,37 @@ function Dashboard({ orders, clients, vehicles, parts, appointments, goTo, setti
     const lowStock = parts.filter((p) => p.stock <= p.min);
     const findClient = (id) => clients.find((c) => c.id === id);
     const findVehicle = (id) => vehicles.find((v) => v.id === id);
+    // Datos de contexto para los indicadores y para "Para hoy" (solo lectura, derivados de lo que ya hay).
+    const listos = orders.filter((o) => o.status === "listo");
+    const esperandoRepuesto = orders.filter((o) => o.status === "espera_repuesto");
+    const entregasConSaldo = orders.filter((o) => o.status === "entregado" && orderSaldo(o) > 0);
+    const proformasPendientes = proformas.filter((p) => p.status === "pendiente");
+    const plural = (n, uno, varios) => `${n} ${n === 1 ? uno : varios}`;
+    const stockHint = lowStock.length > 0 ? "Conviene reponer" : "Todo en orden";
     const kpis = [
-        { label: "Órdenes activas", value: active.length, icon: ClipboardList, color: C.accent, soft: C.accentSoft, goTo: "ordenes" },
-        { label: "Vehículos en taller", value: inShop.length, icon: Car, color: C.info, soft: C.infoSoft, goTo: "vehiculos" },
+        { label: "Órdenes activas", value: active.length, icon: ClipboardList, color: C.accent, soft: C.accentSoft, goTo: "ordenes", hint: listos.length > 0 ? `${plural(listos.length, "lista", "listas")} para entregar` : "Ninguna lista para entregar" },
+        { label: "Vehículos en taller", value: inShop.length, icon: Car, color: C.info, soft: C.infoSoft, goTo: "vehiculos", hint: esperandoRepuesto.length > 0 ? `${esperandoRepuesto.length} esperando repuesto` : "Ninguno esperando repuesto" },
         verMontos
-            ? { label: "Ingresos (órdenes actuales)", value: money(monthRevenue), icon: TrendingUp, color: C.success, soft: C.successSoft, goTo: "caja" }
-            : { label: "Repuestos bajo stock", value: lowStock.length, icon: AlertTriangle, color: C.danger, soft: C.dangerSoft, goTo: "inventario" },
-        verMontos ? { label: "Repuestos bajo stock", value: lowStock.length, icon: AlertTriangle, color: C.danger, soft: C.dangerSoft, goTo: "inventario" } : null,
+            ? { label: "Ingresos (órdenes actuales)", value: money(monthRevenue), icon: TrendingUp, color: C.success, soft: C.successSoft, goTo: "caja", hint: entregasConSaldo.length > 0 ? `${plural(entregasConSaldo.length, "entrega", "entregas")} con saldo pendiente` : "Sin saldos pendientes" }
+            : { label: "Repuestos bajo stock", value: lowStock.length, icon: AlertTriangle, color: C.danger, soft: C.dangerSoft, goTo: "inventario", hint: stockHint },
+        verMontos ? { label: "Repuestos bajo stock", value: lowStock.length, icon: AlertTriangle, color: C.danger, soft: C.dangerSoft, goTo: "inventario", hint: stockHint } : null,
     ].filter(Boolean);
-    return (React.createElement("div", { className: "space-y-6" },
+    // "Para hoy": las acciones que conviene hacer ahora, cada una lleva al módulo donde se resuelve.
+    const saldoPendienteTotal = entregasConSaldo.reduce((s, o) => s + orderSaldo(o), 0);
+    const paraHoy = [
+        listos.length > 0 && { key: "listos", text: `Entregar ${plural(listos.length, "vehículo listo", "vehículos listos")}`, count: listos.length, color: C.success, module: "ordenes" },
+        entregasConSaldo.length > 0 && { key: "saldo", text: `Cobrar ${plural(entregasConSaldo.length, "saldo pendiente", "saldos pendientes")}${verMontos ? ` (${money(saldoPendienteTotal)})` : ""}`, count: entregasConSaldo.length, color: C.warning, module: "caja" },
+        esperandoRepuesto.length > 0 && { key: "repuesto", text: `Revisar ${plural(esperandoRepuesto.length, "orden", "órdenes")} esperando repuesto`, count: esperandoRepuesto.length, color: C.purple, module: "ordenes" },
+        proformasPendientes.length > 0 && { key: "proformas", text: `Dar seguimiento a ${plural(proformasPendientes.length, "proforma", "proformas")}`, count: proformasPendientes.length, color: C.info, module: "proformas" },
+        lowStock.length > 0 && { key: "stock", text: `Reponer ${plural(lowStock.length, "repuesto", "repuestos")}`, count: lowStock.length, color: C.danger, module: "inventario" },
+    ].filter((x) => x && canOpen(x.module));
+    return (React.createElement("div", { className: "space-y-7" },
         React.createElement("div", null,
-            React.createElement("h1", { style: { fontFamily: "Oswald, sans-serif" }, className: "text-2xl tracking-wide" },
+            React.createElement("h1", { style: { fontFamily: "'Geist', system-ui, sans-serif", letterSpacing: "-0.03em" }, className: "text-[28px] sm:text-3xl font-semibold" },
                 greeting,
                 ", ",
                 (((currentUser && currentUser.name) || settings.ownerName || "").trim().split(/\s+/)[0] || "")),
-            React.createElement("p", { className: "text-sm mt-1", style: { color: C.textMute } }, "Esto es lo que est\u00E1 pasando hoy en el taller.")),
+            React.createElement("p", { className: "text-[14px] mt-1.5", style: { color: C.textMute } }, "Resumen de lo que está pasando hoy en el taller.")),
         proximaCita && (React.createElement(Card, { hover: true, onClick: () => goTo("agenda"), className: "p-4 flex items-center gap-3", style: { border: `1px solid ${C.accent}` } },
             React.createElement("div", { className: "w-10 h-10 rounded-lg flex items-center justify-center shrink-0", style: { background: C.accentSoft } },
                 React.createElement(Clock, { size: 17, style: { color: C.accent } })),
@@ -2176,26 +2245,33 @@ function Dashboard({ orders, clients, vehicles, parts, appointments, goTo, setti
                 React.createElement("p", { className: "text-sm font-medium" }, `Cita: ${proximaCita.client}${proximaCita.vehicle ? " \u00b7 " + proximaCita.vehicle : ""}`),
                 React.createElement("p", { className: "text-xs mt-0.5", style: { color: C.textMute } }, `${proximaCita.service || "Servicio"} \u00b7 ${proximaCita._cuando}`)),
             React.createElement(Badge, { color: C.accent, soft: C.accentSoft }, proximaCita._cuando))),
-        React.createElement("div", { className: "grid grid-cols-2 lg:grid-cols-4 gap-4" }, kpis.map((k, i) => {
-            const Icon = k.icon;
-            return (React.createElement(Card, { key: k.label, hover: true, onClick: () => goTo(k.goTo), className: "anim-in relative overflow-hidden p-5", style: { animationDelay: `${i * 60}ms` } },
-                React.createElement("div", { className: "absolute top-0 left-0 right-0 h-[3px]", style: { background: `linear-gradient(90deg, transparent, ${k.color}, transparent)` } }),
-                React.createElement("div", { className: "w-9 h-9 rounded-lg flex items-center justify-center mb-4", style: { background: k.soft, boxShadow: `inset 0 0 0 1px ${k.color}33` } },
-                    React.createElement(Icon, { size: 17, style: { color: k.color } })),
-                React.createElement("div", { style: { fontFamily: "Oswald, sans-serif" }, className: "text-2xl tracking-wide" }, k.value),
-                React.createElement("div", { className: "text-xs mt-1", style: { color: C.textMute } }, k.label)));
-        })),
+        React.createElement(KpiStrip, { items: kpis.map((k) => ({ label: k.label, value: k.value, icon: k.icon, color: k.color, soft: k.soft, hint: k.hint, onClick: () => goTo(k.goTo) })) }),
         React.createElement("div", { className: "grid lg:grid-cols-3 gap-6" },
             React.createElement("div", { className: "lg:col-span-2 space-y-4" },
                 React.createElement("div", { className: "flex items-center justify-between" },
-                    React.createElement("h2", { style: { fontFamily: "Oswald, sans-serif" }, className: "text-base tracking-wide uppercase" }, "\u00D3rdenes recientes"),
+                    React.createElement("h2", { style: { fontFamily: "'Geist', system-ui, sans-serif" }, className: "text-[15px] font-semibold tracking-tight" }, "Órdenes recientes"),
                     React.createElement("button", { onClick: () => goTo("ordenes"), className: "text-xs font-medium flex items-center gap-1", style: { color: C.accentText } },
                         "Ver todas ",
                         React.createElement(ChevronRight, { size: 13 }))),
                 React.createElement("div", { className: "grid sm:grid-cols-2 gap-4" }, orders.slice(0, 4).map((o) => (React.createElement(Ticket, { key: o.id, order: o, client: findClient(o.clientId), vehicle: findVehicle(o.vehicleId), onOpen: () => goTo("ordenes") }))))),
             React.createElement("div", { className: "space-y-6" },
                 React.createElement(Card, { className: "p-5" },
-                    React.createElement("h2", { style: { fontFamily: "Oswald, sans-serif" }, className: "text-base tracking-wide uppercase mb-4" }, "Pr\u00F3ximas citas"),
+                    React.createElement("div", { className: "flex items-center justify-between mb-3" },
+                        React.createElement("h2", { style: { fontFamily: "'Geist', system-ui, sans-serif" }, className: "text-base" }, "Para hoy"),
+                        paraHoy.length > 0 && React.createElement("span", { className: "text-xs font-mono", style: { color: C.textMute } }, paraHoy.length)),
+                    paraHoy.length === 0
+                        ? React.createElement("p", { className: "text-sm", style: { color: C.textMute } }, "Todo al d\u00EDa: no hay acciones pendientes.")
+                        : React.createElement("div", { className: "-mx-2 space-y-0.5" }, paraHoy.map((a) => (React.createElement("button", { key: a.key, onClick: () => goTo(a.module), className: "row-hover w-full flex items-center gap-3 px-2 py-2.5 rounded-lg text-left" },
+                            React.createElement("span", { className: "w-1.5 h-1.5 rounded-full shrink-0", style: { background: a.color } }),
+                            React.createElement("span", { className: "text-sm flex-1 min-w-0 truncate" }, a.text),
+                            React.createElement(ChevronRight, { size: 14, style: { color: C.textMute }, className: "shrink-0" })))))),
+                React.createElement(Card, { className: "p-5" },
+                    React.createElement("h2", { style: { fontFamily: "'Geist', system-ui, sans-serif" }, className: "text-base mb-4" }, "Pr\u00F3ximas citas"),
+                    appointments.length === 0 && (React.createElement("div", { className: "space-y-2" },
+                        React.createElement("p", { className: "text-sm", style: { color: C.textMute } }, "No hay citas agendadas."),
+                        canOpen("agenda") && React.createElement("button", { onClick: () => goTo("agenda"), className: "text-xs font-medium flex items-center gap-1", style: { color: C.accentText } },
+                            "Agendar una cita ",
+                            React.createElement(ChevronRight, { size: 13 })))),
                     React.createElement("div", { className: "space-y-3" }, appointments.slice(0, 3).map((a) => (React.createElement("div", { key: a.id, className: "flex items-start gap-3" },
                         React.createElement("div", { className: "w-10 h-10 rounded-lg flex flex-col items-center justify-center shrink-0", style: { background: C.surfaceHi } },
                             React.createElement("span", { className: "text-[10px] leading-none", style: { color: C.textMute } },
@@ -2210,7 +2286,7 @@ function Dashboard({ orders, clients, vehicles, parts, appointments, goTo, setti
                                 " \u00B7 ",
                                 a.tech))))))),
                 React.createElement(Card, { className: "p-5" },
-                    React.createElement("h2", { style: { fontFamily: "Oswald, sans-serif" }, className: "text-base tracking-wide uppercase mb-4" }, "Stock bajo"),
+                    React.createElement("h2", { style: { fontFamily: "'Geist', system-ui, sans-serif" }, className: "text-base tracking-wide uppercase mb-4" }, "Stock bajo"),
                     React.createElement("div", { className: "space-y-3" },
                         lowStock.length === 0 && React.createElement("p", { className: "text-xs", style: { color: C.textMute } }, "Todo el inventario est\u00E1 en niveles saludables."),
                         lowStock.slice(0, 4).map((p) => (React.createElement("div", { key: p.id, className: "flex items-center justify-between" },
@@ -2275,7 +2351,7 @@ function OrdenesView({ orders, setOrders, clients, setClients, vehicles, setVehi
     };
     return (React.createElement("div", { className: "space-y-5" },
         React.createElement("div", { className: "flex flex-col sm:flex-row sm:items-center justify-between gap-3" },
-            React.createElement("h1", { style: { fontFamily: "Oswald, sans-serif" }, className: "text-2xl tracking-wide" }, "\u00D3rdenes de trabajo"),
+            React.createElement("h1", { style: { fontFamily: "'Geist', system-ui, sans-serif" }, className: "text-2xl tracking-wide" }, "\u00D3rdenes de trabajo"),
             React.createElement(Button, { onClick: () => setShowNew(true) },
                 React.createElement(Plus, { size: 16 }),
                 " Nueva orden")),
@@ -2417,7 +2493,7 @@ function OrderDetail({ order, client, vehicle, parts, onClose, onStatusChange, o
     return (React.createElement(Modal, { title: order.code, onClose: onClose, wide: true },
         React.createElement("div", { className: "flex items-start justify-between gap-3 mb-5" },
             React.createElement("div", { className: "min-w-0 flex-1" },
-                React.createElement("div", { style: { fontFamily: "Oswald, sans-serif" }, className: "text-xl truncate" }, vehicle === null || vehicle === void 0 ? void 0 :
+                React.createElement("div", { style: { fontFamily: "'Geist', system-ui, sans-serif" }, className: "text-xl truncate" }, vehicle === null || vehicle === void 0 ? void 0 :
                     vehicle.brand,
                     " ", vehicle === null || vehicle === void 0 ? void 0 :
                     vehicle.model,
@@ -3046,17 +3122,17 @@ function FindingsModal({ order, findings, onClose, onSave }) {
 function ProformaCard({ pf, client, vehicle, onOpen }) {
     var _a;
     const st = statusProformaOf(pf.status);
-    return (React.createElement("div", { onClick: onOpen, className: "group relative rounded-2xl cursor-pointer transition-all duration-300 hover:-translate-y-1", style: {
-            background: `linear-gradient(165deg, ${C.surfaceHi}66 0%, ${C.surface} 22%)`,
+    return (React.createElement("div", { onClick: onOpen, className: "group relative rounded-2xl cursor-pointer transition-all duration-200 hover:-translate-y-0.5", style: {
+            background: C.surface,
             border: `1px solid ${C.border}`,
-            boxShadow: C.shadow,
-        }, onMouseEnter: (e) => (e.currentTarget.style.boxShadow = `${C.shadowLg}, 0 0 0 1px ${st.color}33`), onMouseLeave: (e) => (e.currentTarget.style.boxShadow = C.shadow) },
+            boxShadow: `inset 0 1px 0 ${C.hl}, ${C.shadow}`,
+        }, onMouseEnter: (e) => (e.currentTarget.style.boxShadow = `inset 0 1px 0 ${C.hl}, ${C.shadowLg}, 0 0 0 1px ${st.color}44`), onMouseLeave: (e) => (e.currentTarget.style.boxShadow = `inset 0 1px 0 ${C.hl}, ${C.shadow}`) },
         React.createElement("div", { className: "flex items-start justify-between gap-3 px-5 pt-5 pb-4" },
             React.createElement("div", { className: "min-w-0 flex-1" },
                 React.createElement("div", { className: "flex items-center gap-2", style: { color: C.textMute } },
                     React.createElement(FileText, { size: 13 }),
                     React.createElement("span", { className: "text-[11px] font-mono tracking-widest" }, pf.code)),
-                React.createElement("div", { style: { fontFamily: "Oswald, sans-serif" }, className: "text-lg mt-1 tracking-wide truncate" }, vehicle && (vehicle.brand || vehicle.model) ? `${vehicle.brand} ${vehicle.model}`.trim() : (vehicle === null || vehicle === void 0 ? void 0 : vehicle.plate) || "—"),
+                React.createElement("div", { style: { fontFamily: "'Geist', system-ui, sans-serif" }, className: "text-lg mt-1 tracking-wide truncate" }, vehicle && (vehicle.brand || vehicle.model) ? `${vehicle.brand} ${vehicle.model}`.trim() : (vehicle === null || vehicle === void 0 ? void 0 : vehicle.plate) || "—"),
                 React.createElement("div", { className: "text-xs mt-0.5 truncate flex items-center gap-1.5", style: { color: C.textSoft } },
                     client === null || client === void 0 ? void 0 : client.name,
                     (client === null || client === void 0 ? void 0 : client.isGuest) && React.createElement("span", { className: "text-[9px] px-1.5 py-0.5 rounded-full shrink-0", style: { background: C.surfaceHi, color: C.textMute } }, "ocasional"))),
@@ -3067,7 +3143,7 @@ function ProformaCard({ pf, client, vehicle, onOpen }) {
                 React.createElement(Badge, { color: st.color, soft: st.soft }, st.label),
                 ((_a = pf.clientApproval) === null || _a === void 0 ? void 0 : _a.approved) && React.createElement("span", { title: "Aprobado por el cliente", style: { color: C.success } },
                     React.createElement(ShieldCheck, { size: 14 }))),
-            React.createElement("span", { style: { fontFamily: "JetBrains Mono, monospace", color: C.text }, className: "text-sm font-medium" }, money(proformaTotal(pf))))));
+            React.createElement("span", { style: { fontFamily: "'Geist Mono', ui-monospace, monospace", color: C.text }, className: "text-sm font-medium" }, money(proformaTotal(pf))))));
 }
 function ProformasView({ proformas, setProformas, clients, vehicles, settings, focusRequest, logAudit }) {
     const [filter, setFilter] = useState("todas");
@@ -3109,7 +3185,7 @@ function ProformasView({ proformas, setProformas, clients, vehicles, settings, f
     const setClientApproval = (id, approval) => setProformas((prev) => prev.map((p) => (p.id === id ? { ...p, clientApproval: approval, status: (approval === null || approval === void 0 ? void 0 : approval.approved) ? "aprobada" : p.status } : p)));
     return (React.createElement("div", { className: "space-y-5" },
         React.createElement("div", { className: "flex flex-col sm:flex-row sm:items-center justify-between gap-3" },
-            React.createElement("h1", { style: { fontFamily: "Oswald, sans-serif" }, className: "text-2xl tracking-wide" }, "Proformas"),
+            React.createElement("h1", { style: { fontFamily: "'Geist', system-ui, sans-serif" }, className: "text-2xl tracking-wide" }, "Proformas"),
             React.createElement(Button, { onClick: () => setShowNew(true) },
                 React.createElement(Plus, { size: 16 }),
                 " Nueva proforma")),
@@ -3181,7 +3257,7 @@ function ProformaDetail({ pf, client, vehicle, settings, onClose, onStatusChange
     return (React.createElement(Modal, { title: pf.code, onClose: onClose, wide: true },
         React.createElement("div", { className: "flex items-start justify-between gap-3 mb-5" },
             React.createElement("div", { className: "min-w-0 flex-1" },
-                React.createElement("div", { style: { fontFamily: "Oswald, sans-serif" }, className: "text-xl truncate" }, vehicle === null || vehicle === void 0 ? void 0 :
+                React.createElement("div", { style: { fontFamily: "'Geist', system-ui, sans-serif" }, className: "text-xl truncate" }, vehicle === null || vehicle === void 0 ? void 0 :
                     vehicle.brand,
                     " ", vehicle === null || vehicle === void 0 ? void 0 :
                     vehicle.model,
@@ -3400,7 +3476,7 @@ function NewProformaModal({ clients, vehicles, code, onClose, onCreate }) {
     const photoActions = React.createElement("div", { className: "flex gap-2.5" },
         React.createElement("label", {
             className: "flex-1 inline-flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-sm font-semibold cursor-pointer text-center transition-all hover:brightness-110 active:scale-[0.97]",
-            style: { background: `linear-gradient(180deg, #FF7A32 0%, ${C.accent} 100%)`, color: "#1A0D05", boxShadow: `0 1px 0 rgba(255,255,255,0.25) inset, ${C.shadowGlow}` },
+            style: { background: `linear-gradient(180deg, ${shadeHex(C.accent, 0.12)} 0%, ${C.accent} 100%)`, color: "#1A0D05", boxShadow: `0 1px 0 rgba(255,255,255,0.28) inset, 0 1px 2px rgba(0,0,0,0.3), ${C.shadowGlow}` },
         },
             React.createElement(Camera, { size: 15 }),
             busyPhotos ? "Cargando\u2026" : "Tomar foto",
@@ -3538,7 +3614,7 @@ function ClientesView({ clients, setClients, vehicles, setVehicles, orders }) {
     const filtered = clients.filter((c) => (showOccasional || !c.occasional) && c.name.toLowerCase().includes(query.toLowerCase()));
     return (React.createElement("div", { className: "space-y-5" },
         React.createElement("div", { className: "flex flex-col sm:flex-row sm:items-center justify-between gap-3" },
-            React.createElement("h1", { style: { fontFamily: "Oswald, sans-serif" }, className: "text-2xl tracking-wide" }, "Clientes"),
+            React.createElement("h1", { style: { fontFamily: "'Geist', system-ui, sans-serif" }, className: "text-2xl tracking-wide" }, "Clientes"),
             React.createElement(Button, { onClick: () => setShowNew(true) },
                 React.createElement(Plus, { size: 16 }),
                 " Nuevo cliente")),
@@ -3571,7 +3647,7 @@ function ClientesView({ clients, setClients, vehicles, setVehicles, orders }) {
         openClient && (React.createElement(Modal, { title: "Ficha de cliente", onClose: () => setOpenClient(null) },
             React.createElement("div", { className: "space-y-4" },
                 React.createElement("div", { className: "flex items-center gap-2 flex-wrap" },
-                    React.createElement("div", { style: { fontFamily: "Oswald, sans-serif" }, className: "text-xl" }, openClient.name),
+                    React.createElement("div", { style: { fontFamily: "'Geist', system-ui, sans-serif" }, className: "text-xl" }, openClient.name),
                     openClient.occasional && React.createElement(Badge, { color: C.textSoft, soft: C.surfaceHi }, "Ocasional")),
                 openClient.occasional && (React.createElement("button", { type: "button", onClick: () => {
                         setClients((prev) => prev.map((c) => (c.id === openClient.id ? { ...c, occasional: false } : c)));
@@ -3669,7 +3745,7 @@ function VehiculosView({ vehicles, setVehicles, clients, orders, settings }) {
     });
     return (React.createElement("div", { className: "space-y-5" },
         React.createElement("div", { className: "flex flex-col sm:flex-row sm:items-center justify-between gap-3" },
-            React.createElement("h1", { style: { fontFamily: "Oswald, sans-serif" }, className: "text-2xl tracking-wide" }, "Veh\u00EDculos"),
+            React.createElement("h1", { style: { fontFamily: "'Geist', system-ui, sans-serif" }, className: "text-2xl tracking-wide" }, "Veh\u00EDculos"),
             React.createElement(Button, { onClick: () => setShowNew(true) },
                 React.createElement(Plus, { size: 16 }),
                 " Nuevo veh\u00EDculo")),
@@ -3687,7 +3763,7 @@ function VehiculosView({ vehicles, setVehicles, clients, orders, settings }) {
                     React.createElement("div", { className: "w-9 h-9 rounded-lg flex items-center justify-center", style: { background: C.infoSoft } },
                         React.createElement(Car, { size: 16, style: { color: C.info } })),
                     React.createElement("span", { className: "font-mono text-xs px-2.5 py-1.5 rounded-lg tracking-widest", style: { background: C.bg, border: `1px solid ${C.border}` } }, v.plate)),
-                React.createElement("div", { style: { fontFamily: "Oswald, sans-serif" }, className: "text-lg" },
+                React.createElement("div", { style: { fontFamily: "'Geist', system-ui, sans-serif" }, className: "text-lg" },
                     v.brand,
                     " ",
                     v.model),
@@ -3758,7 +3834,7 @@ function InventarioView({ parts, setParts }) {
     };
     return (React.createElement("div", { className: "space-y-5" },
         React.createElement("div", { className: "flex flex-col sm:flex-row sm:items-center justify-between gap-3" },
-            React.createElement("h1", { style: { fontFamily: "Oswald, sans-serif" }, className: "text-2xl tracking-wide" }, "Inventario"),
+            React.createElement("h1", { style: { fontFamily: "'Geist', system-ui, sans-serif" }, className: "text-2xl tracking-wide" }, "Inventario"),
             React.createElement(Button, { onClick: () => setShowNew(true) },
                 React.createElement(Plus, { size: 16 }),
                 " Nuevo repuesto")),
@@ -3877,7 +3953,7 @@ function PagosProgramadosView({ items, onSave, onDelete, onToggleActivo, readOnl
     return (React.createElement("div", { className: "space-y-4" },
         React.createElement("div", { className: "flex items-center justify-between gap-3" },
             React.createElement("div", null,
-                React.createElement("h2", { className: "text-lg font-semibold", style: { color: C.text, fontFamily: "Oswald" } }, "Pagos programados"),
+                React.createElement("h2", { className: "text-lg font-semibold", style: { color: C.text, fontFamily: "'Geist', system-ui, sans-serif" } }, "Pagos programados"),
                 React.createElement("p", { className: "text-xs mt-0.5", style: { color: C.textMute } }, "Avisos autom\u00e1ticos de pagos que t\u00fa debes hacer (alquiler, proveedores, etc.), incluso con la app cerrada.")),
             !readOnly && !form && (React.createElement("button", { onClick: openNew, className: "px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-1.5 shrink-0", style: { background: C.accent, color: "#14161A" } },
                 React.createElement(Plus, { size: 15 }), "Nuevo"))),
@@ -3939,7 +4015,7 @@ function AvisosBroadcastView({ history, onSend, sending, error, deviceCount, set
     };
     return (React.createElement("div", { className: "space-y-4" },
         React.createElement("div", null,
-            React.createElement("h2", { className: "text-lg font-semibold", style: { color: C.text, fontFamily: "Oswald" } }, "Avisos al equipo"),
+            React.createElement("h2", { className: "text-lg font-semibold", style: { color: C.text, fontFamily: "'Geist', system-ui, sans-serif" } }, "Avisos al equipo"),
             React.createElement("p", { className: "text-xs mt-0.5", style: { color: C.textMute } }, `Manda un mensaje como notificaci\u00f3n a todos los celulares con avisos activados${deviceCount ? ` (ahora mismo, ${deviceCount})` : ""}, incluso si tienen la app cerrada.`)),
         React.createElement(Card, { className: "p-4 space-y-3" },
             React.createElement(TextArea, { rows: 3, value: text, onChange: (e) => setText(e.target.value), placeholder: "Ej: Ma\u00f1ana el taller abre a las 9am por feriado\u2026" }),
@@ -3980,7 +4056,7 @@ function SolicitudesView({ items, onMarkAtendida, onDelete, onCreateClient }) {
     return (React.createElement("div", { className: "space-y-5" },
         React.createElement("div", { className: "flex flex-col sm:flex-row sm:items-center justify-between gap-3" },
             React.createElement("div", null,
-                React.createElement("h1", { style: { fontFamily: "Oswald, sans-serif" }, className: "text-2xl tracking-wide" }, "Solicitudes"),
+                React.createElement("h1", { style: { fontFamily: "'Geist', system-ui, sans-serif" }, className: "text-2xl tracking-wide" }, "Solicitudes"),
                 React.createElement("p", { className: "text-sm", style: { color: C.textMute } }, "Citas pedidas desde el formulario del QR / flyer")),
             pendingCount > 0 && (React.createElement(Badge, { color: C.accent, soft: true }, pendingCount, " pendiente", pendingCount === 1 ? "" : "s"))),
         React.createElement("div", { className: "flex gap-2" }, [["nuevas", "Nuevas"], ["atendidas", "Atendidas"], ["todas", "Todas"]].map(([key, label]) => (React.createElement("button", { key: key, onClick: () => setFilter(key), className: "px-3.5 py-1.5 rounded-lg text-xs font-medium transition-colors", style: {
@@ -4019,7 +4095,7 @@ function AgendaView({ appointments, setAppointments }) {
     };
     return (React.createElement("div", { className: "space-y-5" },
         React.createElement("div", { className: "flex flex-col sm:flex-row sm:items-center justify-between gap-3" },
-            React.createElement("h1", { style: { fontFamily: "Oswald, sans-serif" }, className: "text-2xl tracking-wide" }, "Agenda"),
+            React.createElement("h1", { style: { fontFamily: "'Geist', system-ui, sans-serif" }, className: "text-2xl tracking-wide" }, "Agenda"),
             React.createElement(Button, { onClick: () => setShowNew(true) },
                 React.createElement(Plus, { size: 16 }),
                 " Nueva cita")),
@@ -4082,10 +4158,10 @@ const emptyMecanicaDraft = () => ({ brand: "", model: "", title: "", note: "", p
 function MecanicaCard({ entry, onOpen }) {
     const cover = (entry.photos || [])[0];
     const count = (entry.photos || []).length;
-    return (React.createElement("div", { onClick: onOpen, className: "group relative rounded-2xl cursor-pointer transition-all duration-300 hover:-translate-y-1 overflow-hidden", style: {
-            background: `linear-gradient(165deg, ${C.surfaceHi}66 0%, ${C.surface} 22%)`,
+    return (React.createElement("div", { onClick: onOpen, className: "group relative rounded-2xl cursor-pointer transition-all duration-200 hover:-translate-y-0.5 overflow-hidden", style: {
+            background: C.surface,
             border: `1px solid ${C.border}`,
-            boxShadow: C.shadow,
+            boxShadow: `inset 0 1px 0 ${C.hl}, ${C.shadow}`,
         } },
         cover ? (React.createElement("div", { className: "w-full h-32", style: { background: C.bg } },
             React.createElement("img", { src: cover.dataUrl, className: "w-full h-full object-cover" }))) : (React.createElement("div", { className: "w-full h-32 flex items-center justify-center", style: { background: C.surfaceHi } },
@@ -4223,7 +4299,7 @@ function MecanicaView({ entries, setEntries, vehicles, canEdit, logAudit }) {
     return (React.createElement("div", { className: "space-y-5" },
         React.createElement("div", { className: "flex flex-col sm:flex-row sm:items-center justify-between gap-3" },
             React.createElement("div", null,
-                React.createElement("h1", { style: { fontFamily: "Oswald, sans-serif" }, className: "text-2xl tracking-wide" }, "Base Mec\u00E1nica"),
+                React.createElement("h1", { style: { fontFamily: "'Geist', system-ui, sans-serif" }, className: "text-2xl tracking-wide" }, "Base Mec\u00E1nica"),
                 React.createElement("p", { className: "text-sm mt-0.5", style: { color: C.textMute } }, "Diagramas y fotos de fallas, guardados por marca y modelo, para consultarlos la pr\u00F3xima vez.")),
             canEdit && React.createElement(Button, { onClick: () => setShowNew(true) },
                 React.createElement(Plus, { size: 16 }),
@@ -4279,7 +4355,7 @@ function CajaView({ caja: cajaTodos, liquidaciones = [], onLiquidar, onDeshacerL
     ];
     return (React.createElement("div", { className: "space-y-5" },
         React.createElement("div", { className: "flex flex-wrap items-center justify-between gap-3" },
-            React.createElement("h1", { style: { fontFamily: "Oswald, sans-serif" }, className: "text-2xl tracking-wide" }, "Caja"),
+            React.createElement("h1", { style: { fontFamily: "'Geist', system-ui, sans-serif" }, className: "text-2xl tracking-wide" }, "Caja"),
             React.createElement("div", { className: "flex items-center justify-end gap-2 ml-auto" },
                 canEdit && (React.createElement(Button, { variant: "soft", onClick: () => setShowLiquidar(true), disabled: caja.length === 0, className: "!px-3.5" },
                     React.createElement(Wallet, { size: 16 }),
@@ -4289,19 +4365,11 @@ function CajaView({ caja: cajaTodos, liquidaciones = [], onLiquidar, onDeshacerL
                     React.createElement(Plus, { size: 16 }),
                     " Nuevo",
                     React.createElement("span", { className: "hidden sm:inline" }, " movimiento")))),
-        React.createElement("div", { className: "grid grid-cols-1 sm:grid-cols-3 gap-4" }, kpis.map((k) => {
-            const Icon = k.icon;
-            return (React.createElement(Card, { key: k.label, className: "p-5 relative overflow-hidden" },
-                React.createElement("div", { className: "absolute top-0 left-0 right-0 h-[3px]", style: { background: `linear-gradient(90deg, transparent, ${k.color}, transparent)` } }),
-                React.createElement("div", { className: "w-9 h-9 rounded-lg flex items-center justify-center mb-4", style: { background: k.soft, boxShadow: `inset 0 0 0 1px ${k.color}33` } },
-                    React.createElement(Icon, { size: 17, style: { color: k.color } })),
-                React.createElement("div", { style: { fontFamily: "Oswald, sans-serif" }, className: "text-2xl tracking-wide" }, k.value),
-                React.createElement("div", { className: "text-xs mt-1", style: { color: C.textMute } }, k.label)));
-        })),
+        React.createElement(KpiStrip, { items: kpis }),
         pendientesPago.length > 0 && (React.createElement(Card, { className: "p-5", style: { borderColor: `${C.warning}55` } },
             React.createElement("div", { className: "flex items-center gap-2 mb-3" },
                 React.createElement("span", { style: { color: C.warning } }, "\u26A0\uFE0F"),
-                React.createElement("h3", { style: { fontFamily: "Oswald, sans-serif" }, className: "text-sm tracking-wide uppercase" }, "Pendientes de pago"),
+                React.createElement("h3", { style: { fontFamily: "'Geist', system-ui, sans-serif" }, className: "text-sm tracking-wide uppercase" }, "Pendientes de pago"),
                 React.createElement(Badge, { color: C.warning, soft: C.warningSoft }, pendientesPago.length)),
             React.createElement("div", { className: "space-y-2" }, pendientesPago.map((o) => {
                 const c = findClient(o.clientId);
@@ -4322,7 +4390,7 @@ function CajaView({ caja: cajaTodos, liquidaciones = [], onLiquidar, onDeshacerL
             { key: "gasto", label: "Gastos" },
         ].map((f) => (React.createElement("button", { key: f.key, onClick: () => setFilter(f.key), className: "px-3.5 py-1.5 rounded-full text-xs font-medium whitespace-nowrap", style: { background: filter === f.key ? C.accentSoft : C.surfaceHi, color: filter === f.key ? C.accentText : C.textSoft } }, f.label)))),
         React.createElement(Card, { className: "overflow-hidden" }, filtered.length === 0 ? (React.createElement("p", { className: "p-10 text-center text-sm", style: { color: C.textMute } }, "No hay movimientos que coincidan.")) : (filtered.map((m, i) => (React.createElement("div", { key: m.id, onClick: () => { if (m.orderId)
-                setOpenOrderId(m.orderId); }, className: "flex flex-wrap sm:flex-nowrap items-center gap-x-3 gap-y-2 px-5 py-4", style: {
+                setOpenOrderId(m.orderId); }, className: "row-hover flex flex-wrap sm:flex-nowrap items-center gap-x-3 gap-y-2 px-5 py-4", style: {
                 borderBottom: i < filtered.length - 1 ? `1px solid ${C.borderSoft}` : "none",
                 cursor: m.orderId ? "pointer" : "default",
             } },
@@ -4341,7 +4409,7 @@ function CajaView({ caja: cajaTodos, liquidaciones = [], onLiquidar, onDeshacerL
         liqOrdenadas.length > 0 && (React.createElement(Card, { className: "overflow-hidden" },
             React.createElement("button", { onClick: () => setShowHistorial((v) => !v), className: "w-full flex items-center justify-between gap-3 px-5 py-4 text-left" },
                 React.createElement("div", { className: "flex items-center gap-2" },
-                    React.createElement("h3", { style: { fontFamily: "Oswald, sans-serif" }, className: "text-sm tracking-wide uppercase" }, "Historial de liquidaciones"),
+                    React.createElement("h3", { style: { fontFamily: "'Geist', system-ui, sans-serif" }, className: "text-sm tracking-wide uppercase" }, "Historial de liquidaciones"),
                     React.createElement(Badge, { color: C.info, soft: C.infoSoft }, liqOrdenadas.length)),
                 React.createElement("span", { className: "text-xs", style: { color: C.textMute } }, showHistorial ? "Ocultar" : "Ver")),
             showHistorial && (React.createElement("div", { style: { borderTop: `1px solid ${C.borderSoft}` } }, liqOrdenadas.map((l, i) => {
@@ -5058,7 +5126,7 @@ function AjustesView({ settings, setSettings, cloudStatus, cloudError, cloudProj
     };
     return (React.createElement("div", { className: "space-y-5 max-w-2xl" },
         React.createElement("div", { className: "flex items-center justify-between gap-3" },
-            React.createElement("h1", { style: { fontFamily: "Oswald, sans-serif" }, className: "text-2xl tracking-wide" }, "Ajustes"),
+            React.createElement("h1", { style: { fontFamily: "'Geist', system-ui, sans-serif" }, className: "text-2xl tracking-wide" }, "Ajustes"),
             onLock && (React.createElement(Button, { variant: "ghost", onClick: onLock },
                 React.createElement(KeyRound, { size: 15 }),
                 " Bloquear pantalla"))),
@@ -5224,17 +5292,17 @@ function AuthShell({ children, footer, settings }) {
     return (React.createElement("div", { style: {
             background: `radial-gradient(1200px 600px at 15% -10%, ${C.accentSoft} 0%, transparent 55%), ${C.bg}`,
             color: C.text,
-            fontFamily: "Inter, sans-serif",
+            fontFamily: "'Geist', system-ui, sans-serif",
             minHeight: "100vh",
         }, className: "flex flex-col items-center justify-center p-5 sm:p-8" },
         React.createElement("style", null, getFonts()),
         React.createElement("div", { className: "w-full max-w-sm space-y-6" },
             React.createElement("div", { className: "flex flex-col items-center gap-3 text-center" },
                 (settings === null || settings === void 0 ? void 0 : settings.logoDataUrl) ? (React.createElement("div", { className: "w-14 h-14 rounded-2xl overflow-hidden", style: { background: C.surface, border: `1px solid ${C.borderSoft}`, boxShadow: C.shadow } },
-                    React.createElement("img", { src: settings.logoDataUrl, alt: "Logo del taller", className: "w-full h-full object-contain" }))) : (React.createElement("div", { className: "w-14 h-14 rounded-2xl flex items-center justify-center", style: { background: `linear-gradient(160deg, ${C.accent} 0%, #C94E0F 100%)`, boxShadow: C.shadowGlow } },
+                    React.createElement("img", { src: settings.logoDataUrl, alt: "Logo del taller", className: "w-full h-full object-contain" }))) : (React.createElement("div", { className: "w-14 h-14 rounded-2xl flex items-center justify-center", style: { background: `linear-gradient(160deg, ${shadeHex(C.accent, 0.1)} 0%, ${shadeHex(C.accent, -0.22)} 100%)`, boxShadow: `inset 0 1px 0 rgba(255,255,255,0.3), ${C.shadowGlow}` } },
                     React.createElement(Wrench, { size: 26, style: { color: "#1A0D05" } }))),
                 React.createElement("div", null,
-                    React.createElement("div", { style: { fontFamily: "Oswald, sans-serif", letterSpacing: "0.06em" }, className: "text-2xl leading-none" }, (settings === null || settings === void 0 ? void 0 : settings.tallerNombre) || "EXPERT"),
+                    React.createElement("div", { style: { fontFamily: "'Geist', system-ui, sans-serif", letterSpacing: "0.06em" }, className: "text-2xl leading-none" }, (settings === null || settings === void 0 ? void 0 : settings.tallerNombre) || "EXPERT"),
                     React.createElement("div", { className: "text-[11px] uppercase tracking-widest mt-1", style: { color: C.textMute } }, "Gesti\u00F3n de taller"))),
             children),
         footer));
@@ -5255,7 +5323,7 @@ function PinPad({ onDigit, onBackspace, disabled }) {
             return (React.createElement("button", { key: i, type: "button", disabled: disabled, onClick: onBackspace, className: "h-14 rounded-2xl flex items-center justify-center transition-all active:scale-95 disabled:opacity-30", style: { background: C.surfaceHi, border: `1px solid ${C.borderSoft}`, color: C.textSoft } },
                 React.createElement(X, { size: 18 })));
         }
-        return (React.createElement("button", { key: i, type: "button", disabled: disabled, onClick: () => onDigit(k), className: "h-14 rounded-2xl text-lg font-semibold transition-all active:scale-95 disabled:opacity-30", style: { background: C.surfaceHi, border: `1px solid ${C.borderSoft}`, color: C.text, fontFamily: "JetBrains Mono, monospace" } }, k));
+        return (React.createElement("button", { key: i, type: "button", disabled: disabled, onClick: () => onDigit(k), className: "h-14 rounded-2xl text-lg font-semibold transition-all active:scale-95 disabled:opacity-30", style: { background: C.surfaceHi, border: `1px solid ${C.borderSoft}`, color: C.text, fontFamily: "'Geist Mono', ui-monospace, monospace" } }, k));
     })));
 }
 function UserAvatar({ user, role, size = 44 }) {
@@ -5314,7 +5382,7 @@ function SetupWizard({ onCreateAdmin }) {
     return (React.createElement(AuthShell, null,
         React.createElement(Card, { className: "p-6 space-y-5" },
             React.createElement("div", { className: "text-center space-y-1" },
-                React.createElement("div", { style: { fontFamily: "Oswald, sans-serif" }, className: "text-lg tracking-wide uppercase" }, "Primer acceso"),
+                React.createElement("div", { style: { fontFamily: "'Geist', system-ui, sans-serif" }, className: "text-lg tracking-wide uppercase" }, "Primer acceso"),
                 React.createElement("p", { className: "text-xs", style: { color: C.textMute } },
                     step === 1 && "Crea la cuenta de Administrador del sistema.",
                     step === 2 && "Elige un PIN de 4 dígitos para tu cuenta.",
@@ -5399,7 +5467,7 @@ function LoginScreen({ users, roles, settings, onLogin }) {
     if (!selected) {
         return (React.createElement(AuthShell, { settings: settings },
             React.createElement("div", { className: "space-y-1 text-center mb-2" },
-                React.createElement("div", { style: { fontFamily: "Oswald, sans-serif" }, className: "text-lg tracking-wide uppercase" }, "Selecciona tu usuario"),
+                React.createElement("div", { style: { fontFamily: "'Geist', system-ui, sans-serif" }, className: "text-lg tracking-wide uppercase" }, "Selecciona tu usuario"),
                 React.createElement("p", { className: "text-xs", style: { color: C.textMute } }, "Toca tu perfil para ingresar")),
             React.createElement("div", { className: "grid grid-cols-2 gap-3" }, activeUsers.map((u) => {
                 const role = getRole(roles, u.roleId);
@@ -5524,17 +5592,17 @@ function ClientApprovalPage({ pf, client, vehicle, settings, onApprove, onReject
         onReject(who, reason);
         triggerPushNotification(pf.id, { title: `Presupuesto ${pf.code} rechazado`, body: `${who} rechazó el presupuesto${reason ? ": " + reason : ""}` });
     };
-    return (React.createElement("div", { style: { background: `radial-gradient(1200px 600px at 15% -10%, ${C.accentSoft} 0%, transparent 55%), ${C.bg}`, color: C.text, minHeight: "100vh", fontFamily: "Inter, sans-serif" }, className: "p-5 sm:p-8" },
+    return (React.createElement("div", { style: { background: `radial-gradient(1200px 600px at 15% -10%, ${C.accentSoft} 0%, transparent 55%), ${C.bg}`, color: C.text, minHeight: "100vh", fontFamily: "'Geist', system-ui, sans-serif" }, className: "p-5 sm:p-8" },
         React.createElement("style", null, getFonts()),
         React.createElement("div", { className: "max-w-lg mx-auto space-y-5" },
             React.createElement("div", { className: "text-center pt-4" },
-                React.createElement("div", { style: { fontFamily: "Oswald, sans-serif" }, className: "text-xl tracking-wide" }, (settings === null || settings === void 0 ? void 0 : settings.tallerNombre) || "Taller Mecánico"),
+                React.createElement("div", { style: { fontFamily: "'Geist', system-ui, sans-serif" }, className: "text-xl tracking-wide" }, (settings === null || settings === void 0 ? void 0 : settings.tallerNombre) || "Taller Mecánico"),
                 React.createElement("div", { className: "text-xs mt-1", style: { color: C.textMute } }, "Aprobaci\u00F3n de presupuesto")),
             React.createElement(Card, { className: "p-5" },
                 React.createElement("div", { className: "flex items-start justify-between gap-3 mb-4" },
                     React.createElement("div", null,
                         React.createElement("div", { className: "text-xs font-mono tracking-widest", style: { color: C.textMute } }, pf.code),
-                        React.createElement("div", { style: { fontFamily: "Oswald, sans-serif" }, className: "text-lg mt-1" }, vehicle === null || vehicle === void 0 ? void 0 :
+                        React.createElement("div", { style: { fontFamily: "'Geist', system-ui, sans-serif" }, className: "text-lg mt-1" }, vehicle === null || vehicle === void 0 ? void 0 :
                             vehicle.brand,
                             " ", vehicle === null || vehicle === void 0 ? void 0 :
                             vehicle.model,
@@ -6470,7 +6538,7 @@ function App() {
     return (React.createElement("div", { style: {
             background: `radial-gradient(1200px 600px at 15% -10%, ${C.accentSoft} 0%, transparent 55%), ${C.bg}`,
             color: C.text,
-            fontFamily: "Inter, sans-serif",
+            fontFamily: "'Geist', system-ui, sans-serif",
             minHeight: "100vh",
         } },
         React.createElement("style", null, getFonts()),
@@ -6478,10 +6546,10 @@ function App() {
             React.createElement(Sidebar, { active: active, setActive: setActive, mobileOpen: mobileOpen, setMobileOpen: setMobileOpen, settings: settings, role: currentRole, currentUser: currentUser, onLock: lockNow, onLogout: logout }),
             React.createElement(MobileTabBar, { active: active, setActive: setActive, mobileOpen: mobileOpen, setMobileOpen: setMobileOpen, role: currentRole, pendingSolicitudesCount: pendingSolicitudesCount }),
             React.createElement("div", { className: "flex-1 min-w-0" },
-                React.createElement("header", { className: "sticky top-0 z-30 flex items-center gap-4 px-5 sm:px-8 py-4 backdrop-blur", style: { background: `${C.bg}D9`, borderBottom: `1px solid ${C.border}`, boxShadow: "0 1px 0 rgba(255,255,255,0.03), 0 8px 24px -12px rgba(0,0,0,0.5)" } },
+                React.createElement("header", { className: "sticky top-0 z-30 flex items-center gap-4 px-5 sm:px-8 py-3.5 backdrop-blur-xl", style: { background: `${C.bg}E6`, borderBottom: `1px solid ${C.borderSoft}` } },
                     React.createElement("button", { className: "sm:hidden transition-transform active:scale-90", onClick: () => setMobileOpen(true) },
                         React.createElement(Menu, { size: 20 })),
-                    React.createElement("div", { className: "sm:hidden font-medium", style: { fontFamily: "Oswald, sans-serif" } }, titles[active]),
+                    React.createElement("div", { className: "sm:hidden font-medium", style: { fontFamily: "'Geist', system-ui, sans-serif" } }, titles[active]),
                     React.createElement("div", { className: "hidden sm:flex items-center gap-2 flex-1 max-w-sm" },
                         React.createElement("div", { className: "relative w-full" },
                             React.createElement(Search, { size: 15, className: "absolute left-3 top-1/2 -translate-y-1/2", style: { color: C.textMute } }),
@@ -6497,12 +6565,12 @@ function App() {
                             React.createElement("span", { className: "text-xs font-medium max-w-[110px] truncate" }, currentUser === null || currentUser === void 0 ? void 0 : currentUser.name)))),
                 React.createElement("main", { key: active, className: "anim-in px-5 sm:px-8 py-6 sm:py-8 pb-24 sm:pb-8 max-w-7xl" }, !canView(currentRole, active) ? (React.createElement(Card, { className: "p-8 text-center max-w-md mx-auto space-y-2" },
                     React.createElement(ShieldCheck, { size: 28, style: { color: C.textMute }, className: "mx-auto" }),
-                    React.createElement("div", { style: { fontFamily: "Oswald, sans-serif" }, className: "text-lg tracking-wide" }, "Acceso restringido"),
+                    React.createElement("div", { style: { fontFamily: "'Geist', system-ui, sans-serif" }, className: "text-lg tracking-wide" }, "Acceso restringido"),
                     React.createElement("p", { className: "text-sm", style: { color: C.textMute } },
                         "Tu rol (",
                         (currentRole === null || currentRole === void 0 ? void 0 : currentRole.name) || "sin rol",
                         ") no tiene permiso para ver esta secci\u00F3n."))) : (React.createElement(React.Fragment, null,
-                    active === "dashboard" && (React.createElement(Dashboard, { orders: orders, clients: clients, vehicles: vehicles, parts: parts, appointments: appointments, goTo: setActive, settings: settings, verMontos: canSeeMoney(currentRole), currentUser: currentUser })),
+                    active === "dashboard" && (React.createElement(Dashboard, { orders: orders, clients: clients, vehicles: vehicles, parts: parts, appointments: appointments, goTo: setActive, settings: settings, verMontos: canSeeMoney(currentRole), currentUser: currentUser, proformas: proformas, canOpen: (k) => canView(currentRole, k) })),
                     active === "ordenes" && (React.createElement(OrdenesView, { orders: orders, setOrders: setOrders, clients: clients, setClients: setClients, vehicles: vehicles, setVehicles: setVehicles, parts: parts, onChangeStatus: changeOrderStatus, onRegistrarAbono: registrarAbono, settings: settings, logAudit: logAudit, currentUser: currentUser })),
                     active === "proformas" && (React.createElement(ProformasView, { proformas: proformas, setProformas: setProformas, clients: clients, vehicles: vehicles, settings: settings, focusRequest: proformaFocus, logAudit: logAudit })),
                     active === "clientes" && React.createElement(ClientesView, { clients: clients, setClients: setClients, vehicles: vehicles, setVehicles: setVehicles, orders: orders }),
