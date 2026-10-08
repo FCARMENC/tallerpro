@@ -183,12 +183,10 @@
 <script data-boot-critical src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script data-boot-critical src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 <script data-boot-critical src="https://cdn.tailwindcss.com"></script>
-<script data-boot-critical src="https://unpkg.com/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
-<script data-boot-critical src="https://unpkg.com/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.js"></script>
 <script data-boot-critical src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script data-boot-critical src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script data-boot-critical src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-<script data-boot-critical src="https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-compat.js"></script>
+<!-- jsPDF y Firebase Messaging se cargan bajo demanda (más rápido el arranque) -->
 
 <script>
   if (typeof React === 'undefined' || typeof ReactDOM === 'undefined') {
@@ -513,6 +511,42 @@ const THEMES = {
     },
 };
 const C = { ...THEMES.dark };
+
+/* ---------------------------------- CARGA BAJO DEMANDA ---------------------------------- */
+// Carga scripts solo cuando se necesitan (PDF / push). Así el arranque es más rápido.
+const __scriptPromises = {};
+function loadScript(src) {
+    if (__scriptPromises[src]) return __scriptPromises[src];
+    __scriptPromises[src] = new Promise((resolve, reject) => {
+        const existing = document.querySelector(`script[src="${src}"]`);
+        if (existing) {
+            if (existing.dataset.loaded === "1") return resolve();
+            existing.addEventListener("load", () => resolve());
+            existing.addEventListener("error", () => reject(new Error("No se pudo cargar " + src)));
+            return;
+        }
+        const s = document.createElement("script");
+        s.src = src;
+        s.async = true;
+        s.onload = () => { s.dataset.loaded = "1"; resolve(); };
+        s.onerror = () => reject(new Error("No se pudo cargar " + src));
+        document.head.appendChild(s);
+    });
+    return __scriptPromises[src];
+}
+async function ensureJsPdf() {
+    if (window.jspdf && window.jspdf.jsPDF) return window.jspdf.jsPDF;
+    await loadScript("https://unpkg.com/jspdf@2.5.1/dist/jspdf.umd.min.js");
+    await loadScript("https://unpkg.com/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.js");
+    if (!window.jspdf || !window.jspdf.jsPDF) throw new Error("La librería de generación de PDF no cargó. Revisa tu conexión a internet.");
+    return window.jspdf.jsPDF;
+}
+async function ensureFirebaseMessaging() {
+    if (window.firebase && firebase.messaging) return true;
+    await loadScript("https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-compat.js");
+    return !!(window.firebase && firebase.messaging);
+}
+
 const getFonts = () => `
 @import url('https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap');
 
@@ -554,6 +588,25 @@ button.kpi-cell:hover{ background: ${C.surfaceHi}; }
 .modal-in{ animation: modalIn 0.32s cubic-bezier(0.16,1,0.3,1) both; }
 @keyframes shake{ 10%,90%{ transform: translateX(-1px);} 20%,80%{ transform: translateX(2px);} 30%,50%,70%{ transform: translateX(-4px);} 40%,60%{ transform: translateX(4px);} }
 .anim-shake{ animation: shake 0.4s cubic-bezier(0.36,0.07,0.19,0.97) both; }
+@keyframes authFloat{ 0%,100%{ transform: translateY(0) scale(1); } 50%{ transform: translateY(-12px) scale(1.03); } }
+@keyframes authPulse{ 0%,100%{ opacity:0.4; transform: scale(1); } 50%{ opacity:0.7; transform: scale(1.08); } }
+@keyframes authFadeUp{ from{ opacity:0; transform: translateY(24px); } to{ opacity:1; transform: translateY(0); } }
+@keyframes authScaleIn{ from{ opacity:0; transform: scale(0.92); } to{ opacity:1; transform: scale(1); } }
+@keyframes pinPop{ 0%{ transform: scale(0.5); opacity:0.5; } 60%{ transform: scale(1.25); } 100%{ transform: scale(1); opacity:1; } }
+@keyframes authOrb{ 0%,100%{ transform: translate(0,0) scale(1); } 33%{ transform: translate(30px,-20px) scale(1.1); } 66%{ transform: translate(-20px,15px) scale(0.95); } }
+.auth-float{ animation: authFloat 6s ease-in-out infinite; }
+.auth-pulse{ animation: authPulse 4s ease-in-out infinite; }
+.auth-fade-up{ animation: authFadeUp 0.6s cubic-bezier(0.16,1,0.3,1) both; }
+.auth-scale-in{ animation: authScaleIn 0.45s cubic-bezier(0.16,1,0.3,1) both; }
+.pin-pop{ animation: pinPop 0.28s cubic-bezier(0.34,1.56,0.64,1) both; }
+.auth-orb{ animation: authOrb 12s ease-in-out infinite; }
+.auth-stagger > *:nth-child(1){ animation-delay: 0.05s; }
+.auth-stagger > *:nth-child(2){ animation-delay: 0.1s; }
+.auth-stagger > *:nth-child(3){ animation-delay: 0.15s; }
+.auth-stagger > *:nth-child(4){ animation-delay: 0.2s; }
+.auth-stagger > *:nth-child(5){ animation-delay: 0.25s; }
+.auth-stagger > *:nth-child(6){ animation-delay: 0.3s; }
+.auth-stagger > *{ animation: authFadeUp 0.5s cubic-bezier(0.16,1,0.3,1) both; }
 
 @media (prefers-reduced-motion: reduce){
   *{ animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
@@ -1129,11 +1182,8 @@ function addTallerHeaderLogo(doc, settings, marginX) {
         return 0;
     }
 }
-function buildProformaDoc(pf, client, vehicle, settings) {
-    if (!window.jspdf || !window.jspdf.jsPDF) {
-        throw new Error("La librería de generación de PDF no cargó. Revisa tu conexión a internet.");
-    }
-    const { jsPDF } = window.jspdf;
+async function buildProformaDoc(pf, client, vehicle, settings) {
+    const jsPDF = await ensureJsPdf();
     const doc = new jsPDF({ unit: "mm", format: "a4" });
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
@@ -1278,12 +1328,12 @@ function buildProformaDoc(pf, client, vehicle, settings) {
     doc.text(settings.ownerName ? `${settings.ownerName} · ${settings.tallerNombre || "Taller"}` : "Taller", pageWidth - marginX - 60, sigY + 5);
     return doc;
 }
-function downloadProformaPDF(pf, client, vehicle, settings) {
-    const doc = buildProformaDoc(pf, client, vehicle, settings);
+async function downloadProformaPDF(pf, client, vehicle, settings) {
+    const doc = await buildProformaDoc(pf, client, vehicle, settings);
     doc.save(`${pf.code}.pdf`);
 }
 async function shareProformaWhatsApp(pf, client, vehicle, settings) {
-    const doc = buildProformaDoc(pf, client, vehicle, settings);
+    const doc = await buildProformaDoc(pf, client, vehicle, settings);
     const fileName = `${pf.code}.pdf`;
     const text = `Hola ${(client === null || client === void 0 ? void 0 : client.name) || ""}, te comparto la proforma ${pf.code} de ${settings.tallerNombre || "nuestro taller"} por un total de ${money(proformaTotal(pf))}. Válida hasta ${fmtDatePE(proformaValidUntil(pf))}.`;
     try {
@@ -1309,11 +1359,8 @@ async function shareProformaWhatsApp(pf, client, vehicle, settings) {
     return { ok: true, method: "fallback" };
 }
 /* ---------------------------------- PDF · ACTA DE RECEPCIÓN ---------------------------------- */
-function buildReceptionDoc(order, client, vehicle, settings) {
-    if (!window.jspdf || !window.jspdf.jsPDF) {
-        throw new Error("La librería de generación de PDF no cargó. Revisa tu conexión a internet.");
-    }
-    const { jsPDF } = window.jspdf;
+async function buildReceptionDoc(order, client, vehicle, settings) {
+    const jsPDF = await ensureJsPdf();
     const doc = new jsPDF({ unit: "mm", format: "a4" });
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
@@ -1444,18 +1491,15 @@ function buildReceptionDoc(order, client, vehicle, settings) {
     doc.text("Este documento certifica el estado del vehículo al momento de su recepción, como respaldo ante cualquier reclamo posterior.", marginX, pageHeight - 8, { maxWidth: pageWidth - marginX * 2 });
     return doc;
 }
-function downloadReceptionPDF(order, client, vehicle, settings) {
-    const doc = buildReceptionDoc(order, client, vehicle, settings);
+async function downloadReceptionPDF(order, client, vehicle, settings) {
+    const doc = await buildReceptionDoc(order, client, vehicle, settings);
     doc.save(`Recepcion-${order.code}.pdf`);
 }
 /* ---------------------------------- PDF · REQUERIMIENTO DE REPUESTOS ---------------------------------- */
 // Documento simple para pedirle al cliente que consiga ciertos repuestos: nombre, cantidad y una
 // nota opcional (medida, marca, referencia, etc.). No incluye precios ni flujo de aprobación.
-function buildRequirementDoc(order, client, vehicle, requirement, settings) {
-    if (!window.jspdf || !window.jspdf.jsPDF) {
-        throw new Error("La librería de generación de PDF no cargó. Revisa tu conexión a internet.");
-    }
-    const { jsPDF } = window.jspdf;
+async function buildRequirementDoc(order, client, vehicle, requirement, settings) {
+    const jsPDF = await ensureJsPdf();
     const doc = new jsPDF({ unit: "mm", format: "a4" });
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
@@ -1542,12 +1586,12 @@ function buildRequirementDoc(order, client, vehicle, requirement, settings) {
     doc.text("Este documento es un pedido informativo de repuestos y no constituye una cotización ni comprobante de pago.", marginX, pageHeight - 8, { maxWidth: pageWidth - marginX * 2 });
     return doc;
 }
-function downloadRequirementPDF(order, client, vehicle, requirement, settings) {
-    const doc = buildRequirementDoc(order, client, vehicle, requirement, settings);
+async function downloadRequirementPDF(order, client, vehicle, requirement, settings) {
+    const doc = await buildRequirementDoc(order, client, vehicle, requirement, settings);
     doc.save(`Requerimiento-${order.code}.pdf`);
 }
 async function shareRequirementWhatsApp(order, client, vehicle, requirement, settings) {
-    const doc = buildRequirementDoc(order, client, vehicle, requirement, settings);
+    const doc = await buildRequirementDoc(order, client, vehicle, requirement, settings);
     const fileName = `Requerimiento-${order.code}.pdf`;
     const itemsList = (requirement.items || []).map((it) => `- ${it.name} x${it.qty || 1}`).join("\n");
     const text = `Hola ${(client === null || client === void 0 ? void 0 : client.name) || ""}, para continuar con la reparación de tu vehículo (orden ${order.code}) necesitamos que nos facilites estos repuestos:\n${itemsList}\n\nTe adjunto el detalle en PDF.`;
@@ -1577,11 +1621,8 @@ async function shareRequirementWhatsApp(order, client, vehicle, requirement, set
 // Documento final que se arma desde la propia orden de trabajo: resume el problema reportado, el
 // detalle de servicios/repuestos facturados y, lo más importante, los hallazgos que el técnico fue
 // registrando durante el proceso (ej: cables rotos, pernos malogrados) con sus fotos de respaldo.
-function buildServiceReportDoc(order, client, vehicle, settings) {
-    if (!window.jspdf || !window.jspdf.jsPDF) {
-        throw new Error("La librería de generación de PDF no cargó. Revisa tu conexión a internet.");
-    }
-    const { jsPDF } = window.jspdf;
+async function buildServiceReportDoc(order, client, vehicle, settings) {
+    const jsPDF = await ensureJsPdf();
     const doc = new jsPDF({ unit: "mm", format: "a4" });
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
@@ -1740,15 +1781,15 @@ function buildServiceReportDoc(order, client, vehicle, settings) {
     doc._photoWarnings = photoWarnings;
     return doc;
 }
-function downloadServiceReportPDF(order, client, vehicle, settings) {
-    const doc = buildServiceReportDoc(order, client, vehicle, settings);
+async function downloadServiceReportPDF(order, client, vehicle, settings) {
+    const doc = await buildServiceReportDoc(order, client, vehicle, settings);
     if (doc._photoWarnings && doc._photoWarnings.length)
         console.warn("Fotos no incrustadas en el reporte:", doc._photoWarnings);
     doc.save(`Reporte-servicio-${order.code}.pdf`);
     return { warnings: doc._photoWarnings || [] };
 }
 async function shareServiceReportWhatsApp(order, client, vehicle, settings) {
-    const doc = buildServiceReportDoc(order, client, vehicle, settings);
+    const doc = await buildServiceReportDoc(order, client, vehicle, settings);
     const warnings = doc._photoWarnings || [];
     const fileName = `Reporte-servicio-${order.code}.pdf`;
     const findings = order.findings || [];
@@ -1782,11 +1823,8 @@ async function shareServiceReportWhatsApp(order, client, vehicle, settings) {
 // A diferencia del reporte de servicio (una sola orden), este junta TODAS las visitas que tiene
 // registradas un vehículo en el taller, en orden cronológico, con lo que se hizo y el total de
 // cada una. Pensado para cuando el cliente pide "mándame todo lo que se le hizo a mi carro".
-function buildVehicleHistoryDoc(vehicle, client, allOrders, settings) {
-    if (!window.jspdf || !window.jspdf.jsPDF) {
-        throw new Error("La librería de generación de PDF no cargó. Revisa tu conexión a internet.");
-    }
-    const { jsPDF } = window.jspdf;
+async function buildVehicleHistoryDoc(vehicle, client, allOrders, settings) {
+    const jsPDF = await ensureJsPdf();
     const doc = new jsPDF({ unit: "mm", format: "a4" });
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
@@ -1916,12 +1954,12 @@ function buildVehicleHistoryDoc(vehicle, client, allOrders, settings) {
     doc.text("Historial generado con todas las visitas registradas de este veh\u00edculo en el taller.", marginX, pageHeight - 8, { maxWidth: pageWidth - marginX * 2 });
     return doc;
 }
-function downloadVehicleHistoryPDF(vehicle, client, orders, settings) {
-    const doc = buildVehicleHistoryDoc(vehicle, client, orders, settings);
+async function downloadVehicleHistoryPDF(vehicle, client, orders, settings) {
+    const doc = await buildVehicleHistoryDoc(vehicle, client, orders, settings);
     doc.save(`Historial-${vehicle.plate}.pdf`);
 }
 async function shareVehicleHistoryWhatsApp(vehicle, client, allOrders, settings) {
-    const doc = buildVehicleHistoryDoc(vehicle, client, allOrders, settings);
+    const doc = await buildVehicleHistoryDoc(vehicle, client, allOrders, settings);
     const fileName = `Historial-${vehicle.plate}.pdf`;
     const count = [...allOrders].filter((o) => o.vehicleId === vehicle.id).length;
     const text = `Hola ${(client && client.name) || ""}, te comparto el historial completo de tu ${vehicle.brand || ""} ${vehicle.model || ""} (placa ${vehicle.plate}) con ${count} visita${count === 1 ? "" : "s"} registrada${count === 1 ? "" : "s"} en ${settings.tallerNombre || "el taller"}.\n\nTe adjunto el detalle en PDF.`;
@@ -4996,7 +5034,7 @@ function AuditLogView({ auditLog, tallerNombre }) {
                             e.userName || "Sistema", " \u00B7 ", AUDIT_MODULE_LABELS[e.module] || e.module, " \u00B7 ", fmtDateTimePE(e.ts)))));
             }))))));
 }
-function AjustesView({ settings, setSettings, cloudStatus, cloudError, cloudProjectId, db, users, setUsers, roles, setRoles, currentUser, currentRole, themeMode, setThemeMode, soundsEnabled, setSoundsEnabled, onLock, auditLog, logAudit }) {
+function AjustesView({ settings, setSettings, cloudStatus, cloudError, cloudProjectId, db, users, setUsers, roles, setRoles, currentUser, currentRole, themeMode, setThemeMode, soundsEnabled, setSoundsEnabled, dailyTipsEnabled, setDailyTipsEnabled, onLock, auditLog, logAudit }) {
     const [form, setForm] = useState(settings);
     const [saved, setSaved] = useState(false);
     const [tab, setTab] = useState("general");
@@ -5155,7 +5193,19 @@ function AjustesView({ settings, setSettings, cloudStatus, cloudError, cloudProj
                         React.createElement("div", { className: "text-sm font-medium" }, "Sonidos de confirmaci\u00F3n"),
                         React.createElement("p", { className: "text-xs mt-0.5", style: { color: C.textMute } }, "Un tono corto al registrar un pago, marcar una orden lista, crear una orden o si un PIN es incorrecto. Solo en este dispositivo.")),
                     React.createElement("button", { type: "button", onClick: () => setSoundsEnabled((v) => !v), className: "shrink-0 w-12 h-7 rounded-full relative transition-colors", style: { background: soundsEnabled ? C.accent : C.surfaceHi, border: `1px solid ${soundsEnabled ? C.accent : C.border}` } },
-                        React.createElement("span", { className: "absolute top-0.5 w-5 h-5 rounded-full transition-transform", style: { background: "#fff", transform: soundsEnabled ? "translateX(22px)" : "translateX(2px)" } })))),
+                        React.createElement("span", { className: "absolute top-0.5 w-5 h-5 rounded-full transition-transform", style: { background: "#fff", transform: soundsEnabled ? "translateX(22px)" : "translateX(2px)" } }))),
+                React.createElement("div", { className: "pt-4 flex items-center justify-between gap-3", style: { borderTop: `1px solid ${C.borderSoft}` } },
+                    React.createElement("div", null,
+                        React.createElement("div", { className: "text-sm font-medium" }, "Resúmenes y tips del día"),
+                        React.createElement("p", { className: "text-xs mt-0.5", style: { color: C.textMute } }, "Avisos aleatorios durante el día (resumen del taller o mensaje motivador). Se envían a todos los dispositivos con avisos activados, incluso con la app cerrada. Máximo 4 al día. Hace falta que al menos un equipo tenga la app abierta o instalada para disparar el horario.")),
+                    React.createElement("button", { type: "button", onClick: async () => {
+                            if (!dailyTipsEnabled && typeof Notification !== "undefined" && Notification.permission !== "granted") {
+                                const res = await Notification.requestPermission();
+                                if (res !== "granted") return;
+                            }
+                            setDailyTipsEnabled((v) => !v);
+                        }, className: "shrink-0 w-12 h-7 rounded-full relative transition-colors", style: { background: dailyTipsEnabled ? C.accent : C.surfaceHi, border: `1px solid ${dailyTipsEnabled ? C.accent : C.border}` } },
+                        React.createElement("span", { className: "absolute top-0.5 w-5 h-5 rounded-full transition-transform", style: { background: "#fff", transform: dailyTipsEnabled ? "translateX(22px)" : "translateX(2px)" } })))),
             readOnly && (React.createElement("div", { className: "text-sm px-4 py-2.5 rounded-xl", style: { background: C.warningSoft, color: C.warning } }, "Tu rol solo tiene permiso de lectura en Ajustes.")),
             React.createElement(Card, { className: "p-6 space-y-4" },
                 React.createElement("div", { className: "text-xs uppercase tracking-wide", style: { color: C.textMute } }, "Sincronizaci\u00F3n en la nube"),
@@ -5290,40 +5340,63 @@ function AjustesView({ settings, setSettings, cloudStatus, cloudError, cloudProj
 /* ---------------------------------- AUTENTICACIÓN ---------------------------------- */
 function AuthShell({ children, footer, settings }) {
     return (React.createElement("div", { style: {
-            background: `radial-gradient(1200px 600px at 15% -10%, ${C.accentSoft} 0%, transparent 55%), ${C.bg}`,
+            background: C.bg,
             color: C.text,
             fontFamily: "'Geist', system-ui, sans-serif",
             minHeight: "100vh",
+            position: "relative",
+            overflow: "hidden",
         }, className: "flex flex-col items-center justify-center p-5 sm:p-8" },
         React.createElement("style", null, getFonts()),
-        React.createElement("div", { className: "w-full max-w-sm space-y-6" },
-            React.createElement("div", { className: "flex flex-col items-center gap-3 text-center" },
-                (settings === null || settings === void 0 ? void 0 : settings.logoDataUrl) ? (React.createElement("div", { className: "w-14 h-14 rounded-2xl overflow-hidden", style: { background: C.surface, border: `1px solid ${C.borderSoft}`, boxShadow: C.shadow } },
-                    React.createElement("img", { src: settings.logoDataUrl, alt: "Logo del taller", className: "w-full h-full object-contain" }))) : (React.createElement("div", { className: "w-14 h-14 rounded-2xl flex items-center justify-center", style: { background: `linear-gradient(160deg, ${shadeHex(C.accent, 0.1)} 0%, ${shadeHex(C.accent, -0.22)} 100%)`, boxShadow: `inset 0 1px 0 rgba(255,255,255,0.3), ${C.shadowGlow}` } },
-                    React.createElement(Wrench, { size: 26, style: { color: "#1A0D05" } }))),
+        React.createElement("div", { className: "auth-orb absolute pointer-events-none", style: {
+                width: 420, height: 420, borderRadius: "50%",
+                background: `radial-gradient(circle, ${C.accent}22 0%, transparent 70%)`,
+                top: "-10%", left: "-8%", filter: "blur(2px)",
+            } }),
+        React.createElement("div", { className: "auth-orb absolute pointer-events-none", style: {
+                width: 340, height: 340, borderRadius: "50%",
+                background: `radial-gradient(circle, ${C.info}18 0%, transparent 70%)`,
+                bottom: "-5%", right: "-5%", filter: "blur(2px)", animationDelay: "-4s",
+            } }),
+        React.createElement("div", { className: "auth-orb absolute pointer-events-none", style: {
+                width: 200, height: 200, borderRadius: "50%",
+                background: `radial-gradient(circle, ${C.purple}14 0%, transparent 70%)`,
+                top: "40%", right: "15%", filter: "blur(1px)", animationDelay: "-8s",
+            } }),
+        React.createElement("div", { className: "w-full max-w-[380px] space-y-7 relative z-10 auth-fade-up" },
+            React.createElement("div", { className: "flex flex-col items-center gap-4 text-center" },
+                (settings === null || settings === void 0 ? void 0 : settings.logoDataUrl) ? (React.createElement("div", { className: "w-16 h-16 rounded-[20px] overflow-hidden auth-float", style: { background: C.surface, border: `1px solid ${C.border}`, boxShadow: `${C.shadowLg}, ${C.shadowGlow}` } },
+                    React.createElement("img", { src: settings.logoDataUrl, alt: "Logo del taller", className: "w-full h-full object-contain" }))) : (React.createElement("div", { className: "w-16 h-16 rounded-[20px] flex items-center justify-center auth-float", style: { background: C.accent, boxShadow: `${C.shadowGlow}, 0 0 40px ${C.accent}33` } },
+                    React.createElement(Wrench, { size: 28, style: { color: "#1A0D05" } }))),
                 React.createElement("div", null,
-                    React.createElement("div", { style: { fontFamily: "'Geist', system-ui, sans-serif", letterSpacing: "0.06em" }, className: "text-2xl leading-none" }, (settings === null || settings === void 0 ? void 0 : settings.tallerNombre) || "EXPERT"),
-                    React.createElement("div", { className: "text-[11px] uppercase tracking-widest mt-1", style: { color: C.textMute } }, "Gesti\u00F3n de taller"))),
+                    React.createElement("div", { style: { fontFamily: "'Geist', system-ui, sans-serif", letterSpacing: "-0.03em" }, className: "text-[26px] font-semibold leading-none" }, (settings === null || settings === void 0 ? void 0 : settings.tallerNombre) || "EXPERT"),
+                    React.createElement("div", { className: "text-[12px] mt-1.5 tracking-wide", style: { color: C.textMute } }, "Gestión de taller"))),
             children),
-        footer));
+        footer && React.createElement("div", { className: "relative z-10 mt-6 auth-fade-up", style: { animationDelay: "0.15s" } }, footer)));
 }
 function PinDots({ length, filled, error }) {
-    return (React.createElement("div", { className: `flex items-center justify-center gap-3 ${error ? "anim-shake" : ""}` }, Array.from({ length }).map((_, i) => (React.createElement("span", { key: i, className: "w-3.5 h-3.5 rounded-full transition-all duration-150", style: {
-            background: i < filled ? (error ? C.danger : C.accent) : "transparent",
-            border: `2px solid ${i < filled ? (error ? C.danger : C.accent) : C.border}`,
-            boxShadow: i < filled ? `0 0 8px ${error ? C.danger : C.accent}` : "none",
-        } })))));
+    return (React.createElement("div", { className: `flex items-center justify-center gap-4 ${error ? "anim-shake" : ""}` }, Array.from({ length }).map((_, i) => {
+        const isFilled = i < filled;
+        return React.createElement("span", { key: i, className: isFilled && !error ? "pin-pop" : "", style: {
+                width: 14, height: 14, borderRadius: "50%",
+                background: isFilled ? (error ? C.danger : C.accent) : "transparent",
+                border: `2px solid ${isFilled ? (error ? C.danger : C.accent) : C.border}`,
+                boxShadow: isFilled ? `0 0 12px ${error ? C.danger : C.accent}88, 0 0 24px ${error ? C.danger : C.accent}33` : "none",
+                transition: "background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease",
+                display: "inline-block",
+            } });
+    })));
 }
 function PinPad({ onDigit, onBackspace, disabled }) {
     const keys = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "", "0", "back"];
-    return (React.createElement("div", { className: "grid grid-cols-3 gap-3" }, keys.map((k, i) => {
+    return (React.createElement("div", { className: "grid grid-cols-3 gap-2.5" }, keys.map((k, i) => {
         if (k === "")
             return React.createElement("div", { key: i });
         if (k === "back") {
-            return (React.createElement("button", { key: i, type: "button", disabled: disabled, onClick: onBackspace, className: "h-14 rounded-2xl flex items-center justify-center transition-all active:scale-95 disabled:opacity-30", style: { background: C.surfaceHi, border: `1px solid ${C.borderSoft}`, color: C.textSoft } },
+            return (React.createElement("button", { key: i, type: "button", disabled: disabled, onClick: onBackspace, className: "h-[56px] rounded-2xl flex items-center justify-center transition-all duration-150 active:scale-90 disabled:opacity-30", style: { background: C.surfaceHi, border: `1px solid ${C.borderSoft}`, color: C.textSoft } },
                 React.createElement(X, { size: 18 })));
         }
-        return (React.createElement("button", { key: i, type: "button", disabled: disabled, onClick: () => onDigit(k), className: "h-14 rounded-2xl text-lg font-semibold transition-all active:scale-95 disabled:opacity-30", style: { background: C.surfaceHi, border: `1px solid ${C.borderSoft}`, color: C.text, fontFamily: "'Geist Mono', ui-monospace, monospace" } }, k));
+        return (React.createElement("button", { key: i, type: "button", disabled: disabled, onClick: () => onDigit(k), className: "h-[56px] rounded-2xl text-[20px] font-semibold transition-all duration-150 active:scale-90 disabled:opacity-30 hover:brightness-125", style: { background: C.surfaceHi, border: `1px solid ${C.borderSoft}`, color: C.text, fontFamily: "'Geist Mono', ui-monospace, monospace" } }, k));
     })));
 }
 function UserAvatar({ user, role, size = 44 }) {
@@ -5332,11 +5405,12 @@ function UserAvatar({ user, role, size = 44 }) {
             width: size,
             height: size,
             fontSize: size * 0.36,
-            background: `linear-gradient(160deg, ${color} 0%, ${color}99 100%)`,
+            background: `linear-gradient(145deg, ${color} 0%, ${shadeHex(color, -0.25)} 100%)`,
             color: "#1A0D05",
-            boxShadow: `0 4px 14px -4px ${color}88`,
+            boxShadow: `0 4px 16px -4px ${color}99, inset 0 1px 0 rgba(255,255,255,0.25)`,
         } }, initialsOf(user === null || user === void 0 ? void 0 : user.name)));
 }
+
 // Primer uso del sistema: no hay usuarios todavía, así que se crea la cuenta de Administrador.
 function SetupWizard({ onCreateAdmin }) {
     const [name, setName] = useState("");
@@ -5382,8 +5456,8 @@ function SetupWizard({ onCreateAdmin }) {
     return (React.createElement(AuthShell, null,
         React.createElement(Card, { className: "p-6 space-y-5" },
             React.createElement("div", { className: "text-center space-y-1" },
-                React.createElement("div", { style: { fontFamily: "'Geist', system-ui, sans-serif" }, className: "text-lg tracking-wide uppercase" }, "Primer acceso"),
-                React.createElement("p", { className: "text-xs", style: { color: C.textMute } },
+                React.createElement("div", { style: { fontFamily: "'Geist', system-ui, sans-serif", letterSpacing: "-0.02em" }, className: "text-[18px] font-semibold" }, "Primer acceso"),
+                React.createElement("p", { className: "text-[13px]", style: { color: C.textMute } },
                     step === 1 && "Crea la cuenta de Administrador del sistema.",
                     step === 2 && "Elige un PIN de 4 dígitos para tu cuenta.",
                     step === 3 && "Confirma tu PIN.")),
@@ -5466,37 +5540,43 @@ function LoginScreen({ users, roles, settings, onLogin }) {
     };
     if (!selected) {
         return (React.createElement(AuthShell, { settings: settings },
-            React.createElement("div", { className: "space-y-1 text-center mb-2" },
-                React.createElement("div", { style: { fontFamily: "'Geist', system-ui, sans-serif" }, className: "text-lg tracking-wide uppercase" }, "Selecciona tu usuario"),
-                React.createElement("p", { className: "text-xs", style: { color: C.textMute } }, "Toca tu perfil para ingresar")),
-            React.createElement("div", { className: "grid grid-cols-2 gap-3" }, activeUsers.map((u) => {
+            React.createElement("div", { className: "space-y-1.5 text-center mb-1 auth-scale-in" },
+                React.createElement("div", { style: { fontFamily: "'Geist', system-ui, sans-serif", letterSpacing: "-0.02em" }, className: "text-[18px] font-semibold" }, "¿Quién eres?"),
+                React.createElement("p", { className: "text-[13px]", style: { color: C.textMute } }, "Selecciona tu perfil para continuar")),
+            React.createElement("div", { className: "grid grid-cols-2 gap-3 auth-stagger" }, activeUsers.map((u) => {
                 const role = getRole(roles, u.roleId);
-                return (React.createElement("button", { key: u.id, onClick: () => { setSelected(u); setPin(""); setAttempts(0); if (hasBiometricEnrolled(u.id)) tryBiometric(u); }, className: "flex flex-col items-center gap-2.5 p-4 rounded-2xl transition-all active:scale-95 hover:-translate-y-0.5", style: { background: C.surface, border: `1px solid ${C.border}`, boxShadow: C.shadow } },
-                    React.createElement(UserAvatar, { user: u, role: role, size: 52 }),
+                return (React.createElement("button", { key: u.id, onClick: () => { setSelected(u); setPin(""); setAttempts(0); if (hasBiometricEnrolled(u.id)) tryBiometric(u); }, className: "flex flex-col items-center gap-3 p-5 rounded-2xl transition-all duration-200 active:scale-95 hover:-translate-y-1", style: { background: C.surface, border: `1px solid ${C.border}`, boxShadow: C.shadow } },
+                    React.createElement(UserAvatar, { user: u, role: role, size: 56 }),
                     React.createElement("div", { className: "text-center min-w-0 w-full" },
-                        React.createElement("div", { className: "text-sm font-medium truncate" }, u.name),
-                        React.createElement("div", { className: "text-[10px] truncate uppercase tracking-wide", style: { color: C.textMute } }, (role === null || role === void 0 ? void 0 : role.name) || "Sin rol"))));
+                        React.createElement("div", { className: "text-[13px] font-semibold truncate" }, u.name),
+                        React.createElement("div", { className: "text-[11px] truncate mt-0.5", style: { color: C.textMute } }, (role === null || role === void 0 ? void 0 : role.name) || "Sin rol")),
+                    hasBiometricEnrolled(u.id) && React.createElement("div", { className: "flex items-center gap-1 text-[10px]", style: { color: C.accentText } },
+                        React.createElement(Fingerprint, { size: 11 }), " Huella")));
             })),
-            activeUsers.length === 0 && (React.createElement(Card, { className: "p-5 text-center text-sm", style: { color: C.textMute } }, "No hay usuarios activos. Pide a un administrador que reactive tu cuenta."))));
+            activeUsers.length === 0 && (React.createElement("div", { className: "p-6 text-center text-sm rounded-2xl", style: { color: C.textMute, background: C.surface, border: `1px solid ${C.border}` } }, "No hay usuarios activos. Pide a un administrador que reactive tu cuenta."))));
     }
     const role = getRole(roles, selected.roleId);
     return (React.createElement(AuthShell, { settings: settings },
-        React.createElement("div", { className: "flex flex-col items-center gap-3 -mt-2" },
-            React.createElement(UserAvatar, { user: selected, role: role, size: 64 }),
+        React.createElement("div", { className: "flex flex-col items-center gap-3 auth-scale-in" },
+            React.createElement("div", { className: "relative" },
+                React.createElement(UserAvatar, { user: selected, role: role, size: 72 }),
+                React.createElement("div", { className: "absolute -bottom-1 -right-1 w-6 h-6 rounded-full flex items-center justify-center", style: { background: C.surface, border: `2px solid ${C.bg}` } },
+                    React.createElement(KeyRound, { size: 12, style: { color: C.accent } }))),
             React.createElement("div", { className: "text-center" },
-                React.createElement("div", { className: "text-base font-semibold" }, selected.name),
-                React.createElement("div", { className: "text-xs", style: { color: C.textMute } }, (role === null || role === void 0 ? void 0 : role.name) || "Sin rol"))),
-        React.createElement("div", { className: "space-y-5" },
-            locked ? (React.createElement("div", { className: "text-center text-sm py-3 rounded-xl", style: { background: C.dangerSoft, color: C.danger } },
+                React.createElement("div", { className: "text-[17px] font-semibold" }, selected.name),
+                React.createElement("div", { className: "text-[12px] mt-0.5", style: { color: C.textMute } }, (role === null || role === void 0 ? void 0 : role.name) || "Sin rol")),
+            React.createElement("p", { className: "text-[13px]", style: { color: C.textSoft } }, "Ingresa tu PIN de 4 dígitos")),
+        React.createElement("div", { className: "space-y-6 auth-fade-up", style: { animationDelay: "0.1s" } },
+            locked ? (React.createElement("div", { className: "text-center text-sm py-4 px-4 rounded-2xl font-medium", style: { background: C.dangerSoft, color: C.danger, border: `1px solid ${C.danger}33` } },
                 "Demasiados intentos. Espera ",
                 Math.ceil((lockedUntil - now) / 1000),
-                "s.")) : (React.createElement(React.Fragment, null,
+                "s")) : (React.createElement(React.Fragment, null,
                 React.createElement(PinDots, { length: 4, filled: pin.length, error: error }),
                 React.createElement(PinPad, { disabled: busy, onDigit: onDigit, onBackspace: () => setPin(pin.slice(0, -1)) }),
-                hasBiometricEnrolled(selected.id) && (React.createElement("button", { onClick: () => tryBiometric(selected), disabled: bioBusy, className: "w-full flex items-center justify-center gap-2 text-xs py-2.5 rounded-xl", style: { background: C.surface, border: `1px solid ${C.border}`, color: bioError ? C.danger : C.textSoft } },
-                    React.createElement(Fingerprint, { size: 15 }),
-                    bioBusy ? "Verificando\u2026" : bioError ? "No se reconoci\u00F3. Toca para reintentar." : "Usar huella / Face ID")))),
-            React.createElement("button", { onClick: () => { setSelected(null); setPin(""); }, className: "w-full text-center text-xs py-2", style: { color: C.textMute } }, "\u2190 Cambiar de usuario"))));
+                hasBiometricEnrolled(selected.id) && (React.createElement("button", { onClick: () => tryBiometric(selected), disabled: bioBusy, className: "w-full flex items-center justify-center gap-2.5 text-[13px] py-3 rounded-2xl transition-all active:scale-[0.98]", style: { background: C.surface, border: `1px solid ${C.border}`, color: bioError ? C.danger : C.textSoft, boxShadow: C.shadow } },
+                    React.createElement(Fingerprint, { size: 16 }),
+                    bioBusy ? "Verificando…" : bioError ? "No se reconoció. Toca para reintentar." : "Usar huella / Face ID")))),
+            React.createElement("button", { onClick: () => { setSelected(null); setPin(""); }, className: "w-full text-center text-[13px] py-2.5 transition-colors hover:opacity-80", style: { color: C.textMute } }, "← Cambiar de usuario"))));
 }
 // Pantalla de bloqueo rápido (inactividad): pide el PIN del usuario ya conectado sin cerrar sesión.
 function LockScreen({ user, role, settings, onUnlock, onSwitchUser }) {
@@ -5548,22 +5628,25 @@ function LockScreen({ user, role, settings, onUnlock, onSwitchUser }) {
         }
     };
     return (React.createElement(AuthShell, { settings: settings },
-        React.createElement("div", { className: "flex flex-col items-center gap-3 -mt-2" },
-            React.createElement("div", { className: "flex items-center gap-2 text-xs uppercase tracking-widest", style: { color: C.textMute } },
-                React.createElement(KeyRound, { size: 13 }),
+        React.createElement("div", { className: "flex flex-col items-center gap-4 auth-scale-in" },
+            React.createElement("div", { className: "flex items-center gap-2 px-3 py-1.5 rounded-full text-[11px] font-medium tracking-wide", style: { color: C.warning, background: C.warningSoft, border: `1px solid ${C.warning}33` } },
+                React.createElement(KeyRound, { size: 12 }),
                 " Pantalla bloqueada"),
-            React.createElement(UserAvatar, { user: user, role: role, size: 64 }),
+            React.createElement("div", { className: "relative" },
+                React.createElement(UserAvatar, { user: user, role: role, size: 76 }),
+                React.createElement("div", { className: "absolute inset-0 rounded-full auth-pulse pointer-events-none", style: { boxShadow: `0 0 0 3px ${C.accent}33` } })),
             React.createElement("div", { className: "text-center" },
-                React.createElement("div", { className: "text-base font-semibold" }, user === null || user === void 0 ? void 0 : user.name),
-                React.createElement("div", { className: "text-xs", style: { color: C.textMute } }, "Ingresa tu PIN para continuar"))),
-        React.createElement("div", { className: "space-y-5" },
+                React.createElement("div", { className: "text-[18px] font-semibold" }, user === null || user === void 0 ? void 0 : user.name),
+                React.createElement("div", { className: "text-[13px] mt-1", style: { color: C.textSoft } }, "Ingresa tu PIN para continuar"))),
+        React.createElement("div", { className: "space-y-6 auth-fade-up", style: { animationDelay: "0.12s" } },
             React.createElement(PinDots, { length: 4, filled: pin.length, error: error }),
             React.createElement(PinPad, { disabled: busy, onDigit: onDigit, onBackspace: () => setPin(pin.slice(0, -1)) }),
-            bioEnrolled && (React.createElement("button", { onClick: tryBiometric, disabled: bioBusy, className: "w-full flex items-center justify-center gap-2 text-xs py-2.5 rounded-xl", style: { background: C.surface, border: `1px solid ${C.border}`, color: bioError ? C.danger : C.textSoft } },
-                React.createElement(Fingerprint, { size: 15 }),
-                bioBusy ? "Verificando\u2026" : bioError ? "No se reconoci\u00F3. Toca para reintentar." : "Usar huella / Face ID")),
-            React.createElement("button", { onClick: onSwitchUser, className: "w-full text-center text-xs py-2", style: { color: C.textMute } }, "\u2190 Cambiar de usuario / cerrar sesi\u00F3n"))));
+            bioEnrolled && (React.createElement("button", { onClick: tryBiometric, disabled: bioBusy, className: "w-full flex items-center justify-center gap-2.5 text-[13px] py-3 rounded-2xl transition-all active:scale-[0.98]", style: { background: C.surface, border: `1px solid ${C.border}`, color: bioError ? C.danger : C.textSoft, boxShadow: C.shadow } },
+                React.createElement(Fingerprint, { size: 16 }),
+                bioBusy ? "Verificando…" : bioError ? "No se reconoció. Toca para reintentar." : "Usar huella / Face ID")),
+            React.createElement("button", { onClick: onSwitchUser, className: "w-full text-center text-[13px] py-2.5 transition-colors hover:opacity-80", style: { color: C.textMute } }, "← Cambiar de usuario / cerrar sesión"))));
 }
+
 /* ---------------------------------- PÁGINA PÚBLICA · APROBACIÓN DEL CLIENTE ---------------------------------- */
 function ClientApprovalPage({ pf, client, vehicle, settings, onApprove, onReject }) {
     const [name, setName] = useState((client === null || client === void 0 ? void 0 : client.name) || "");
@@ -6043,6 +6126,137 @@ function playSound(name) {
     if (player)
         player();
 }
+/* ---------------------------------- RESÚMENES ALEATORIOS DEL DÍA ---------------------------------- */
+// Notificaciones locales durante el día: resumen del taller si hay novedades, o un mensaje
+// motivador si está todo tranquilo. Solo en este dispositivo (no usa el servidor de push).
+const MOTIVATIONAL_MESSAGES = [
+    { title: "¡Sigue así! 💪", body: "Cada orden bien gestionada suma. Abre Expert y revisa qué toca hoy." },
+    { title: "Tu taller, bajo control 🔧", body: "Un vistazo rápido a las órdenes puede ahorrarte tiempo después." },
+    { title: "Pequeños pasos, grandes resultados", body: "Revisa el inventario o la agenda. Mantener el orden marca la diferencia." },
+    { title: "Momento Expert ✨", body: "¿Hay algún vehículo listo para entregar? Entra y confírmalo." },
+    { title: "Organización = menos estrés", body: "Actualiza el estado de una orden. Tus clientes lo notarán." },
+    { title: "El taller no se detiene 🚗", body: "Revisa si alguien espera repuesto o una respuesta de proforma." },
+    { title: "Hoy es buen día para avanzar", body: "Abre el Panel y mira el resumen. Todo en un solo lugar." },
+    { title: "Calidad en cada detalle", body: "Una proforma clara o un acta de recepción bien hecha genera confianza." },
+    { title: "Tu equipo cuenta contigo", body: "Si hay órdenes en diagnóstico, asígnalas y mantén el flujo." },
+    { title: "Constancia que se nota 📈", body: "Lleva al día la caja y los abonos. El control financiero empieza aquí." },
+    { title: "Clientes felices, taller fuerte", body: "¿Alguna orden lista? Notifica y entrega. Esa es la mejor publicidad." },
+    { title: "Un minuto bien invertido", body: "Revisa stock bajo. Evitar quedarte sin repuestos te ahorra dolores de cabeza." },
+    { title: "Profesionalismo en marcha", body: "Expert está listo cuando tú lo estés. Entra y sigue construyendo." },
+    { title: "El orden se nota afuera", body: "Agenda, órdenes y caja al día = un taller que inspira confianza." },
+    { title: "Sigue el ritmo 🎯", body: "Mira qué hay para hoy. Un plan claro hace más liviano el trabajo." },
+];
+function buildDailySummary({ orders = [], parts = [], appointments = [], proformas = [], caja = [] }) {
+    const today = new Date().toISOString().slice(0, 10);
+    const activos = orders.filter((o) => o.status !== "entregado");
+    const listos = orders.filter((o) => o.status === "listo");
+    const esperaRepuesto = orders.filter((o) => o.status === "espera_repuesto");
+    const bajoStock = parts.filter((p) => p.stock <= p.min);
+    const citasHoy = appointments.filter((a) => a.date === today);
+    const proformasPendientes = proformas.filter((p) => p.status === "pendiente");
+    const ingresosHoy = caja.filter((m) => m.type === "ingreso" && m.date === today).reduce((s, m) => s + (m.amount || 0), 0);
+    const tips = [];
+    if (listos.length > 0)
+        tips.push(`${listos.length} orden${listos.length > 1 ? "es" : ""} lista${listos.length > 1 ? "s" : ""} para entregar`);
+    if (esperaRepuesto.length > 0)
+        tips.push(`${esperaRepuesto.length} esperando repuesto`);
+    if (bajoStock.length > 0)
+        tips.push(`${bajoStock.length} repuesto${bajoStock.length > 1 ? "s" : ""} con stock bajo`);
+    if (citasHoy.length > 0)
+        tips.push(`${citasHoy.length} cita${citasHoy.length > 1 ? "s" : ""} agendada${citasHoy.length > 1 ? "s" : ""} hoy`);
+    if (proformasPendientes.length > 0)
+        tips.push(`${proformasPendientes.length} proforma${proformasPendientes.length > 1 ? "s" : ""} pendiente${proformasPendientes.length > 1 ? "s" : ""}`);
+    if (activos.length > 0 && tips.length === 0)
+        tips.push(`${activos.length} orden${activos.length > 1 ? "es" : ""} activa${activos.length > 1 ? "s" : ""} en el taller`);
+    if (ingresosHoy > 0)
+        tips.push(`Hoy llevas S/ ${ingresosHoy.toFixed(0)} en ingresos registrados`);
+    if (tips.length === 0)
+        return null;
+    const title = "Resumen del taller 📋";
+    const body = tips.slice(0, 3).join(" · ");
+    return { title, body, kind: "summary" };
+}
+function pickMotivational() {
+    const m = MOTIVATIONAL_MESSAGES[Math.floor(Math.random() * MOTIVATIONAL_MESSAGES.length)];
+    return { title: m.title, body: m.body, kind: "motivation" };
+}
+function getDailyTipStats() {
+    try {
+        const raw = window.localStorage.getItem("expertTaller.dailyTips.stats");
+        const today = new Date().toISOString().slice(0, 10);
+        if (!raw) return { date: today, count: 0 };
+        const parsed = JSON.parse(raw);
+        if (parsed.date !== today) return { date: today, count: 0 };
+        return parsed;
+    } catch (e) {
+        return { date: new Date().toISOString().slice(0, 10), count: 0 };
+    }
+}
+function bumpDailyTipStats() {
+    const stats = getDailyTipStats();
+    stats.count = (stats.count || 0) + 1;
+    try { window.localStorage.setItem("expertTaller.dailyTips.stats", JSON.stringify(stats)); } catch (e) { }
+    return stats;
+}
+function showLocalNotification(title, body, tag) {
+    if (typeof Notification === "undefined" || Notification.permission !== "granted")
+        return false;
+    try {
+        const n = new Notification(title, {
+            body: body,
+            tag: tag || ("daily-tip-" + Date.now()),
+            icon: "icon-192.png",
+            badge: "icon-192.png",
+        });
+        n.onclick = () => { try { window.focus(); n.close(); } catch (e) { } };
+        return true;
+    } catch (e) {
+        return false;
+    }
+}
+// Programa la próxima notificación aleatoria dentro de una ventana de horas laborables.
+// Máximo 4 al día. Si no hay permiso de notificaciones, no hace nada.
+function scheduleNextDailyTip(getSnapshot, enabledRef) {
+    if (!enabledRef.current) return null;
+    if (typeof Notification === "undefined" || Notification.permission !== "granted") return null;
+    const stats = getDailyTipStats();
+    if (stats.count >= 4) return null;
+    const now = new Date();
+    const hour = now.getHours();
+    // Ventana: 8:00 – 20:00
+    if (hour >= 20) return null;
+    // Espera aleatoria entre 45 min y 3.5 horas
+    const minMs = 45 * 60 * 1000;
+    const maxMs = 3.5 * 60 * 60 * 1000;
+    let delay = minMs + Math.random() * (maxMs - minMs);
+    // Si caeríamos fuera de horario, acortar
+    const msUntil20 = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 20, 0, 0).getTime() - now.getTime();
+    if (msUntil20 > 0 && delay > msUntil20) delay = Math.max(minMs, msUntil20 * (0.4 + Math.random() * 0.5));
+    // Primera del día: si aún no hubo ninguna y son más de las 9, puede salir antes (15–50 min)
+    if (stats.count === 0 && hour >= 9) {
+        delay = Math.min(delay, (15 + Math.random() * 35) * 60 * 1000);
+    }
+    const timerId = setTimeout(() => {
+        if (!enabledRef.current) return;
+        const snap = typeof getSnapshot === "function" ? getSnapshot() : {};
+        const summary = buildDailySummary(snap || {});
+        const msg = summary || pickMotivational();
+        // 1) Notificación local en este dispositivo (si hay permiso)
+        showLocalNotification(msg.title, msg.body, "expert-daily-" + Date.now());
+        // 2) Push a TODOS los dispositivos registrados (incluso con la app cerrada),
+        //    usando el mismo endpoint FCM/Vercel que las aprobaciones de clientes.
+        try {
+            if (typeof triggerPushNotification === "function") {
+                triggerPushNotification(null, { title: msg.title, body: msg.body });
+            }
+        } catch (e) { console.warn("No se pudo enviar el tip por push", e); }
+        bumpDailyTipStats();
+        // Programar la siguiente
+        scheduleNextDailyTip(getSnapshot, enabledRef);
+    }, delay);
+    return timerId;
+}
+
 /* ---------------------------------- APP ---------------------------------- */
 function App() {
     var _a;
@@ -6055,6 +6269,11 @@ function App() {
     useEffect(() => {
         __soundsEnabledRef.current = soundsEnabled;
     }, [soundsEnabled]);
+    // Resúmenes / mensajes motivadores aleatorios durante el día (solo este dispositivo).
+    const [dailyTipsEnabled, setDailyTipsEnabled] = usePersistentState("expertTaller.dailyTips", true);
+    const dailyTipsEnabledRef = useRef(dailyTipsEnabled);
+    useEffect(() => { dailyTipsEnabledRef.current = dailyTipsEnabled; }, [dailyTipsEnabled]);
+    const dailyTipDataRef = useRef({});
     const [systemPrefersDark, setSystemPrefersDark] = useState(() => (typeof window !== "undefined" && window.matchMedia ? window.matchMedia("(prefers-color-scheme: dark)").matches : true));
     useEffect(() => {
         if (!window.matchMedia)
@@ -6162,6 +6381,26 @@ function App() {
     const [fcmTokens, setFcmTokens] = useCloudSync("expertTaller.fcmTokens", [], db);
     const [pagosProgramados, setPagosProgramados] = useCloudSync("expertTaller.pagosProgramados", [], db);
     const [avisosBroadcast, setAvisosBroadcast] = useCloudSync("expertTaller.avisosBroadcast", [], db);
+    // Mantener snapshot para resúmenes aleatorios y programar notificaciones del día.
+    useEffect(() => {
+        dailyTipDataRef.current = { orders, parts, appointments, proformas, caja };
+    }, [orders, parts, appointments, proformas, caja]);
+    useEffect(() => {
+        if (!dailyTipsEnabled) return;
+        if (typeof Notification === "undefined") return;
+        if (Notification.permission !== "granted") return;
+        // No programar en la vista pública de aprobación del cliente.
+        if (window.location.hash && window.location.hash.indexOf("#aprobar-") === 0) return;
+        let cancelled = false;
+        let timerId = null;
+        const arm = () => {
+            if (cancelled) return;
+            timerId = scheduleNextDailyTip(() => dailyTipDataRef.current, dailyTipsEnabledRef);
+        };
+        arm();
+        return () => { cancelled = true; if (timerId) clearTimeout(timerId); };
+    }, [dailyTipsEnabled]);
+
     const [broadcastSending, setBroadcastSending] = useState(false);
     const [broadcastError, setBroadcastError] = useState("");
     const sendBroadcast = async (text) => {
@@ -6213,7 +6452,17 @@ function App() {
     const ensurePushToken = async () => {
         setPushError("");
         try {
-            if (!VAPID_KEY || !window.firebase || !firebase.messaging) {
+            if (!VAPID_KEY || !window.firebase) {
+                setPushError("Este navegador no cargó bien la librería de avisos. Prueba recargando la página.");
+                return;
+            }
+            try {
+                await ensureFirebaseMessaging();
+            } catch (e) {
+                setPushError("No se pudo cargar el módulo de avisos. Revisa tu conexión.");
+                return;
+            }
+            if (!firebase.messaging) {
                 setPushError("Este navegador no cargó bien la librería de avisos. Prueba recargando la página.");
                 return;
             }
@@ -6582,7 +6831,7 @@ function App() {
                     active === "pagos" && (React.createElement(PagosProgramadosView, { items: pagosProgramados, onSave: savePagoProgramado, onDelete: deletePagoProgramado, onToggleActivo: togglePagoProgramadoActivo, readOnly: !canEditModule(currentRole, "pagos") })),
                     active === "solicitudes" && (React.createElement(SolicitudesView, { items: solicitudes, onMarkAtendida: markSolicitudAtendida, onDelete: deleteSolicitud, onCreateClient: createClientFromSolicitud })),
                     active === "avisos" && (React.createElement(AvisosBroadcastView, { history: avisosBroadcast, onSend: sendBroadcast, sending: broadcastSending, error: broadcastError, deviceCount: fcmTokens.length, settings: settings, setSettings: setSettings })),
-                    active === "ajustes" && (React.createElement(AjustesView, { settings: settings, setSettings: setSettings, cloudStatus: cloudStatus, cloudError: cloudError, cloudProjectId: cloudProjectId, db: db, users: users, setUsers: setUsers, roles: roles, setRoles: setRoles, currentUser: currentUser, currentRole: currentRole, themeMode: themeMode, setThemeMode: setThemeMode, soundsEnabled: soundsEnabled, setSoundsEnabled: setSoundsEnabled, onLock: lockNow, auditLog: auditLog, logAudit: logAudit })))))))));
+                    active === "ajustes" && (React.createElement(AjustesView, { settings: settings, setSettings: setSettings, cloudStatus: cloudStatus, cloudError: cloudError, cloudProjectId: cloudProjectId, db: db, users: users, setUsers: setUsers, roles: roles, setRoles: setRoles, currentUser: currentUser, currentRole: currentRole, themeMode: themeMode, setThemeMode: setThemeMode, soundsEnabled: soundsEnabled, setSoundsEnabled: setSoundsEnabled, dailyTipsEnabled: dailyTipsEnabled, setDailyTipsEnabled: setDailyTipsEnabled, onLock: lockNow, auditLog: auditLog, logAudit: logAudit })))))))));
 }
 </script>
 
