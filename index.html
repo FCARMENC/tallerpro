@@ -1163,23 +1163,106 @@ const formatPlatePE = (raw) => {
 // Dibuja el logo del taller (si hay uno subido en Ajustes) en la esquina superior izquierda del
 // PDF, respetando su proporción original. Devuelve cuántos mm hay que correr el texto del
 // encabezado a la derecha para no encimarse con la imagen (0 si no hay logo).
-function addTallerHeaderLogo(doc, settings, marginX) {
+function detectImageFormat(dataUrl) {
+    if (!dataUrl || typeof dataUrl !== "string") return null;
+    const head = dataUrl.slice(0, 40).toLowerCase();
+    if (head.indexOf("image/png") !== -1) return "PNG";
+    if (head.indexOf("image/jpeg") !== -1 || head.indexOf("image/jpg") !== -1) return "JPEG";
+    if (head.indexOf("image/webp") !== -1) return "WEBP";
+    if (head.indexOf("image/gif") !== -1) return "GIF";
+    // data URL sin mime claro: intentar por firma base64
+    try {
+        const b64 = dataUrl.split(",")[1] || "";
+        if (b64.indexOf("iVBOR") === 0) return "PNG";
+        if (b64.indexOf("/9j/") === 0) return "JPEG";
+    } catch (e) { }
+    return null;
+}
+// Convierte cualquier dataURL de imagen a PNG (jsPDF es más fiable con PNG/JPEG).
+function dataUrlToPng(dataUrl) {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => {
+            try {
+                const canvas = document.createElement("canvas");
+                canvas.width = img.naturalWidth || img.width;
+                canvas.height = img.naturalHeight || img.height;
+                const ctx = canvas.getContext("2d");
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                ctx.drawImage(img, 0, 0);
+                resolve(canvas.toDataURL("image/png"));
+            } catch (e) {
+                reject(e);
+            }
+        };
+        img.onerror = () => reject(new Error("No se pudo cargar el logo para el PDF"));
+        img.src = dataUrl;
+    });
+}
+function addTallerHeaderLogo(doc, settings, marginX, yPos) {
     if (!(settings === null || settings === void 0 ? void 0 : settings.logoDataUrl))
         return 0;
+    const y = yPos != null ? yPos : 8;
     try {
-        const maxH = 16, maxW = 38;
+        const maxH = 18, maxW = 42;
         const aspect = settings.logoAspect && settings.logoAspect > 0 ? settings.logoAspect : 1;
         let w = maxH * aspect, h = maxH;
         if (w > maxW) {
             w = maxW;
             h = w / aspect;
         }
-        const fmt = settings.logoDataUrl.indexOf("image/png") !== -1 ? "PNG" : "JPEG";
-        doc.addImage(settings.logoDataUrl, fmt, marginX, 8, w, h);
+        let dataUrl = settings.logoDataUrl;
+        let fmt = detectImageFormat(dataUrl);
+        // WEBP/GIF u otros: jsPDF a menudo falla; se convierten a PNG de forma síncrona si ya es PNG/JPEG
+        if (fmt === "PNG" || fmt === "JPEG") {
+            doc.addImage(dataUrl, fmt, marginX, y, w, h);
+            return w + 5;
+        }
+        // Formato desconocido o problemático: intentar como PNG y luego JPEG
+        try {
+            doc.addImage(dataUrl, "PNG", marginX, y, w, h);
+            return w + 5;
+        } catch (e1) {
+            try {
+                doc.addImage(dataUrl, "JPEG", marginX, y, w, h);
+                return w + 5;
+            } catch (e2) {
+                console.warn("Logo no se pudo insertar en el PDF:", e2);
+                return 0;
+            }
+        }
+    }
+    catch (e) {
+        console.warn("Logo PDF:", e);
+        return 0;
+    }
+}
+// Versión async: convierte el logo a PNG antes de dibujarlo (máxima compatibilidad).
+async function addTallerHeaderLogoAsync(doc, settings, marginX, yPos) {
+    if (!(settings === null || settings === void 0 ? void 0 : settings.logoDataUrl))
+        return 0;
+    const y = yPos != null ? yPos : 8;
+    try {
+        const maxH = 18, maxW = 42;
+        const aspect = settings.logoAspect && settings.logoAspect > 0 ? settings.logoAspect : 1;
+        let w = maxH * aspect, h = maxH;
+        if (w > maxW) {
+            w = maxW;
+            h = w / aspect;
+        }
+        let dataUrl = settings.logoDataUrl;
+        const fmt = detectImageFormat(dataUrl);
+        if (fmt !== "PNG" && fmt !== "JPEG") {
+            dataUrl = await dataUrlToPng(dataUrl);
+        }
+        const useFmt = detectImageFormat(dataUrl) || "PNG";
+        doc.addImage(dataUrl, useFmt === "JPEG" ? "JPEG" : "PNG", marginX, y, w, h);
         return w + 5;
     }
     catch (e) {
-        return 0;
+        console.warn("Logo PDF async:", e);
+        // Último intento síncrono
+        return addTallerHeaderLogo(doc, settings, marginX, yPos);
     }
 }
 async function buildProformaDoc(pf, client, vehicle, settings) {
@@ -1189,7 +1272,7 @@ async function buildProformaDoc(pf, client, vehicle, settings) {
     const pageHeight = doc.internal.pageSize.getHeight();
     const marginX = 15;
     let y = 18;
-    const logoOffset = addTallerHeaderLogo(doc, settings, marginX);
+    const logoOffset = await addTallerHeaderLogoAsync(doc, settings, marginX);
     const textX = marginX + logoOffset;
     const accentRgb = pdfAccentRgb(settings);
     doc.setFont("helvetica", "bold");
@@ -1366,7 +1449,7 @@ async function buildReceptionDoc(order, client, vehicle, settings) {
     const pageHeight = doc.internal.pageSize.getHeight();
     const marginX = 15;
     let y = 18;
-    const logoOffset = addTallerHeaderLogo(doc, settings, marginX);
+    const logoOffset = await addTallerHeaderLogoAsync(doc, settings, marginX);
     const textX = marginX + logoOffset;
     const accentRgb = pdfAccentRgb(settings);
     const ck = order.checkin || emptyCheckin();
@@ -1505,7 +1588,7 @@ async function buildRequirementDoc(order, client, vehicle, requirement, settings
     const pageHeight = doc.internal.pageSize.getHeight();
     const marginX = 15;
     let y = 18;
-    const logoOffset = addTallerHeaderLogo(doc, settings, marginX);
+    const logoOffset = await addTallerHeaderLogoAsync(doc, settings, marginX);
     const textX = marginX + logoOffset;
     const accentRgb = pdfAccentRgb(settings);
     doc.setFont("helvetica", "bold");
@@ -1628,7 +1711,7 @@ async function buildServiceReportDoc(order, client, vehicle, settings) {
     const pageHeight = doc.internal.pageSize.getHeight();
     const marginX = 15;
     let y = 18;
-    const logoOffset = addTallerHeaderLogo(doc, settings, marginX);
+    const logoOffset = await addTallerHeaderLogoAsync(doc, settings, marginX);
     const textX = marginX + logoOffset;
     const accentRgb = pdfAccentRgb(settings);
     const findings = order.findings || [];
@@ -1821,6 +1904,289 @@ async function shareServiceReportWhatsApp(order, client, vehicle, settings) {
 }
 /* ---------------------------------- PDF · HISTORIAL COMPLETO DEL VEHÍCULO ---------------------------------- */
 // A diferencia del reporte de servicio (una sola orden), este junta TODAS las visitas que tiene
+
+/* ---------------------------------- PDF · AVANCE / ESTADO DE ORDEN EN REPARACIÓN ---------------------------------- */
+// Informe profesional del estado actual del vehículo mientras está en el taller.
+// Incluye estado, problema reportado, hallazgos, servicios/repuestos y pagos parciales.
+async function buildOrderProgressDoc(order, client, vehicle, settings, mechanicName) {
+    const jsPDF = await ensureJsPdf();
+    const doc = new jsPDF({ unit: "mm", format: "a4" });
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const marginX = 14;
+    const accentRgb = pdfAccentRgb(settings);
+    let y = 0;
+
+    // Barra superior de color
+    doc.setFillColor(...accentRgb);
+    doc.rect(0, 0, pageWidth, 3.2, "F");
+
+    y = 14;
+    const logoOffset = await addTallerHeaderLogoAsync(doc, settings, marginX);
+    const textX = marginX + logoOffset;
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(15);
+    doc.setTextColor(28, 28, 32);
+    doc.text(settings.tallerNombre || "Taller Mecánico", textX, y);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8.5);
+    doc.setTextColor(100, 100, 110);
+    let subY = y + 5;
+    [settings.address, settings.phone && `Tel: ${settings.phone}`, settings.ruc && `RUC: ${settings.ruc}`]
+        .filter(Boolean)
+        .forEach((line) => { doc.text(String(line), textX, subY); subY += 4; });
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(14);
+    doc.setTextColor(...accentRgb);
+    doc.text("INFORME DE AVANCE", pageWidth - marginX, y, { align: "right" });
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9.5);
+    doc.setTextColor(55, 55, 65);
+    doc.text(order.code || "", pageWidth - marginX, y + 6, { align: "right" });
+    doc.setFontSize(8.5);
+    doc.setTextColor(110, 110, 120);
+    doc.text(`Generado: ${fmtDatePE(new Date().toISOString().slice(0, 10))} ${new Date().toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit" })}`, pageWidth - marginX, y + 11, { align: "right" });
+
+    y = Math.max(subY, y + 16) + 4;
+
+    // Estado actual destacado
+    const st = statusOf(order.status);
+    const statusLabel = (st && st.label) || order.status || "En proceso";
+    doc.setFillColor(accentRgb[0], accentRgb[1], accentRgb[2]);
+    // soft bg
+    doc.setFillColor(245, 246, 248);
+    doc.roundedRect(marginX, y, pageWidth - marginX * 2, 16, 2, 2, "F");
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(9);
+    doc.setTextColor(120, 120, 130);
+    doc.text("ESTADO ACTUAL DEL VEHÍCULO", marginX + 4, y + 5.5);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(12);
+    doc.setTextColor(...accentRgb);
+    doc.text(statusLabel, marginX + 4, y + 12);
+    if (order.createdAt) {
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(8.5);
+        doc.setTextColor(100, 100, 110);
+        doc.text(`Ingreso: ${fmtDatePE(String(order.createdAt).slice(0, 10))}`, pageWidth - marginX - 4, y + 12, { align: "right" });
+    }
+    y += 22;
+
+    // Cliente y vehículo en dos columnas
+    const col2 = pageWidth / 2 + 2;
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8.5);
+    doc.setTextColor(130, 130, 140);
+    doc.text("CLIENTE", marginX, y);
+    doc.text("VEHÍCULO", col2, y);
+    y += 5;
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10.5);
+    doc.setTextColor(30, 30, 35);
+    doc.text((client && client.name) || "—", marginX, y);
+    const vehLine = [`${(vehicle && vehicle.brand) || ""} ${(vehicle && vehicle.model) || ""}`.trim(), vehicle && vehicle.year ? `(${vehicle.year})` : ""].filter(Boolean).join(" ") || "—";
+    doc.text(vehLine, col2, y);
+    y += 5;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.setTextColor(80, 80, 90);
+    if (client && client.phone) doc.text(String(client.phone), marginX, y);
+    if (vehicle && vehicle.plate) doc.text(`Placa: ${vehicle.plate}`, col2, y);
+    y += 5;
+    if (vehicle && (vehicle.color || vehicle.mileage != null)) {
+        const bits = [];
+        if (vehicle.color) bits.push(vehicle.color);
+        if (vehicle.mileage != null) bits.push(`${vehicle.mileage} km`);
+        doc.text(bits.join(" · "), col2, y);
+    }
+    if (mechanicName) {
+        doc.setTextColor(80, 80, 90);
+        doc.text(`Mecánico: ${mechanicName}`, marginX, y);
+    }
+    y += 8;
+
+    // Línea divisoria
+    doc.setDrawColor(220, 222, 228);
+    doc.setLineWidth(0.3);
+    doc.line(marginX, y, pageWidth - marginX, y);
+    y += 7;
+
+    // Problema reportado
+    if (order.description) {
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(9);
+        doc.setTextColor(40, 40, 50);
+        doc.text("Problema reportado por el cliente", marginX, y);
+        y += 5;
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(9);
+        doc.setTextColor(70, 70, 80);
+        const descLines = doc.splitTextToSize(order.description, pageWidth - marginX * 2);
+        doc.text(descLines, marginX, y);
+        y += descLines.length * 4.3 + 6;
+    }
+
+    // Hallazgos / diagnóstico
+    const findings = order.findings || [];
+    if (findings.length > 0) {
+        if (y > pageHeight - 50) { doc.addPage(); y = 18; }
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(9);
+        doc.setTextColor(40, 40, 50);
+        doc.text("Hallazgos y diagnóstico", marginX, y);
+        y += 3;
+        const findRows = findings.map((f, i) => [
+            String(i + 1),
+            (f.title || f.name || f.description || "Hallazgo").slice(0, 80),
+            f.severity || f.level || "—",
+        ]);
+        doc.autoTable({
+            startY: y,
+            head: [["#", "Descripción", "Prioridad"]],
+            body: findRows,
+            theme: "striped",
+            styles: { font: "helvetica", fontSize: 8.5, cellPadding: 2.4, textColor: [40, 40, 50] },
+            headStyles: { fillColor: accentRgb, textColor: [255, 255, 255], fontStyle: "bold", fontSize: 8.5 },
+            columnStyles: { 0: { cellWidth: 10, halign: "center" }, 2: { cellWidth: 28, halign: "center" } },
+            margin: { left: marginX, right: marginX },
+        });
+        y = doc.lastAutoTable.finalY + 7;
+    }
+
+    // Trabajo y repuestos hasta el momento
+    const svcRows = [
+        ...(order.services || []).map((s) => ["Servicio", s.name || "—", "—", money(s.price || 0)]),
+        ...(order.parts || []).map((p) => ["Repuesto", p.name || "—", String(p.qty || 1), money((p.price || 0) * (p.qty || 1))]),
+    ];
+    if (svcRows.length > 0) {
+        if (y > pageHeight - 50) { doc.addPage(); y = 18; }
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(9);
+        doc.setTextColor(40, 40, 50);
+        doc.text("Trabajo y repuestos registrados hasta ahora", marginX, y);
+        y += 3;
+        doc.autoTable({
+            startY: y,
+            head: [["Tipo", "Descripción", "Cant.", "Importe"]],
+            body: svcRows,
+            theme: "striped",
+            styles: { font: "helvetica", fontSize: 8.5, cellPadding: 2.4, textColor: [40, 40, 50] },
+            headStyles: { fillColor: accentRgb, textColor: [255, 255, 255], fontStyle: "bold", fontSize: 8.5 },
+            columnStyles: {
+                0: { cellWidth: 24 },
+                2: { cellWidth: 16, halign: "center" },
+                3: { cellWidth: 28, halign: "right" },
+            },
+            margin: { left: marginX, right: marginX },
+        });
+        y = doc.lastAutoTable.finalY + 5;
+        const total = typeof orderTotal === "function" ? orderTotal(order) : 0;
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(10);
+        doc.setTextColor(30, 30, 35);
+        doc.text(`Total estimado: ${money(total)}`, pageWidth - marginX, y, { align: "right" });
+        y += 8;
+    }
+
+    // Pagos / abonos
+    const payments = order.payments || order.abonos || [];
+    if (payments.length > 0) {
+        if (y > pageHeight - 40) { doc.addPage(); y = 18; }
+        const pagado = payments.reduce((s, p) => s + (Number(p.amount) || 0), 0);
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(9);
+        doc.setTextColor(40, 40, 50);
+        doc.text("Pagos registrados", marginX, y);
+        y += 3;
+        const payRows = payments.map((p) => [
+            p.date ? fmtDatePE(String(p.date).slice(0, 10)) : "—",
+            p.method || p.tipo || "—",
+            money(p.amount || 0),
+        ]);
+        doc.autoTable({
+            startY: y,
+            head: [["Fecha", "Método", "Monto"]],
+            body: payRows,
+            theme: "striped",
+            styles: { font: "helvetica", fontSize: 8.5, cellPadding: 2.4, textColor: [40, 40, 50] },
+            headStyles: { fillColor: [60, 60, 70], textColor: [255, 255, 255], fontStyle: "bold", fontSize: 8.5 },
+            columnStyles: { 2: { halign: "right", cellWidth: 30 } },
+            margin: { left: marginX, right: marginX },
+        });
+        y = doc.lastAutoTable.finalY + 5;
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(9.5);
+        doc.setTextColor(30, 30, 35);
+        doc.text(`Total abonado: ${money(pagado)}`, pageWidth - marginX, y, { align: "right" });
+        y += 8;
+    }
+
+    // Notas internas visibles al cliente (si hay notes públicas - usamos notes si existen)
+    if (order.clientNotes || order.progressNote) {
+        if (y > pageHeight - 35) { doc.addPage(); y = 18; }
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(9);
+        doc.setTextColor(40, 40, 50);
+        doc.text("Notas de avance", marginX, y);
+        y += 5;
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(9);
+        doc.setTextColor(70, 70, 80);
+        const noteLines = doc.splitTextToSize(order.clientNotes || order.progressNote, pageWidth - marginX * 2);
+        doc.text(noteLines, marginX, y);
+        y += noteLines.length * 4.3 + 6;
+    }
+
+    // Pie de página profesional
+    const footerY = pageHeight - 16;
+    doc.setDrawColor(220, 222, 228);
+    doc.line(marginX, footerY - 4, pageWidth - marginX, footerY - 4);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(7.5);
+    doc.setTextColor(140, 140, 150);
+    doc.text(
+        "Este documento refleja el avance del servicio hasta la fecha indicada. No constituye factura ni comprobante final.",
+        pageWidth / 2,
+        footerY,
+        { align: "center" }
+    );
+    doc.text(
+        (settings.tallerNombre || "Taller") + (settings.phone ? ` · ${settings.phone}` : ""),
+        pageWidth / 2,
+        footerY + 4,
+        { align: "center" }
+    );
+
+    return doc;
+}
+
+async function downloadOrderProgressPDF(order, client, vehicle, settings, mechanicName) {
+    const doc = await buildOrderProgressDoc(order, client, vehicle, settings, mechanicName);
+    doc.save(`Avance-${order.code || "orden"}.pdf`);
+}
+
+async function shareOrderProgressWhatsApp(order, client, vehicle, settings, mechanicName) {
+    const doc = await buildOrderProgressDoc(order, client, vehicle, settings, mechanicName);
+    const fileName = `Avance-${order.code || "orden"}.pdf`;
+    const st = statusOf(order.status);
+    const statusLabel = (st && st.label) || order.status || "en proceso";
+    const text = `Hola ${(client && client.name) || ""}, te compartimos el avance de tu vehículo (${(vehicle && vehicle.plate) || "s/p"}) — orden ${order.code || ""}. Estado actual: ${statusLabel}.`;
+    const blob = doc.output("blob");
+    const file = new File([blob], fileName, { type: "application/pdf" });
+    if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({ files: [file], title: fileName, text: text });
+        return;
+    }
+    // Fallback: descarga + abre WhatsApp web/app con texto
+    doc.save(fileName);
+    const phone = (client && client.phone) ? String(client.phone).replace(/\D/g, "") : "";
+    const wa = phone ? `https://wa.me/51${phone.replace(/^51/, "")}?text=${encodeURIComponent(text)}` : `https://wa.me/?text=${encodeURIComponent(text)}`;
+    window.open(wa, "_blank");
+}
+
+
 // registradas un vehículo en el taller, en orden cronológico, con lo que se hizo y el total de
 // cada una. Pensado para cuando el cliente pide "mándame todo lo que se le hizo a mi carro".
 async function buildVehicleHistoryDoc(vehicle, client, allOrders, settings) {
@@ -1830,7 +2196,7 @@ async function buildVehicleHistoryDoc(vehicle, client, allOrders, settings) {
     const pageHeight = doc.internal.pageSize.getHeight();
     const marginX = 15;
     let y = 18;
-    const logoOffset = addTallerHeaderLogo(doc, settings, marginX);
+    const logoOffset = await addTallerHeaderLogoAsync(doc, settings, marginX);
     const textX = marginX + logoOffset;
     const accentRgb = pdfAccentRgb(settings);
     const orders = [...allOrders].filter((o) => o.vehicleId === vehicle.id).sort((a, b) => a.entry.localeCompare(b.entry));
@@ -2432,6 +2798,8 @@ function OrderDetail({ order, client, vehicle, parts, onClose, onStatusChange, o
     const [reqBusy, setReqBusy] = useState(false);
     const [reportError, setReportError] = useState("");
     const [reportBusy, setReportBusy] = useState(false);
+    const [progressError, setProgressError] = useState("");
+    const [progressBusy, setProgressBusy] = useState(false);
     const [editingServiceIdx, setEditingServiceIdx] = useState(null);
     const [editingServiceValue, setEditingServiceValue] = useState("");
     const [pendingServices, setPendingServices] = useState(null);
@@ -2461,6 +2829,26 @@ function OrderDetail({ order, client, vehicle, parts, onClose, onStatusChange, o
     };
     const requirement = order.requirement;
     const findings = order.findings || [];
+    const handleDownloadProgress = async () => {
+        setProgressError("");
+        try {
+            await downloadOrderProgressPDF(order, client, vehicle, settings || {}, currentUser && currentUser.name);
+        }
+        catch (e) {
+            setProgressError((e && e.message) || "No se pudo generar el informe de avance.");
+        }
+    };
+    const handleShareProgress = async () => {
+        setProgressError("");
+        setProgressBusy(true);
+        try {
+            await shareOrderProgressWhatsApp(order, client, vehicle, settings || {}, currentUser && currentUser.name);
+        }
+        catch (e) {
+            setProgressError((e && e.message) || "No se pudo compartir el informe de avance.");
+        }
+        setProgressBusy(false);
+    };
     const handleDownloadReport = () => {
         setReportError("");
         try {
@@ -2699,6 +3087,17 @@ function OrderDetail({ order, client, vehicle, parts, onClose, onStatusChange, o
                 React.createElement(Button, { variant: "subtle", onClick: handleDownloadReport, className: "flex-1" },
                     React.createElement(Download, { size: 14 }),
                     " Descargar reporte PDF"))),
+        order.status !== "entregado" && React.createElement(Card, { className: "p-4 space-y-2" },
+            React.createElement("div", { className: "text-sm font-semibold" }, "Informe de avance al cliente"),
+            React.createElement("p", { className: "text-xs", style: { color: C.textMute } }, "PDF profesional con el estado actual del vehículo, hallazgos, trabajo registrado y pagos. Ideal mientras está en reparación."),
+            progressError && React.createElement("div", { className: "text-xs px-2.5 py-2 rounded-lg", style: { background: C.dangerSoft, color: C.danger } }, progressError),
+            React.createElement("div", { className: "flex flex-wrap gap-2 pt-1" },
+                React.createElement(Button, { variant: "whatsapp", onClick: handleShareProgress, disabled: progressBusy, className: "flex-1" },
+                    React.createElement(MessageCircle, { size: 14 }),
+                    " ", progressBusy ? "Enviando…" : "Enviar avance por WhatsApp"),
+                React.createElement(Button, { variant: "subtle", onClick: handleDownloadProgress, className: "flex-1" },
+                    React.createElement(Download, { size: 14 }),
+                    " Descargar avance PDF"))),
         React.createElement("div", null,
             React.createElement("div", { className: "text-xs uppercase tracking-wide mb-2", style: { color: C.textMute } }, "Actualizar estado"),
             React.createElement("div", { className: "flex flex-wrap gap-2" }, getStatus().map((s) => (React.createElement("button", { key: s.key, onClick: () => {
@@ -5197,13 +5596,28 @@ function AjustesView({ settings, setSettings, cloudStatus, cloudError, cloudProj
                 React.createElement("div", { className: "pt-4 flex items-center justify-between gap-3", style: { borderTop: `1px solid ${C.borderSoft}` } },
                     React.createElement("div", null,
                         React.createElement("div", { className: "text-sm font-medium" }, "Resúmenes y tips del día"),
-                        React.createElement("p", { className: "text-xs mt-0.5", style: { color: C.textMute } }, "Avisos aleatorios durante el día (resumen del taller o mensaje motivador). Se envían a todos los dispositivos con avisos activados, incluso con la app cerrada. Máximo 4 al día. Hace falta que al menos un equipo tenga la app abierta o instalada para disparar el horario.")),
+                        React.createElement("p", { className: "text-xs mt-0.5", style: { color: C.textMute } }, "Resumen del taller o mensaje motivador, hasta 4 veces al día (8:00–20:00). Se guarda en la nube para tu cron de Vercel (el mismo de citas) y así llega a todos con la app cerrada. Si el cron aún no está adaptado, también puede dispararlo un equipo con la app abierta."),
                     React.createElement("button", { type: "button", onClick: async () => {
                             if (!dailyTipsEnabled && typeof Notification !== "undefined" && Notification.permission !== "granted") {
                                 const res = await Notification.requestPermission();
                                 if (res !== "granted") return;
                             }
-                            setDailyTipsEnabled((v) => !v);
+                            setDailyTipsEnabled((v) => {
+                                const next = !v;
+                                // También se guarda en settings (nube) para que el cron de Vercel
+                                // (el mismo de citas/recordatorio del equipo) pueda enviarlo con la app cerrada.
+                                setSettings((prev) => ({
+                                    ...prev,
+                                    resumenDiario: {
+                                        activo: next,
+                                        maxPorDia: 4,
+                                        ventanaInicio: "08:00",
+                                        ventanaFin: "20:00",
+                                        lastSentKeys: (prev.resumenDiario && prev.resumenDiario.lastSentKeys) || [],
+                                    },
+                                }));
+                                return next;
+                            });
                         }, className: "shrink-0 w-12 h-7 rounded-full relative transition-colors", style: { background: dailyTipsEnabled ? C.accent : C.surfaceHi, border: `1px solid ${dailyTipsEnabled ? C.accent : C.border}` } },
                         React.createElement("span", { className: "absolute top-0.5 w-5 h-5 rounded-full transition-transform", style: { background: "#fff", transform: dailyTipsEnabled ? "translateX(22px)" : "translateX(2px)" } })))),
             readOnly && (React.createElement("div", { className: "text-sm px-4 py-2.5 rounded-xl", style: { background: C.warningSoft, color: C.warning } }, "Tu rol solo tiene permiso de lectura en Ajustes.")),
@@ -5334,7 +5748,7 @@ function AjustesView({ settings, setSettings, cloudStatus, cloudError, cloudProj
                         React.createElement("div", { className: "flex gap-2" },
                             React.createElement(Button, { variant: "ghost", className: "flex-1", onClick: () => setPendingImport(null) }, "Cancelar"),
                             React.createElement(Button, { variant: "danger", className: "flex-1", onClick: confirmImport }, "S\u00ED, reemplazar mis datos"))))))),
-            resetMode && (React.createElement(ConfirmPinModal, { title: resetMode === "full" ? "Reiniciar sistema completo" : "Reiniciar solo datos", description: resetMode === "full" ? "Se borrar\u00E1n permanentemente todos los datos, usuarios, roles y el perfil del taller. El sistema quedar\u00E1 como reci\u00E9n instalado. Esta acci\u00F3n no se puede deshacer." : "Se borrar\u00E1n permanentemente clientes, veh\u00EDculos, \u00F3rdenes, caja, proformas, repuestos y citas. Tu cuenta y los usuarios se conservan. Esta acci\u00F3n no se puede deshacer.", currentUser: currentUser, onCancel: () => setResetMode(null), onConfirmed: confirmReset }))))));
+            resetMode && (React.createElement(ConfirmPinModal, { title: resetMode === "full" ? "Reiniciar sistema completo" : "Reiniciar solo datos", description: resetMode === "full" ? "Se borrar\u00E1n permanentemente todos los datos, usuarios, roles y el perfil del taller. El sistema quedar\u00E1 como reci\u00E9n instalado. Esta acci\u00F3n no se puede deshacer." : "Se borrar\u00E1n permanentemente clientes, veh\u00EDculos, \u00F3rdenes, caja, proformas, repuestos y citas. Tu cuenta y los usuarios se conservan. Esta acci\u00F3n no se puede deshacer.", currentUser: currentUser, onCancel: () => setResetMode(null), onConfirmed: confirmReset })))))));
 
 }
 /* ---------------------------------- AUTENTICACIÓN ---------------------------------- */
