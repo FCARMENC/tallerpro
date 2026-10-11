@@ -2808,6 +2808,7 @@ function OrderDetail({ order, client, vehicle, parts, onClose, onStatusChange, o
     const [progressError, setProgressError] = useState("");
     const [progressBusy, setProgressBusy] = useState(false);
     const [editingDesc, setEditingDesc] = useState(false);
+    const [showEditOrder, setShowEditOrder] = useState(false);
     const [descDraft, setDescDraft] = useState("");
     const [editingServiceIdx, setEditingServiceIdx] = useState(null);
     const [editingServiceValue, setEditingServiceValue] = useState("");
@@ -2960,7 +2961,10 @@ function OrderDetail({ order, client, vehicle, parts, onClose, onStatusChange, o
                     " \u00B7 ", vehicle === null || vehicle === void 0 ? void 0 :
                     vehicle.year),
                 React.createElement("div", { className: "text-sm mt-1 font-mono tracking-widest truncate", style: { color: C.textSoft } }, vehicle === null || vehicle === void 0 ? void 0 : vehicle.plate)),
-            React.createElement(Badge, { color: st.color, soft: st.soft }, st.label)),
+            React.createElement("div", { className: "flex items-center gap-2 shrink-0" },
+                (onSaveServices || onUpdateOrder) && React.createElement("button", { type: "button", onClick: () => setShowEditOrder(true), className: "w-9 h-9 rounded-xl flex items-center justify-center", style: { background: C.accentSoft, color: C.accentText }, title: "Editar orden" },
+                    React.createElement(Pencil, { size: 16 })),
+                React.createElement(Badge, { color: st.color, soft: st.soft }, st.label))),
         React.createElement("div", { className: "grid sm:grid-cols-2 gap-4 mb-6" },
             React.createElement(Card, { className: "p-4" },
                 React.createElement("div", { className: "text-xs uppercase tracking-wide mb-2", style: { color: C.textMute } }, "Cliente"),
@@ -3173,6 +3177,15 @@ function OrderDetail({ order, client, vehicle, parts, onClose, onStatusChange, o
         showRequirement && (React.createElement(RequirementModal, { order: order, requirement: requirement, parts: parts, onClose: () => setShowRequirement(false), onSave: (req) => { onSaveRequirement(req); setShowRequirement(false); } })),
         showFindings && (React.createElement(FindingsModal, { order: order, findings: findings, onClose: () => setShowFindings(false), onSave: (items) => { onSaveFindings && onSaveFindings(items); setShowFindings(false); } })),
         pendingServices && (React.createElement(ConfirmPinModal, { title: "Confirmar precio", description: "Por seguridad, ingresa tu PIN para modificar el precio de esta orden.", currentUser: currentUser, onCancel: () => setPendingServices(null), onConfirmed: async () => { onSaveServices && onSaveServices(pendingServices); setPendingServices(null); } })),
+        showEditOrder && React.createElement(EditOrderModal, { order: order, onClose: () => setShowEditOrder(false), onSave: (patch) => {
+                if (onSaveServices && patch.services)
+                    onSaveServices(patch.services);
+                if (onUpdateOrder) {
+                    const { services, ...rest } = patch;
+                    onUpdateOrder(rest);
+                }
+                setShowEditOrder(false);
+            } }),
         onDelete && (React.createElement("div", { className: "mt-6 pt-4", style: { borderTop: `1px solid ${C.borderSoft}` } },
             React.createElement("button", { onClick: () => { if (window.confirm("¿Eliminar esta orden de trabajo? Esta acción no se puede deshacer."))
                     onDelete(); }, className: "text-xs flex items-center gap-1.5", style: { color: C.danger } },
@@ -3313,6 +3326,63 @@ function NewOrderModal({ clients, setClients, vehicles, setVehicles, code, onClo
                 setShowNewVehicle(false);
             } }))));
 }
+
+function EditOrderModal({ order, onClose, onSave }) {
+    const [description, setDescription] = useState(order.description || "");
+    const [tech, setTech] = useState(order.tech || (typeof TECHS !== "undefined" && TECHS[0]) || "");
+    const [est, setEst] = useState(order.est || "");
+    const [serviceLines, setServiceLines] = useState(() => {
+        const list = (order.services || []).map((s) => ({ name: s.name || "", price: String(s.price != null ? s.price : "") }));
+        return list.length ? list : [{ name: "", price: "" }];
+    });
+    const servicesSubtotal = serviceLines.reduce((s, l) => s + (Number(l.price) || 0), 0);
+    const updateServiceLine = (idx, key, val) => {
+        setServiceLines((prev) => prev.map((l, i) => (i === idx ? { ...l, [key]: val } : l)));
+    };
+    const addServiceLine = () => setServiceLines((prev) => [...prev, { name: "", price: "" }]);
+    const removeServiceLine = (idx) => {
+        setServiceLines((prev) => (prev.length <= 1 ? prev : prev.filter((_, i) => i !== idx)));
+    };
+    const submit = () => {
+        const services = serviceLines
+            .map((l) => ({ name: String(l.name || "").trim() || "Trabajo", price: Number(l.price) || 0 }))
+            .filter((l) => l.price > 0 || (l.name && l.name !== "Trabajo"));
+        onSave({
+            description: description.trim(),
+            tech,
+            est: est || order.est,
+            services,
+        });
+    };
+    return (React.createElement(Modal, { title: "Editar orden " + (order.code || ""), onClose: onClose, wide: true },
+        React.createElement("div", { className: "space-y-4" },
+            React.createElement("p", { className: "text-xs", style: { color: C.textMute } }, "Igual que al crear: cambia la descripción, el técnico y agrega o quita trabajos. El total se suma solo."),
+            React.createElement(Field, { label: "Descripción del problema" },
+                React.createElement("textarea", { className: "w-full rounded-xl px-3 py-2 text-sm", style: { background: C.bg, border: `1px solid ${C.border}`, color: C.text, minHeight: "80px" }, value: description, onChange: (e) => setDescription(e.target.value) })),
+            React.createElement("div", { className: "grid sm:grid-cols-2 gap-3" },
+                React.createElement(Field, { label: "Técnico" },
+                    React.createElement(Select, { value: tech, onChange: (e) => setTech(e.target.value) },
+                        (typeof TECHS !== "undefined" ? TECHS : [tech]).map((t) => React.createElement("option", { key: t, value: t }, t)))),
+                React.createElement(Field, { label: "Fecha estimada" },
+                    React.createElement(Input, { type: "date", value: est, onChange: (e) => setEst(e.target.value) }))),
+            React.createElement("div", { className: "space-y-2" },
+                React.createElement("div", { className: "text-xs font-medium", style: { color: C.textSoft } }, "Trabajos / servicios"),
+                serviceLines.map((line, idx) => React.createElement("div", { key: idx, className: "flex gap-2 items-center" },
+                    React.createElement(Input, { placeholder: "Ej. Cambio de aceite", value: line.name, onChange: (e) => updateServiceLine(idx, "name", e.target.value), className: "flex-1" }),
+                    React.createElement(Input, { type: "number", min: "0", step: "0.01", placeholder: "S/", value: line.price, onChange: (e) => updateServiceLine(idx, "price", e.target.value), style: { width: "100px" } }),
+                    React.createElement("button", { type: "button", onClick: () => removeServiceLine(idx), className: "w-8 h-8 rounded-lg flex items-center justify-center shrink-0", style: { color: C.textMute, opacity: serviceLines.length <= 1 ? 0.3 : 1 }, disabled: serviceLines.length <= 1 },
+                        React.createElement(X, { size: 14 })))),
+                React.createElement("div", { className: "flex items-center justify-between gap-2 pt-1" },
+                    React.createElement(Button, { type: "button", variant: "ghost", onClick: addServiceLine, className: "text-xs" },
+                        React.createElement(Plus, { size: 14 }),
+                        " Agregar otro trabajo"),
+                    React.createElement("div", { className: "text-sm font-semibold font-mono" }, "Total: ", money(servicesSubtotal)))),
+            React.createElement("div", { className: "flex gap-2 pt-2" },
+                React.createElement(Button, { variant: "ghost", className: "flex-1", onClick: onClose }, "Cancelar"),
+                React.createElement(Button, { className: "flex-1", onClick: submit }, "Guardar cambios")))));
+}
+
+
 /* ---------------------------------- RECEPCIÓN DIGITAL (checklist + fotos) ---------------------------------- */
 function PhotoThumb({ src, onRemove }) {
     return (React.createElement("div", { className: "relative rounded-lg overflow-hidden", style: { border: `1px solid ${C.border}` } },
