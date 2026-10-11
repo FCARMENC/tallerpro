@@ -2803,29 +2803,55 @@ function OrderDetail({ order, client, vehicle, parts, onClose, onStatusChange, o
     const [editingServiceIdx, setEditingServiceIdx] = useState(null);
     const [editingServiceValue, setEditingServiceValue] = useState("");
     const [pendingServices, setPendingServices] = useState(null);
-    const startEditService = (idx) => {
-        setEditingServiceIdx(idx);
-        setEditingServiceValue(idx === -1 ? "" : String(order.services[idx].price));
-    };
-    const cancelEditService = () => {
-        setEditingServiceIdx(null);
-        setEditingServiceValue("");
-    };
-    const confirmEditService = () => {
-        const newPrice = Number(editingServiceValue);
-        if (isNaN(newPrice) || newPrice < 0)
-            return;
-        const next = editingServiceIdx === -1
-            ? [...order.services, { name: "Presupuesto inicial", price: newPrice }]
-            : order.services.map((s, i) => (i === editingServiceIdx ? { ...s, price: newPrice } : s));
-        setEditingServiceIdx(null);
-        setEditingServiceValue("");
+    const [editingServiceName, setEditingServiceName] = useState("");
+    const [newServiceName, setNewServiceName] = useState("");
+    const [newServicePrice, setNewServicePrice] = useState("");
+    const [showAddService, setShowAddService] = useState(false);
+    const applyServices = (next) => {
         if (currentUser && currentUser.pinHash) {
             setPendingServices(next);
         }
         else {
             onSaveServices && onSaveServices(next);
         }
+    };
+    const startEditService = (idx) => {
+        setEditingServiceIdx(idx);
+        setEditingServiceValue(idx === -1 ? "" : String((order.services[idx] && order.services[idx].price) || ""));
+        setEditingServiceName(idx === -1 ? "" : String((order.services[idx] && order.services[idx].name) || ""));
+    };
+    const cancelEditService = () => {
+        setEditingServiceIdx(null);
+        setEditingServiceValue("");
+        setEditingServiceName("");
+    };
+    const confirmEditService = () => {
+        const newPrice = Number(editingServiceValue);
+        if (isNaN(newPrice) || newPrice < 0)
+            return;
+        const name = String(editingServiceName || "").trim() || "Trabajo";
+        const next = editingServiceIdx === -1
+            ? [...(order.services || []), { name: name, price: newPrice }]
+            : (order.services || []).map((s, i) => (i === editingServiceIdx ? { ...s, name: name, price: newPrice } : s));
+        setEditingServiceIdx(null);
+        setEditingServiceValue("");
+        setEditingServiceName("");
+        applyServices(next);
+    };
+    const removeService = (idx) => {
+        const next = (order.services || []).filter((_, i) => i !== idx);
+        applyServices(next);
+    };
+    const addNewService = () => {
+        const price = Number(newServicePrice);
+        if (isNaN(price) || price < 0)
+            return;
+        const name = String(newServiceName || "").trim() || "Trabajo";
+        const next = [...(order.services || []), { name: name, price: price }];
+        setNewServiceName("");
+        setNewServicePrice("");
+        setShowAddService(false);
+        applyServices(next);
     };
     const requirement = order.requirement;
     const findings = order.findings || [];
@@ -2947,33 +2973,38 @@ function OrderDetail({ order, client, vehicle, parts, onClose, onStatusChange, o
             React.createElement("p", { className: "text-sm", style: { color: C.textSoft } }, order.description)),
         (order.services.length > 0 || order.parts.length > 0 || onSaveServices) && (React.createElement("div", { className: "mb-6 space-y-2" },
             React.createElement("div", { className: "text-xs uppercase tracking-wide mb-2", style: { color: C.textMute } }, "Detalle de la orden"),
-            order.services.map((s, i) => (React.createElement("div", { key: "s" + i, className: "flex justify-between items-center gap-2 text-sm py-1.5", style: { borderBottom: `1px solid ${C.borderSoft}` } },
-                React.createElement("span", { className: "truncate" }, s.name),
-                editingServiceIdx === i ? (React.createElement("div", { className: "flex items-center gap-1.5 shrink-0" },
-                    React.createElement(Input, { type: "number", autoFocus: true, min: "0", step: "0.01", value: editingServiceValue, onChange: (e) => setEditingServiceValue(e.target.value), style: { width: "96px" }, className: "py-1" }),
-                    React.createElement("button", { type: "button", onClick: confirmEditService, className: "w-7 h-7 rounded-lg flex items-center justify-center", style: { color: C.success } },
-                        React.createElement(CheckCircle2, { size: 16 })),
-                    React.createElement("button", { type: "button", onClick: cancelEditService, className: "w-7 h-7 rounded-lg flex items-center justify-center", style: { color: C.textMute } },
-                        React.createElement(X, { size: 14 })))) : (React.createElement("div", { className: "flex items-center gap-1.5 shrink-0" },
-                    React.createElement("span", { className: "font-mono" }, money(s.price)),
-                    onSaveServices && (React.createElement("button", { type: "button", onClick: () => startEditService(i), className: "w-6 h-6 rounded-lg flex items-center justify-center hover:bg-white/5", style: { color: C.textMute } },
-                        React.createElement(Pencil, { size: 12 })))))))),
+            (order.services || []).map((s, i) => React.createElement("div", { key: "s" + i, className: "flex justify-between items-center gap-2 text-sm py-1.5", style: { borderBottom: `1px solid ${C.borderSoft}` } },
+                editingServiceIdx === i
+                    ? React.createElement(React.Fragment, null,
+                        React.createElement(Input, { autoFocus: true, value: editingServiceName, onChange: (e) => setEditingServiceName(e.target.value), placeholder: "Nombre del trabajo", className: "flex-1 py-1" }),
+                        React.createElement("div", { className: "flex items-center gap-1.5 shrink-0" },
+                            React.createElement(Input, { type: "number", min: "0", step: "0.01", value: editingServiceValue, onChange: (e) => setEditingServiceValue(e.target.value), style: { width: "96px" }, className: "py-1" }),
+                            React.createElement("button", { type: "button", onClick: confirmEditService, className: "w-7 h-7 rounded-lg flex items-center justify-center", style: { color: C.success } },
+                                React.createElement(CheckCircle2, { size: 16 })),
+                            React.createElement("button", { type: "button", onClick: cancelEditService, className: "w-7 h-7 rounded-lg flex items-center justify-center", style: { color: C.textMute } },
+                                React.createElement(X, { size: 14 }))))
+                    : React.createElement(React.Fragment, null,
+                        React.createElement("span", { className: "truncate flex-1" }, s.name),
+                        React.createElement("div", { className: "flex items-center gap-1.5 shrink-0" },
+                            React.createElement("span", { className: "font-mono" }, money(s.price)),
+                            onSaveServices && React.createElement("button", { type: "button", onClick: () => startEditService(i), className: "w-6 h-6 rounded-lg flex items-center justify-center hover:bg-white/5", style: { color: C.textMute }, title: "Editar" },
+                                React.createElement(Pencil, { size: 12 })),
+                            onSaveServices && React.createElement("button", { type: "button", onClick: () => removeService(i), className: "w-6 h-6 rounded-lg flex items-center justify-center hover:bg-white/5", style: { color: C.danger }, title: "Quitar" },
+                                React.createElement(X, { size: 12 }))))),
             order.parts.map((p, i) => (React.createElement("div", { key: "p" + i, className: "flex justify-between text-sm py-1.5", style: { borderBottom: `1px solid ${C.borderSoft}` } },
                 React.createElement("span", null,
                     p.name,
                     " \u00D7 ",
                     p.qty),
                 React.createElement("span", { className: "font-mono" }, money(p.price * p.qty))))),
-            onSaveServices && (editingServiceIdx === -1 ? (React.createElement("div", { className: "flex justify-between items-center gap-2 text-sm py-1.5" },
-                React.createElement("span", { style: { color: C.textSoft } }, "Precio de la orden"),
-                React.createElement("div", { className: "flex items-center gap-1.5 shrink-0" },
-                    React.createElement(Input, { type: "number", autoFocus: true, min: "0", step: "0.01", value: editingServiceValue, onChange: (e) => setEditingServiceValue(e.target.value), placeholder: "0.00", style: { width: "96px" }, className: "py-1" }),
-                    React.createElement("button", { type: "button", onClick: confirmEditService, className: "w-7 h-7 rounded-lg flex items-center justify-center", style: { color: C.success } },
-                        React.createElement(CheckCircle2, { size: 16 })),
-                    React.createElement("button", { type: "button", onClick: cancelEditService, className: "w-7 h-7 rounded-lg flex items-center justify-center", style: { color: C.textMute } },
-                        React.createElement(X, { size: 14 }))))) : (React.createElement("button", { type: "button", onClick: () => startEditService(-1), className: "flex items-center gap-1.5 text-xs font-medium", style: { color: C.accentText } },
+            onSaveServices && (showAddService ? (React.createElement("div", { className: "flex flex-col sm:flex-row gap-2 items-stretch sm:items-center text-sm py-2" },
+                React.createElement(Input, { autoFocus: true, placeholder: "Nombre del trabajo", value: newServiceName, onChange: (e) => setNewServiceName(e.target.value), className: "flex-1 py-1" }),
+                React.createElement(Input, { type: "number", min: "0", step: "0.01", placeholder: "Precio", value: newServicePrice, onChange: (e) => setNewServicePrice(e.target.value), style: { width: "110px" }, className: "py-1" }),
+                React.createElement("div", { className: "flex gap-1" },
+                    React.createElement(Button, { type: "button", variant: "primary", onClick: addNewService, className: "text-xs" }, "Guardar"),
+                    React.createElement(Button, { type: "button", variant: "ghost", onClick: () => { setShowAddService(false); setNewServiceName(""); setNewServicePrice(""); }, className: "text-xs" }, "Cancelar")))) : (React.createElement("button", { type: "button", onClick: () => setShowAddService(true), className: "flex items-center gap-1.5 text-xs font-medium pt-1", style: { color: C.accentText } },
                 React.createElement(Plus, { size: 13 }),
-                " Agregar precio"))),
+                " Agregar trabajo"))),
             React.createElement("div", { className: "flex justify-between text-sm pt-2 font-semibold" },
                 React.createElement("span", null, "Total"),
                 React.createElement("span", { className: "font-mono", style: { color: C.accentText } }, money(total))),
@@ -3128,7 +3159,7 @@ function OrderDetail({ order, client, vehicle, parts, onClose, onStatusChange, o
             React.createElement("button", { onClick: () => { if (window.confirm("¿Eliminar esta orden de trabajo? Esta acción no se puede deshacer."))
                     onDelete(); }, className: "text-xs flex items-center gap-1.5", style: { color: C.danger } },
                 React.createElement(Trash2, { size: 13 }),
-                " Eliminar orden")))));
+                " Eliminar orden"))))));
 }
 function NewOrderModal({ clients, setClients, vehicles, setVehicles, code, onClose, onCreate }) {
     var _a;
@@ -3143,7 +3174,7 @@ function NewOrderModal({ clients, setClients, vehicles, setVehicles, code, onClo
     const [description, setDescription] = useState("");
     const [tech, setTech] = useState(TECHS[0]);
     const [est, setEst] = useState("");
-    const [price, setPrice] = useState("");
+    const [serviceLines, setServiceLines] = useState([{ name: "", price: "" }]);
     const [showNewClient, setShowNewClient] = useState(false);
     const [showNewVehicle, setShowNewVehicle] = useState(false);
     const clientVehicles = vehicles.filter((v) => v.clientId === clientId);
@@ -3152,7 +3183,9 @@ function NewOrderModal({ clients, setClients, vehicles, setVehicles, code, onClo
     const submit = () => {
         if (!canSubmit)
             return;
-        const initialPrice = Number(price) || 0;
+        const services = serviceLines
+            .map((l) => ({ name: String(l.name || "").trim() || "Trabajo", price: Number(l.price) || 0 }))
+            .filter((l) => l.price > 0 || (l.name && l.name !== "Trabajo"));
         let finalClientId = clientId;
         let finalVehicleId = vehicleId;
         if (mode === "occasional") {
@@ -3173,11 +3206,19 @@ function NewOrderModal({ clients, setClients, vehicles, setVehicles, code, onClo
             tech,
             entry: new Date().toISOString().slice(0, 10),
             est: est || new Date().toISOString().slice(0, 10),
-            services: initialPrice > 0 ? [{ name: "Presupuesto inicial", price: initialPrice }] : [],
+            services: services,
             parts: [],
             pagos: [],
             findings: [],
         });
+    };
+    const servicesSubtotal = serviceLines.reduce((s, l) => s + (Number(l.price) || 0), 0);
+    const updateServiceLine = (idx, key, val) => {
+        setServiceLines((prev) => prev.map((l, i) => (i === idx ? { ...l, [key]: val } : l)));
+    };
+    const addServiceLine = () => setServiceLines((prev) => [...prev, { name: "", price: "" }]);
+    const removeServiceLine = (idx) => {
+        setServiceLines((prev) => (prev.length <= 1 ? prev : prev.filter((_, i) => i !== idx)));
     };
     return (React.createElement(Modal, { title: "Nueva orden de trabajo", onClose: onClose },
         React.createElement("div", { className: "space-y-4" },
@@ -3224,8 +3265,19 @@ function NewOrderModal({ clients, setClients, vehicles, setVehicles, code, onClo
                     React.createElement(Select, { value: tech, onChange: (e) => setTech(e.target.value) }, TECHS.map((t) => React.createElement("option", { key: t, value: t }, t)))),
                 React.createElement(Field, { label: "Fecha estimada" },
                     React.createElement(Input, { type: "date", value: est, onChange: (e) => setEst(e.target.value) }))),
-            React.createElement(Field, { label: "Precio estimado (opcional)" },
-                React.createElement(Input, { type: "number", min: "0", step: "0.01", placeholder: "0.00", value: price, onChange: (e) => setPrice(e.target.value) })),
+            React.createElement("div", { className: "space-y-2" },
+                React.createElement("div", { className: "text-xs font-medium", style: { color: C.textSoft } }, "Trabajos / servicios de esta orden"),
+                serviceLines.map((line, idx) => React.createElement("div", { key: idx, className: "flex gap-2 items-center" },
+                    React.createElement(Input, { placeholder: "Ej. Cambio de aceite", value: line.name, onChange: (e) => updateServiceLine(idx, "name", e.target.value), className: "flex-1" }),
+                    React.createElement(Input, { type: "number", min: "0", step: "0.01", placeholder: "S/", value: line.price, onChange: (e) => updateServiceLine(idx, "price", e.target.value), style: { width: "100px" } }),
+                    React.createElement("button", { type: "button", onClick: () => removeServiceLine(idx), className: "w-8 h-8 rounded-lg flex items-center justify-center shrink-0", style: { color: C.textMute, opacity: serviceLines.length <= 1 ? 0.3 : 1 }, disabled: serviceLines.length <= 1 },
+                        React.createElement(X, { size: 14 })))),
+                React.createElement("div", { className: "flex items-center justify-between gap-2 pt-1" },
+                    React.createElement(Button, { type: "button", variant: "ghost", onClick: addServiceLine, className: "text-xs" },
+                        React.createElement(Plus, { size: 14 }),
+                        " Agregar otro trabajo"),
+                    React.createElement("div", { className: "text-sm font-semibold font-mono" },
+                        "Total: ", money(servicesSubtotal)))),
             React.createElement("div", { className: "flex gap-3 pt-2" },
                 React.createElement(Button, { variant: "ghost", onClick: onClose, className: "flex-1" }, "Cancelar"),
                 React.createElement(Button, { onClick: submit, disabled: !canSubmit, className: "flex-1" },
@@ -6616,11 +6668,12 @@ function showLocalNotification(title, body, tag) {
     if (typeof Notification === "undefined" || Notification.permission !== "granted")
         return false;
     try {
+        const origin = (typeof location !== "undefined" && location.origin) ? location.origin : "";
         const n = new Notification(title, {
             body: body,
             tag: tag || ("daily-tip-" + Date.now()),
-            icon: "icon-192.png",
-            badge: "icon-192.png",
+            icon: origin + "/icon-192.png",
+            badge: origin + "/badge-72.png",
         });
         n.onclick = () => { try { window.focus(); n.close(); } catch (e) { } };
         return true;
