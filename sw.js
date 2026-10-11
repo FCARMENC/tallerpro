@@ -1,6 +1,6 @@
-// sw.js — Service Worker de Expert
-// Colócalo en la RAÍZ del sitio (junto a index.html), no en /api.
-// Sin este archivo bien configurado, los avisos solo llegan con la app abierta.
+// sw.js — Service Worker de Expert (raíz del sitio, junto a index.html)
+// Evita notificaciones duplicadas: FCM ya muestra el aviso si el payload
+// trae "notification"; no volvemos a llamar showNotification en ese caso.
 
 self.addEventListener("install", function () {
   self.skipWaiting();
@@ -24,52 +24,42 @@ firebase.initializeApp({
 
 try {
   var messaging = firebase.messaging();
+
+  // Solo mostramos nosotros el aviso si el servidor envió DATA-ONLY
+  // (sin campo notification). Si ya viene "notification", el navegador
+  // lo muestra solo y NO debemos volver a mostrarlo (evita el doble aviso).
   messaging.onBackgroundMessage(function (payload) {
-    var n = (payload && payload.notification) || {};
-    var title = n.title || "Expert";
-    var body = n.body || "";
-    var icon = n.icon || "https://pushtaller.vercel.app/icon-192.png";
-    var badge = n.badge || "https://pushtaller.vercel.app/badge-72.png";
-    var tag = (payload.data && payload.data.tag) || ("expert-" + Date.now());
+    if (!payload) return;
+    if (payload.notification) {
+      // El sistema ya lo mostró. Solo avisamos a pestañas abiertas.
+      try {
+        self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(function (list) {
+          list.forEach(function (client) {
+            client.postMessage({ type: "EXPERT_PUSH", payload: payload });
+          });
+        });
+      } catch (e) {}
+      return;
+    }
+    var data = payload.data || {};
+    var title = data.title || "Expert";
+    var body = data.body || "";
+    if (!title && !body) return;
     return self.registration.showNotification(title, {
       body: body,
-      icon: icon,
-      badge: badge,
-      tag: tag,
-      data: (payload && payload.data) || {},
-      renotify: true,
+      icon: data.icon || "https://pushtaller.vercel.app/icon-192.png",
+      badge: data.badge || "https://pushtaller.vercel.app/badge-72.png",
+      tag: data.tag || "expert-push",
+      data: data,
+      renotify: false,
     });
   });
 } catch (e) {
   console.warn("FCM background:", e);
 }
 
-// Respaldo si el push llega como evento genérico
-self.addEventListener("push", function (event) {
-  if (!event.data) return;
-  var data = {};
-  try {
-    data = event.data.json();
-  } catch (err) {
-    data = { notification: { title: "Expert", body: event.data.text() } };
-  }
-  // Si onBackgroundMessage ya lo mostró, a veces llega también aquí;
-  // usamos tag fijo del payload para no duplicar de forma agresiva.
-  var n = data.notification || {};
-  var title = n.title || "Expert";
-  var body = n.body || "";
-  if (!title && !body) return;
-  event.waitUntil(
-    self.registration.showNotification(title, {
-      body: body,
-      icon: n.icon || "https://pushtaller.vercel.app/icon-192.png",
-      badge: n.badge || "https://pushtaller.vercel.app/badge-72.png",
-      tag: (data.data && data.data.tag) || "expert-push",
-      data: data.data || {},
-      renotify: true,
-    })
-  );
-});
+// NO escuchamos el evento "push" genérico: Firebase Messaging ya lo maneja.
+// Tener push + onBackgroundMessage era la causa del aviso DUPLICADO.
 
 self.addEventListener("notificationclick", function (event) {
   event.notification.close();
