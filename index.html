@@ -132,7 +132,7 @@
   // cuando activas los avisos push, y se hace en segundo plano para no retrasar la carga.
   if ("serviceWorker" in navigator) {
     window.addEventListener("load", function () {
-      navigator.serviceWorker.register("sw.js").catch(function (err) {
+      navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(function (err) {
         console.warn("No se pudo registrar el service worker (modo offline no disponible):", err);
       });
     });
@@ -7230,8 +7230,13 @@ function App() {
                 throw new Error(data.error || `El servidor respondi\u00f3 ${res.status}`);
             }
             const data = await res.json().catch(() => ({}));
-            setAvisosBroadcast((prev) => [{ id: "av" + Date.now() + Math.random().toString(36).slice(2, 6), text: trimmed, sentAt: Date.now(), sentBy: (currentUser && currentUser.name) || "", sent: typeof data.sent === "number" ? data.sent : null, note: data.note || "" }, ...prev].slice(0, 100));
-            return { ok: true };
+            const sentN = typeof data.sent === "number" ? data.sent : (typeof data.successCount === "number" ? data.successCount : null);
+            setAvisosBroadcast((prev) => [{ id: "av" + Date.now() + Math.random().toString(36).slice(2, 6), text: trimmed, sentAt: Date.now(), sentBy: (currentUser && currentUser.name) || "", sent: sentN, note: data.note || "" }, ...prev].slice(0, 100));
+            if (sentN === 0) {
+                setBroadcastError("El servidor no envió a ningún dispositivo. En cada celular: campanita → activar avisos (o reiniciar registro).");
+                return { ok: false, sent: 0 };
+            }
+            return { ok: true, sent: sentN };
         }
         catch (e) {
             setBroadcastError((e && e.message) || "No se pudo enviar el aviso.");
@@ -7298,8 +7303,23 @@ function App() {
                 setPushError("Este navegador no soporta avisos en segundo plano.");
                 return { ok: false, reason: "sw" };
             }
-            const reg = (await navigator.serviceWorker.getRegistration("sw.js")) || (await navigator.serviceWorker.register("sw.js"));
+            let reg = await navigator.serviceWorker.getRegistration("/");
+            if (!reg)
+                reg = await navigator.serviceWorker.register("/sw.js", { scope: "/" });
+            try { await reg.update(); } catch (e) { }
             await navigator.serviceWorker.ready;
+            // Esperar a que el SW controle la página (necesario para avisos con app cerrada)
+            if (!navigator.serviceWorker.controller) {
+                try {
+                    await new Promise(function (resolve) {
+                        navigator.serviceWorker.addEventListener("controllerchange", function once() {
+                            navigator.serviceWorker.removeEventListener("controllerchange", once);
+                            resolve();
+                        });
+                        setTimeout(resolve, 2500);
+                    });
+                } catch (e) { }
+            }
             const messaging = firebase.messaging();
             const token = await messaging.getToken({ vapidKey: VAPID_KEY, serviceWorkerRegistration: reg });
             if (token) {
@@ -7313,6 +7333,16 @@ function App() {
                 });
                 try { window.localStorage.setItem("fcmToken.mine", token); } catch (e) { }
                 setPushReady(true);
+                // Confirmación local inmediata (notificación del sistema)
+                try {
+                    if (Notification.permission === "granted") {
+                        new Notification("Avisos activados", {
+                            body: "Este celular recibirá citas, avisos del equipo y resúmenes.",
+                            icon: "/icon-192.png",
+                            tag: "expert-activado",
+                        });
+                    }
+                } catch (e) { }
                 // Avisos con la app ABIERTA (en primer plano)
                 try {
                     messaging.onMessage(function (payload) {
