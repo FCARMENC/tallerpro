@@ -132,7 +132,7 @@
   // cuando activas los avisos push, y se hace en segundo plano para no retrasar la carga.
   if ("serviceWorker" in navigator) {
     window.addEventListener("load", function () {
-      navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(function (err) {
+      navigator.serviceWorker.register("sw.js").catch(function (err) {
         console.warn("No se pudo registrar el service worker (modo offline no disponible):", err);
       });
     });
@@ -251,6 +251,8 @@ const { useState, useMemo, useEffect, useRef } = React;
  */
 const VAPID_KEY = "BN3WVEXl0psD6pcuAZNqQQ2K5ZBWqKl5PVVyAhcAcdWIL38d7VIrmoEiHOap64xCqG2Gu2vTZ_kr5SCkWhSqNZw";
 const NOTIFY_ENDPOINT = "https://pushtaller.vercel.app/api/notify";
+let __fcmOnMessageBound = false;
+
 const NOTIFY_SECRET = "taller-expert-2026-x7kQ9mPzR4";
 const FIREBASE_CONFIG = {
   apiKey: "AIzaSyAsYsXARi9G1NXGI3RXmoe19yYuzSVaoKY",
@@ -7273,7 +7275,6 @@ function App() {
                 setPushError("Este navegador no soporta notificaciones.");
                 return { ok: false, reason: "unsupported" };
             }
-            // Pedir permiso del sistema si aún no está concedido
             let perm = Notification.permission;
             if (perm === "default") {
                 perm = await Notification.requestPermission();
@@ -7285,9 +7286,9 @@ function App() {
                 setPushReady(false);
                 return { ok: false, reason: perm };
             }
-            if (!VAPID_KEY || !window.firebase) {
-                setPushError("Este navegador no cargó bien la librería de avisos. Prueba recargando la página.");
-                return { ok: false, reason: "firebase" };
+            if (!VAPID_KEY) {
+                setPushError("Falta la clave VAPID de avisos.");
+                return { ok: false, reason: "vapid" };
             }
             try {
                 await ensureFirebaseMessaging();
@@ -7295,7 +7296,7 @@ function App() {
                 setPushError("No se pudo cargar el módulo de avisos. Revisa tu conexión.");
                 return { ok: false, reason: "messaging" };
             }
-            if (!firebase.messaging) {
+            if (!window.firebase || !firebase.messaging) {
                 setPushError("Este navegador no cargó bien la librería de avisos. Prueba recargando la página.");
                 return { ok: false, reason: "messaging" };
             }
@@ -7303,85 +7304,106 @@ function App() {
                 setPushError("Este navegador no soporta avisos en segundo plano.");
                 return { ok: false, reason: "sw" };
             }
-            let reg = await navigator.serviceWorker.getRegistration("/");
-            if (!reg)
-                reg = await navigator.serviceWorker.register("/sw.js", { scope: "/" });
+
+            // Registrar SW (ruta relativa = compatible con cualquier dominio)
+            let reg = await navigator.serviceWorker.getRegistration();
+            if (!reg) {
+                reg = await navigator.serviceWorker.register("sw.js");
+            }
             try { await reg.update(); } catch (e) { }
             await navigator.serviceWorker.ready;
-            // Esperar a que el SW controle la página (necesario para avisos con app cerrada)
-            if (!navigator.serviceWorker.controller) {
-                try {
-                    await new Promise(function (resolve) {
-                        navigator.serviceWorker.addEventListener("controllerchange", function once() {
-                            navigator.serviceWorker.removeEventListener("controllerchange", once);
-                            resolve();
-                        });
-                        setTimeout(resolve, 2500);
-                    });
-                } catch (e) { }
-            }
+
             const messaging = firebase.messaging();
-            const token = await messaging.getToken({ vapidKey: VAPID_KEY, serviceWorkerRegistration: reg });
-            if (token) {
-                // Si Firebase le dio a este dispositivo un token distinto al que tenia guardado (pasa
-                // de vez en cuando, o al reinstalar), sacamos el viejo de la lista para no duplicar avisos.
-                let previousMine = null;
-                try { previousMine = window.localStorage.getItem("fcmToken.mine"); } catch (e) { }
-                setFcmTokens((prev) => {
-                    const withoutOld = previousMine && previousMine !== token ? prev.filter((t) => t !== previousMine) : prev;
-                    return withoutOld.indexOf(token) === -1 ? [...withoutOld, token] : withoutOld;
-                });
-                try { window.localStorage.setItem("fcmToken.mine", token); } catch (e) { }
-                setPushReady(true);
-                // Confirmación local inmediata (notificación del sistema)
-                try {
-                    if (Notification.permission === "granted") {
-                        new Notification("Avisos activados", {
-                            body: "Este celular recibirá citas, avisos del equipo y resúmenes.",
-                            icon: "/icon-192.png",
-                            tag: "expert-activado",
-                        });
+            const token = await messaging.getToken({
+                vapidKey: VAPID_KEY,
+                serviceWorkerRegistration: reg,
+            });
+            if (!token) {
+                setPushError("No se pudo activar en este dispositivo. Prueba de nuevo en un momento.");
+                setPushReady(false);
+                return { ok: false, reason: "no-token" };
+            }
+
+            // Guardar token local + fusionar en la nube (para que el servidor lo vea siempre)
+            let previousMine = null;
+            try { previousMine = window.localStorage.getItem("fcmToken.mine"); } catch (e) { }
+            try { window.localStorage.setItem("fcmToken.mine", token); } catch (e) { }
+
+            let nextList = [];
+            try {
+                if (db) {
+                    const ref = db.collection("tallerData").doc("expertTaller.fcmTokens");
+                    const snap = await ref.get();
+                    let remote = [];
+                    if (snap.exists) {
+                        const v = snap.data().value;
+                        if (Array.isArray(v)) {
+                            remote = v.map(function (t) {
+                                return typeof t === "string" ? t : (t && t.token) || null;
+                            }).filter(Boolean);
+                        }
                     }
-                } catch (e) { }
-                // Avisos con la app ABIERTA (en primer plano)
+                    nextList = remote.filter(function (t) {
+                        return t !== previousMine || t === token;
+                    });
+                    if (nextList.indexOf(token) === -1)
+                        nextList.push(token);
+                    const rev = Date.now();
+                    await ref.set({ value: nextList, updatedAt: rev });
+                    try { window.localStorage.setItem("expertTaller.fcmTokens.rev", String(rev)); } catch (e) { }
+                }
+            } catch (cloudErr) {
+                console.warn("No se pudo sincronizar token a la nube", cloudErr);
+            }
+
+            setFcmTokens(function (prev) {
+                const base = Array.isArray(prev) ? prev.slice() : [];
+                let list = base.filter(function (t) {
+                    return t !== previousMine || t === token;
+                });
+                if (list.indexOf(token) === -1)
+                    list.push(token);
+                if (nextList.length)
+                    list = nextList.slice();
+                return list;
+            });
+            setPushReady(true);
+
+            // Avisos con la app abierta (solo se enlaza una vez)
+            if (!__fcmOnMessageBound) {
+                __fcmOnMessageBound = true;
                 try {
                     messaging.onMessage(function (payload) {
                         var n = (payload && payload.notification) || {};
                         var d = (payload && payload.data) || {};
                         var title = n.title || d.title || "Expert";
                         var body = n.body || d.body || "";
-                        if (typeof Notification !== "undefined" && Notification.permission === "granted") {
-                            try {
-                                new Notification(title, {
-                                    body: body,
-                                    icon: n.icon || d.icon || "/icon-192.png",
-                                    tag: (d.tag || "expert-fg") + "-" + Date.now(),
-                                });
-                            } catch (err) {
-                                console.warn("No se pudo mostrar aviso en primer plano", err);
-                            }
+                        if (!title && !body)
+                            return;
+                        try {
+                            new Notification(title, {
+                                body: body,
+                                icon: n.icon || d.icon || "https://pushtaller.vercel.app/icon-192.png",
+                                tag: (d.tag || "expert-fg") + "-" + Date.now(),
+                            });
+                        } catch (err) {
+                            console.warn("Aviso en primer plano", err);
                         }
                     });
                 } catch (e) {
                     console.warn("onMessage", e);
                 }
-                return { ok: true, token: token };
             }
-            else {
-                setPushError("No se pudo activar en este dispositivo. Prueba de nuevo en un momento.");
-                return { ok: false, reason: "no-token" };
-            }
+
+            return { ok: true, token: token };
         }
         catch (e) {
             const raw = (e && e.message) || String(e);
-            // "push service error" es Google (Firebase) fallando al conectar con su propio servicio de
-            // avisos — normalmente porque el dispositivo no tiene Google Play Services actualizado, o
-            // la red bloquea esa conexión. No es algo que el código de la app pueda arreglar directo.
             const esFalloServicioGoogle = /push service|AbortError|registration failed/i.test(raw);
             setPushError(esFalloServicioGoogle
-                ? "Este dispositivo no pudo conectarse al servicio de avisos de Google. Revisa que tenga Google Play Services actualizado (Play Store → buscarlo → Actualizar), prueba con otra red (WiFi/datos), o reinicia el dispositivo. Si no tiene Google Play Services (como algunos Huawei), los avisos no van a poder funcionar ahí."
-                : `No se pudo activar: ${raw}`);
-            console.error("No se pudo activar el aviso push en este dispositivo", e);
+                ? "Este dispositivo no pudo conectarse al servicio de avisos de Google. Revisa Google Play Services, otra red (WiFi/datos), o reinicia el teléfono."
+                : ("No se pudo activar: " + raw));
+            console.error("ensurePushToken", e);
             setPushReady(false);
             return { ok: false, reason: "error", error: raw };
         }

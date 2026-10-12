@@ -1,9 +1,9 @@
-/* Expert — service worker (debe estar en la RAÍZ del sitio, junto a index.html) */
-self.addEventListener("install", function (e) {
+/* Expert service worker — raíz del sitio (junto a index.html) */
+self.addEventListener("install", function () {
   self.skipWaiting();
 });
-self.addEventListener("activate", function (e) {
-  e.waitUntil(self.clients.claim());
+self.addEventListener("activate", function (event) {
+  event.waitUntil(self.clients.claim());
 });
 
 importScripts(
@@ -23,32 +23,28 @@ firebase.initializeApp({
 var ICON = "https://pushtaller.vercel.app/icon-192.png";
 var BADGE = "https://pushtaller.vercel.app/badge-72.png";
 
-function showFromPayload(payload) {
-  payload = payload || {};
-  var n = payload.notification || {};
-  var d = payload.data || {};
-  var title = n.title || d.title || "Expert";
-  var body = n.body || d.body || "";
-  if (!title && !body) return Promise.resolve();
-  var tag = d.tag || n.tag || "expert-" + String(title).slice(0, 24);
-  return self.registration.showNotification(title, {
-    body: body,
-    icon: n.icon || d.icon || ICON,
-    badge: n.badge || d.badge || BADGE,
-    tag: tag,
-    renotify: true,
-    requireInteraction: false,
-    data: d,
-  });
-}
-
 try {
   var messaging = firebase.messaging();
+  // App en segundo plano / cerrada: mostrar aviso del sistema
   messaging.onBackgroundMessage(function (payload) {
-    return showFromPayload(payload);
+    payload = payload || {};
+    var n = payload.notification || {};
+    var d = payload.data || {};
+    var title = n.title || d.title || "Expert";
+    var body = n.body || d.body || "";
+    if (!title && !body) return;
+    var tag = d.tag || "expert-push";
+    return self.registration.showNotification(title, {
+      body: body,
+      icon: n.icon || d.icon || ICON,
+      badge: n.badge || d.badge || BADGE,
+      tag: tag,
+      renotify: true,
+      data: d,
+    });
   });
-} catch (err) {
-  console.warn("FCM SW init", err);
+} catch (e) {
+  console.warn("FCM SW:", e);
 }
 
 self.addEventListener("notificationclick", function (event) {
@@ -58,7 +54,7 @@ self.addEventListener("notificationclick", function (event) {
       for (var i = 0; i < list.length; i++) {
         if ("focus" in list[i]) return list[i].focus();
       }
-      if (self.clients.openWindow) return self.clients.openWindow("/");
+      if (self.clients.openWindow) return self.clients.openWindow("./");
     })
   );
 });
