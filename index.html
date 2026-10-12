@@ -2371,6 +2371,40 @@ function triggerPushNotification(proformaId, payload) {
         body: JSON.stringify({ proformaId: proformaId, secret: NOTIFY_SECRET, ...payload }),
     }).catch((e) => console.error("No se pudo avisar por push", e));
 }
+/** Prueba local (este dispositivo) + envío real al servidor (todos los tokens). */
+async function testPushNotification() {
+    const title = "Prueba Expert";
+    const body = "Si ves esto, los avisos de este dispositivo funcionan.";
+    // 1) Local inmediato (no depende del servidor)
+    if (typeof Notification !== "undefined" && Notification.permission === "granted") {
+        try {
+            new Notification(title, { body: body, icon: "/icon-192.png", tag: "expert-test-local" });
+        } catch (e) {
+            console.warn(e);
+        }
+    }
+    // 2) Servidor → FCM → todos los dispositivos registrados
+    if (!NOTIFY_ENDPOINT)
+        return { ok: false, error: "Sin endpoint" };
+    try {
+        const res = await fetch(NOTIFY_ENDPOINT, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                proformaId: null,
+                secret: NOTIFY_SECRET,
+                title: title,
+                body: body + " (vía servidor)",
+            }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok)
+            return { ok: false, error: data.error || ("HTTP " + res.status), data: data };
+        return { ok: true, data: data };
+    } catch (e) {
+        return { ok: false, error: (e && e.message) || "Error de red" };
+    }
+}
 function shareApprovalRequestWhatsApp(pf, client, settings) {
     const link = proformaApprovalLink(pf);
     const text = `Hola ${(client === null || client === void 0 ? void 0 : client.name) || ""}, te comparto el presupuesto ${pf.code} de ${settings.tallerNombre || "nuestro taller"} por un total de ${money(proformaTotal(pf))}. Puedes revisarlo y responder (aprobar o rechazar) con un clic aquí:\n${link}`;
@@ -6568,6 +6602,107 @@ function useSolicitudesPublicas(db) {
 // enlace publico (method === "cliente_web"), asi que no hace falta guardarlas aparte en Firestore.
 // Que esta "leido" vive solo en este dispositivo (usePersistentState), porque cada celular/PC
 // revisa sus propias notificaciones por separado.
+
+function PermissionsSetup({ open, onClose, onActivate, pushReady, pushError }) {
+    const [busy, setBusy] = useState(false);
+    const [step, setStep] = useState("main"); // main | denied | done
+    const [localMsg, setLocalMsg] = useState("");
+    const isIOS = typeof navigator !== "undefined" && /iPad|iPhone|iPod/.test(navigator.userAgent);
+    const isAndroid = typeof navigator !== "undefined" && /Android/i.test(navigator.userAgent);
+    const perm = typeof Notification !== "undefined" ? Notification.permission : "unsupported";
+
+    useEffect(() => {
+        if (!open)
+            return;
+        setStep(perm === "denied" ? "denied" : (pushReady ? "done" : "main"));
+        setLocalMsg("");
+    }, [open, perm, pushReady]);
+
+    const activar = async () => {
+        setBusy(true);
+        setLocalMsg("");
+        try {
+            const res = await onActivate();
+            if (res && res.ok) {
+                setStep("done");
+                setLocalMsg("Listo. Este dispositivo recibirá avisos.");
+            }
+            else if (typeof Notification !== "undefined" && Notification.permission === "denied") {
+                setStep("denied");
+            }
+            else {
+                setLocalMsg((res && res.reason === "denied")
+                    ? "Permiso denegado."
+                    : "No se pudo activar del todo. Revisa el mensaje de abajo.");
+            }
+        }
+        catch (e) {
+            setLocalMsg((e && e.message) || "Error al activar");
+        }
+        finally {
+            setBusy(false);
+        }
+    };
+
+    if (!open)
+        return null;
+
+    return React.createElement("div", {
+        className: "fixed inset-0 z-[80] flex items-end sm:items-center justify-center p-0 sm:p-6",
+        style: { background: "rgba(0,0,0,0.72)", backdropFilter: "blur(8px)" },
+        onClick: onClose,
+    },
+        React.createElement("div", {
+            onClick: function (e) { e.stopPropagation(); },
+            className: "w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl overflow-hidden",
+            style: { background: C.raised, border: `1px solid ${C.border}`, boxShadow: C.shadowLg },
+        },
+            React.createElement("div", { className: "px-5 pt-4 pb-2 sm:hidden" },
+                React.createElement("div", { className: "mx-auto h-1 w-10 rounded-full", style: { background: C.border } })),
+            React.createElement("div", { className: "px-5 sm:px-6 pt-2 sm:pt-5 pb-5 space-y-4" },
+                React.createElement("div", { className: "flex items-start gap-3" },
+                    React.createElement("div", { className: "w-12 h-12 rounded-2xl flex items-center justify-center shrink-0", style: { background: C.accentSoft, color: C.accentText } },
+                        React.createElement(Bell, { size: 22 })),
+                    React.createElement("div", { className: "min-w-0" },
+                        React.createElement("h2", { className: "text-lg font-semibold", style: { color: C.text } }, "Activa los avisos del taller"),
+                        React.createElement("p", { className: "text-sm mt-1", style: { color: C.textSoft } }, "Para citas, mensajes del equipo y resúmenes, Expert necesita permiso de notificaciones en este dispositivo."))),
+
+                step === "done"
+                    ? React.createElement("div", { className: "rounded-xl px-4 py-3 text-sm", style: { background: C.successSoft, color: C.success } },
+                        "Avisos activos. Ya puedes cerrar esta ventana.")
+                    : step === "denied"
+                        ? React.createElement("div", { className: "space-y-3" },
+                            React.createElement("div", { className: "rounded-xl px-4 py-3 text-sm", style: { background: C.warningSoft, color: C.warning } },
+                                "Bloqueaste los avisos antes. Hay que activarlos en los ajustes del navegador o del teléfono."),
+                            React.createElement("ol", { className: "text-sm space-y-2 pl-4 list-decimal", style: { color: C.textSoft } },
+                                React.createElement("li", null, "Toca el candado o info (i) en la barra de la dirección"),
+                                React.createElement("li", null, "Busca \"Notificaciones\" o \"Permisos\""),
+                                React.createElement("li", null, "Ponlas en Permitir y vuelve aquí"),
+                                isAndroid && React.createElement("li", null, "En Android: Ajustes → Apps → tu navegador o Expert → Notificaciones → activar"),
+                                isIOS && React.createElement("li", null, "En iPhone: Ajustes → Safari (o la app) → Notificaciones → Permitir")),
+                            React.createElement(Button, { className: "w-full", onClick: activar, disabled: busy }, busy ? "Comprobando…" : "Ya los activé, comprobar"))
+                        : React.createElement("div", { className: "space-y-3" },
+                            React.createElement("div", { className: "rounded-xl px-4 py-3 space-y-2 text-sm", style: { background: C.surfaceHi, color: C.textSoft } },
+                                React.createElement("div", { className: "flex items-center gap-2 font-medium", style: { color: C.text } },
+                                    React.createElement(CheckCircle2, { size: 16, style: { color: C.accentText } }),
+                                    "Qué se pedirá"),
+                                React.createElement("p", null, "1. Permiso de notificaciones del sistema"),
+                                React.createElement("p", null, "2. Registro de este dispositivo para avisos con la app cerrada"),
+                                isAndroid && React.createElement("p", { className: "text-xs", style: { color: C.textMute } }, "En Android, si más adelante no llegan avisos: Apps → Expert/Chrome → Batería → Sin restricciones."),
+                                isIOS && React.createElement("p", { className: "text-xs", style: { color: C.textMute } }, "En iPhone funciona mejor si agregas Expert a la pantalla de inicio.")),
+                            React.createElement(Button, { className: "w-full", onClick: activar, disabled: busy },
+                                React.createElement(Bell, { size: 16 }),
+                                " ",
+                                busy ? "Activando…" : "Permitir avisos ahora")),
+
+                (localMsg || pushError) && step !== "done" && React.createElement("p", { className: "text-xs", style: { color: C.danger } }, localMsg || pushError),
+
+                React.createElement("div", { className: "flex gap-2 pt-1" },
+                    React.createElement(Button, { variant: "ghost", className: "flex-1", onClick: onClose }, step === "done" ? "Cerrar" : "Ahora no"),
+                    step === "done" && React.createElement(Button, { className: "flex-1", onClick: onClose }, "Listo")))));
+}
+
+
 function NotificationsBell({ proformas, clients, avisosBroadcast, onEnablePush, onResetPush, pushReady, pushError, onOpenProforma }) {
     const [open, setOpen] = useState(false);
     const [readIds, setReadIds] = usePersistentState("expertTaller.notifRead", []);
@@ -6722,6 +6857,13 @@ function NotificationsBell({ proformas, clients, avisosBroadcast, onEnablePush, 
                         })),
                 React.createElement("div", { className: "px-3 py-2 shrink-0 flex flex-col gap-1", style: { borderTop: `1px solid ${C.borderSoft}`, background: C.surfaceHi } },
                     permission === "granted" && (React.createElement("div", { className: "text-[10px] px-1 py-0.5", style: { color: pushReady ? C.success : C.textMute } }, pushReady ? "Avisos activos (app abierta o cerrada)" : "Avisos solo con la app abierta")),
+                    permission === "granted" && (React.createElement("button", { type: "button", onClick: async function () {
+                        var r = await testPushNotification();
+                        if (r && r.ok)
+                            alert("Prueba enviada. Deberías ver 1–2 avisos (local y/o servidor). Si no llega el del servidor, revisa Vercel / tokens.");
+                        else
+                            alert("Prueba local lista. Servidor: " + ((r && r.error) || "falló") + ". Revisa NOTIFY_SECRET y que haya tokens.");
+                    }, className: "text-left text-[10px] px-1 py-0.5 font-semibold", style: { color: C.accentText } }, "Probar aviso ahora")),
                     permission === "granted" && onResetPush && (React.createElement("button", { type: "button", onClick: handleReset, disabled: resetState === "working", className: "text-left text-[10px] px-1 py-0.5 underline", style: { color: resetState === "done" ? C.success : resetState === "error" ? C.danger : C.textMute } }, resetState === "working" ? "Reiniciando…" : resetState === "done" ? "Registro reiniciado ✓" : resetState === "error" ? "Error al reiniciar" : "Reiniciar registro de este dispositivo"))))))));
 }
 
@@ -7120,25 +7262,42 @@ function App() {
     const ensurePushToken = async () => {
         setPushError("");
         try {
+            if (typeof Notification === "undefined") {
+                setPushError("Este navegador no soporta notificaciones.");
+                return { ok: false, reason: "unsupported" };
+            }
+            // Pedir permiso del sistema si aún no está concedido
+            let perm = Notification.permission;
+            if (perm === "default") {
+                perm = await Notification.requestPermission();
+            }
+            if (perm !== "granted") {
+                setPushError(perm === "denied"
+                    ? "Los avisos están bloqueados. Actívalos en Ajustes del sitio / del teléfono."
+                    : "No se concedió el permiso de avisos.");
+                setPushReady(false);
+                return { ok: false, reason: perm };
+            }
             if (!VAPID_KEY || !window.firebase) {
                 setPushError("Este navegador no cargó bien la librería de avisos. Prueba recargando la página.");
-                return;
+                return { ok: false, reason: "firebase" };
             }
             try {
                 await ensureFirebaseMessaging();
             } catch (e) {
                 setPushError("No se pudo cargar el módulo de avisos. Revisa tu conexión.");
-                return;
+                return { ok: false, reason: "messaging" };
             }
             if (!firebase.messaging) {
                 setPushError("Este navegador no cargó bien la librería de avisos. Prueba recargando la página.");
-                return;
+                return { ok: false, reason: "messaging" };
             }
             if (!("serviceWorker" in navigator)) {
                 setPushError("Este navegador no soporta avisos en segundo plano.");
-                return;
+                return { ok: false, reason: "sw" };
             }
             const reg = (await navigator.serviceWorker.getRegistration("sw.js")) || (await navigator.serviceWorker.register("sw.js"));
+            await navigator.serviceWorker.ready;
             const messaging = firebase.messaging();
             const token = await messaging.getToken({ vapidKey: VAPID_KEY, serviceWorkerRegistration: reg });
             if (token) {
@@ -7152,9 +7311,33 @@ function App() {
                 });
                 try { window.localStorage.setItem("fcmToken.mine", token); } catch (e) { }
                 setPushReady(true);
+                // Avisos con la app ABIERTA (en primer plano)
+                try {
+                    messaging.onMessage(function (payload) {
+                        var n = (payload && payload.notification) || {};
+                        var d = (payload && payload.data) || {};
+                        var title = n.title || d.title || "Expert";
+                        var body = n.body || d.body || "";
+                        if (typeof Notification !== "undefined" && Notification.permission === "granted") {
+                            try {
+                                new Notification(title, {
+                                    body: body,
+                                    icon: n.icon || d.icon || "/icon-192.png",
+                                    tag: (d.tag || "expert-fg") + "-" + Date.now(),
+                                });
+                            } catch (err) {
+                                console.warn("No se pudo mostrar aviso en primer plano", err);
+                            }
+                        }
+                    });
+                } catch (e) {
+                    console.warn("onMessage", e);
+                }
+                return { ok: true, token: token };
             }
             else {
                 setPushError("No se pudo activar en este dispositivo. Prueba de nuevo en un momento.");
+                return { ok: false, reason: "no-token" };
             }
         }
         catch (e) {
@@ -7167,6 +7350,8 @@ function App() {
                 ? "Este dispositivo no pudo conectarse al servicio de avisos de Google. Revisa que tenga Google Play Services actualizado (Play Store → buscarlo → Actualizar), prueba con otra red (WiFi/datos), o reinicia el dispositivo. Si no tiene Google Play Services (como algunos Huawei), los avisos no van a poder funcionar ahí."
                 : `No se pudo activar: ${raw}`);
             console.error("No se pudo activar el aviso push en este dispositivo", e);
+            setPushReady(false);
+            return { ok: false, reason: "error", error: raw };
         }
     };
     // Limpia el registro de ESTE dispositivo y lo vuelve a crear de cero — sin tocar el token de
@@ -7186,6 +7371,15 @@ function App() {
         const isClientRoute = window.location.hash && window.location.hash.indexOf("#aprobar-") === 0;
         if (!isClientRoute && typeof Notification !== "undefined" && Notification.permission === "granted") {
             ensurePushToken();
+        }
+        else if (!isClientRoute) {
+            try {
+                if (!sessionStorage.getItem("expertTaller.permSetupDismissed")) {
+                    setTimeout(function () { setShowPermSetup(true); }, 900);
+                }
+            } catch (e) {
+                setTimeout(function () { setShowPermSetup(true); }, 900);
+            }
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
@@ -7477,6 +7671,18 @@ function App() {
                                     cloudStatus === "error" ? `Error de conexión: ${cloudError}` :
                                         "Trabajando solo en este navegador", className: "hidden sm:flex w-9 h-9 rounded-xl items-center justify-center transition-colors hover:bg-white/5 active:scale-95", style: { background: C.surfaceHi, border: `1px solid ${C.borderSoft}`, color: cloudStatus === "connected" ? C.success : cloudStatus === "error" ? C.danger : C.textMute } }, cloudStatus === "offline" ? React.createElement(CloudOff, { size: 16 }) : React.createElement(CloudIcon, { size: 16 })),
                         React.createElement(NotificationsBell, { proformas: proformas, clients: clients, avisosBroadcast: avisosBroadcast, onEnablePush: ensurePushToken, onResetPush: resetPushRegistration, pushReady: pushReady, pushError: pushError, onOpenProforma: openProformaFromNotification }),
+                        React.createElement("button", { type: "button", onClick: () => setShowPermSetup(true), className: "w-9 h-9 rounded-xl flex items-center justify-center transition-colors hover:bg-white/5", style: { background: C.surfaceHi, border: `1px solid ${pushReady ? C.success + "55" : C.borderSoft}`, color: pushReady ? C.success : C.textMute }, title: "Permisos de avisos" },
+                            React.createElement(Bell, { size: 16 })),
+                        React.createElement(PermissionsSetup, {
+                            open: showPermSetup,
+                            onClose: function () {
+                                setShowPermSetup(false);
+                                try { sessionStorage.setItem("expertTaller.permSetupDismissed", "1"); } catch (e) { }
+                            },
+                            onActivate: ensurePushToken,
+                            pushReady: pushReady,
+                            pushError: pushError,
+                        }),
                         React.createElement("button", { onClick: () => setActive("ajustes"), className: "hidden sm:flex items-center gap-2 pl-1 pr-3 h-9 rounded-xl transition-colors hover:bg-white/5 active:scale-95", style: { background: C.surfaceHi, border: `1px solid ${C.borderSoft}` } },
                             React.createElement(UserAvatar, { user: currentUser, role: currentRole, size: 26 }),
                             React.createElement("span", { className: "text-xs font-medium max-w-[110px] truncate" }, currentUser === null || currentUser === void 0 ? void 0 : currentUser.name)))),
