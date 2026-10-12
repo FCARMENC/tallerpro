@@ -7254,6 +7254,7 @@ function App() {
     // que la funcion de Vercel sepa a que celulares/PCs avisar cuando un cliente responda.
     const [pushReady, setPushReady] = useState(false);
     const [pushError, setPushError] = useState("");
+    const [showPermSetup, setShowPermSetup] = useState(false);
     const [proformaFocus, setProformaFocus] = useState(null);
     const openProformaFromNotification = (id) => {
         setActive("proformas");
