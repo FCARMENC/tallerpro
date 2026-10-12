@@ -6603,105 +6603,31 @@ function useSolicitudesPublicas(db) {
 // Que esta "leido" vive solo en este dispositivo (usePersistentState), porque cada celular/PC
 // revisa sus propias notificaciones por separado.
 
-function PermissionsSetup({ open, onClose, onActivate, pushReady, pushError }) {
-    const [busy, setBusy] = useState(false);
-    const [step, setStep] = useState("main"); // main | denied | done
-    const [localMsg, setLocalMsg] = useState("");
-    const isIOS = typeof navigator !== "undefined" && /iPad|iPhone|iPod/.test(navigator.userAgent);
-    const isAndroid = typeof navigator !== "undefined" && /Android/i.test(navigator.userAgent);
-    const perm = typeof Notification !== "undefined" ? Notification.permission : "unsupported";
 
-    useEffect(() => {
-        if (!open)
-            return;
-        setStep(perm === "denied" ? "denied" : (pushReady ? "done" : "main"));
-        setLocalMsg("");
-    }, [open, perm, pushReady]);
-
-    const activar = async () => {
-        setBusy(true);
-        setLocalMsg("");
-        try {
-            const res = await onActivate();
-            if (res && res.ok) {
-                setStep("done");
-                setLocalMsg("Listo. Este dispositivo recibirá avisos.");
-            }
-            else if (typeof Notification !== "undefined" && Notification.permission === "denied") {
-                setStep("denied");
-            }
-            else {
-                setLocalMsg((res && res.reason === "denied")
-                    ? "Permiso denegado."
-                    : "No se pudo activar del todo. Revisa el mensaje de abajo.");
-            }
-        }
-        catch (e) {
-            setLocalMsg((e && e.message) || "Error al activar");
-        }
-        finally {
-            setBusy(false);
-        }
-    };
-
+/** Primera apertura: pide permiso de avisos como una app normal. */
+function FirstLaunchPermDialog({ open, onAccept, onLater, busy }) {
     if (!open)
         return null;
-
     return React.createElement("div", {
-        className: "fixed inset-0 z-[80] flex items-end sm:items-center justify-center p-0 sm:p-6",
-        style: { background: "rgba(0,0,0,0.72)", backdropFilter: "blur(8px)" },
-        onClick: onClose,
+        className: "fixed inset-0 z-[80] flex items-end sm:items-center justify-center p-4",
+        style: { background: "rgba(0,0,0,0.65)" },
     },
         React.createElement("div", {
-            onClick: function (e) { e.stopPropagation(); },
-            className: "w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl overflow-hidden",
-            style: { background: C.raised, border: `1px solid ${C.border}`, boxShadow: C.shadowLg },
+            className: "w-full sm:max-w-sm rounded-2xl p-5 space-y-4",
+            style: { background: C.raised, border: "1px solid " + C.border, boxShadow: C.shadowLg || "0 16px 48px rgba(0,0,0,0.4)" },
         },
-            React.createElement("div", { className: "px-5 pt-4 pb-2 sm:hidden" },
-                React.createElement("div", { className: "mx-auto h-1 w-10 rounded-full", style: { background: C.border } })),
-            React.createElement("div", { className: "px-5 sm:px-6 pt-2 sm:pt-5 pb-5 space-y-4" },
-                React.createElement("div", { className: "flex items-start gap-3" },
-                    React.createElement("div", { className: "w-12 h-12 rounded-2xl flex items-center justify-center shrink-0", style: { background: C.accentSoft, color: C.accentText } },
-                        React.createElement(Bell, { size: 22 })),
-                    React.createElement("div", { className: "min-w-0" },
-                        React.createElement("h2", { className: "text-lg font-semibold", style: { color: C.text } }, "Activa los avisos del taller"),
-                        React.createElement("p", { className: "text-sm mt-1", style: { color: C.textSoft } }, "Para citas, mensajes del equipo y resúmenes, Expert necesita permiso de notificaciones en este dispositivo."))),
-
-                step === "done"
-                    ? React.createElement("div", { className: "rounded-xl px-4 py-3 text-sm", style: { background: C.successSoft, color: C.success } },
-                        "Avisos activos. Ya puedes cerrar esta ventana.")
-                    : step === "denied"
-                        ? React.createElement("div", { className: "space-y-3" },
-                            React.createElement("div", { className: "rounded-xl px-4 py-3 text-sm", style: { background: C.warningSoft, color: C.warning } },
-                                "Bloqueaste los avisos antes. Hay que activarlos en los ajustes del navegador o del teléfono."),
-                            React.createElement("ol", { className: "text-sm space-y-2 pl-4 list-decimal", style: { color: C.textSoft } },
-                                React.createElement("li", null, "Toca el candado o info (i) en la barra de la dirección"),
-                                React.createElement("li", null, "Busca \"Notificaciones\" o \"Permisos\""),
-                                React.createElement("li", null, "Ponlas en Permitir y vuelve aquí"),
-                                isAndroid && React.createElement("li", null, "En Android: Ajustes → Apps → tu navegador o Expert → Notificaciones → activar"),
-                                isIOS && React.createElement("li", null, "En iPhone: Ajustes → Safari (o la app) → Notificaciones → Permitir")),
-                            React.createElement(Button, { className: "w-full", onClick: activar, disabled: busy }, busy ? "Comprobando…" : "Ya los activé, comprobar"))
-                        : React.createElement("div", { className: "space-y-3" },
-                            React.createElement("div", { className: "rounded-xl px-4 py-3 space-y-2 text-sm", style: { background: C.surfaceHi, color: C.textSoft } },
-                                React.createElement("div", { className: "flex items-center gap-2 font-medium", style: { color: C.text } },
-                                    React.createElement(CheckCircle2, { size: 16, style: { color: C.accentText } }),
-                                    "Qué se pedirá"),
-                                React.createElement("p", null, "1. Permiso de notificaciones del sistema"),
-                                React.createElement("p", null, "2. Registro de este dispositivo para avisos con la app cerrada"),
-                                isAndroid && React.createElement("p", { className: "text-xs", style: { color: C.textMute } }, "En Android, si más adelante no llegan avisos: Apps → Expert/Chrome → Batería → Sin restricciones."),
-                                isIOS && React.createElement("p", { className: "text-xs", style: { color: C.textMute } }, "En iPhone funciona mejor si agregas Expert a la pantalla de inicio.")),
-                            React.createElement(Button, { className: "w-full", onClick: activar, disabled: busy },
-                                React.createElement(Bell, { size: 16 }),
-                                " ",
-                                busy ? "Activando…" : "Permitir avisos ahora")),
-
-                (localMsg || pushError) && step !== "done" && React.createElement("p", { className: "text-xs", style: { color: C.danger } }, localMsg || pushError),
-
-                React.createElement("div", { className: "flex gap-2 pt-1" },
-                    React.createElement(Button, { variant: "ghost", className: "flex-1", onClick: onClose }, step === "done" ? "Cerrar" : "Ahora no"),
-                    step === "done" && React.createElement(Button, { className: "flex-1", onClick: onClose }, "Listo")))));
+            React.createElement("div", { className: "flex items-center gap-3" },
+                React.createElement("div", { className: "w-11 h-11 rounded-xl flex items-center justify-center shrink-0", style: { background: C.accentSoft, color: C.accentText } },
+                    React.createElement(Bell, { size: 20 })),
+                React.createElement("div", null,
+                    React.createElement("div", { className: "text-base font-semibold", style: { color: C.text } }, "Permitir notificaciones"),
+                    React.createElement("p", { className: "text-sm mt-0.5", style: { color: C.textSoft } }, "Expert te avisará de citas, mensajes del equipo y resúmenes del taller."))),
+            React.createElement("div", { className: "flex flex-col gap-2" },
+                React.createElement(Button, { className: "w-full", disabled: !!busy, onClick: onAccept },
+                    busy ? "Activando…" : "Permitir"),
+                React.createElement(Button, { variant: "ghost", className: "w-full", disabled: !!busy, onClick: onLater },
+                    "Ahora no"))));
 }
-
 
 function NotificationsBell({ proformas, clients, avisosBroadcast, onEnablePush, onResetPush, pushReady, pushError, onOpenProforma }) {
     const [open, setOpen] = useState(false);
@@ -6710,11 +6636,14 @@ function NotificationsBell({ proformas, clients, avisosBroadcast, onEnablePush, 
     const [resetState, setResetState] = useState("idle");
     const rootRef = useRef(null);
     const items = useMemo(() => {
-        const approvalItems = proformas
-            .filter((pf) => pf.clientApproval && pf.clientApproval.method === "cliente_web")
+        const listPf = Array.isArray(proformas) ? proformas : [];
+        const listCl = Array.isArray(clients) ? clients : [];
+        const listAv = Array.isArray(avisosBroadcast) ? avisosBroadcast : [];
+        const approvalItems = listPf
+            .filter((pf) => pf && pf.clientApproval && pf.clientApproval.method === "cliente_web")
             .map((pf) => {
                 const ca = pf.clientApproval;
-                const client = clients.find((c) => c.id === pf.clientId);
+                const client = listCl.find((c) => c.id === pf.clientId);
                 return {
                     id: pf.id,
                     kind: "proforma",
@@ -6728,7 +6657,7 @@ function NotificationsBell({ proformas, clients, avisosBroadcast, onEnablePush, 
                     text: "",
                 };
             });
-        const avisoItems = (avisosBroadcast || []).map((av) => ({
+        const avisoItems = listAv.map((av) => ({
             id: av.id,
             kind: "aviso",
             ts: av.sentAt || 0,
@@ -6742,13 +6671,20 @@ function NotificationsBell({ proformas, clients, avisosBroadcast, onEnablePush, 
         }));
         return approvalItems.concat(avisoItems).sort((a, b) => new Date(b.ts) - new Date(a.ts));
     }, [proformas, clients, avisosBroadcast]);
-    const unread = items.filter((it) => readIds.indexOf(it.id) === -1);
-    const isUnread = (id) => readIds.indexOf(id) === -1;
+    const readList = Array.isArray(readIds) ? readIds : [];
+    const unread = items.filter((it) => readList.indexOf(it.id) === -1);
+    const isUnread = (id) => readList.indexOf(id) === -1;
     const markAllRead = () => {
-        setReadIds((prev) => Array.from(new Set(prev.concat(items.map((it) => it.id)))));
+        setReadIds((prev) => {
+            const base = Array.isArray(prev) ? prev : [];
+            return Array.from(new Set(base.concat(items.map((it) => it.id))));
+        });
     };
     const markOneRead = (id) => {
-        setReadIds((prev) => (prev.indexOf(id) === -1 ? prev.concat([id]) : prev));
+        setReadIds((prev) => {
+            const base = Array.isArray(prev) ? prev : [];
+            return base.indexOf(id) === -1 ? base.concat([id]) : base;
+        });
     };
     const requestPermission = async () => {
         if (typeof Notification === "undefined")
@@ -6762,9 +6698,11 @@ function NotificationsBell({ proformas, clients, avisosBroadcast, onEnablePush, 
         setOpen((v) => {
             const next = !v;
             if (next && unread.length > 0) {
-                // Al abrir, se marcan como vistas (como FB) tras un instante
                 setTimeout(() => {
-                    setReadIds((prev) => Array.from(new Set(prev.concat(items.map((it) => it.id)))));
+                    setReadIds((prev) => {
+                        const base = Array.isArray(prev) ? prev : [];
+                        return Array.from(new Set(base.concat(items.map((it) => it.id))));
+                    });
                 }, 1200);
             }
             return next;
@@ -7254,7 +7192,8 @@ function App() {
     // que la funcion de Vercel sepa a que celulares/PCs avisar cuando un cliente responda.
     const [pushReady, setPushReady] = useState(false);
     const [pushError, setPushError] = useState("");
-    const [showPermSetup, setShowPermSetup] = useState(false);
+    const [showFirstPerm, setShowFirstPerm] = useState(false);
+    const [firstPermBusy, setFirstPermBusy] = useState(false);
     const [proformaFocus, setProformaFocus] = useState(null);
     const openProformaFromNotification = (id) => {
         setActive("proformas");
@@ -7370,17 +7309,21 @@ function App() {
     };
     useEffect(() => {
         const isClientRoute = window.location.hash && window.location.hash.indexOf("#aprobar-") === 0;
-        if (!isClientRoute && typeof Notification !== "undefined" && Notification.permission === "granted") {
+        if (isClientRoute)
+            return;
+        if (typeof Notification === "undefined")
+            return;
+        if (Notification.permission === "granted") {
             ensurePushToken();
+            return;
         }
-        else if (!isClientRoute) {
+        // Primera vez (el sistema aún no preguntó): mostrar diálogo como una app normal
+        if (Notification.permission === "default") {
             try {
-                if (!sessionStorage.getItem("expertTaller.permSetupDismissed")) {
-                    setTimeout(function () { setShowPermSetup(true); }, 900);
-                }
-            } catch (e) {
-                setTimeout(function () { setShowPermSetup(true); }, 900);
-            }
+                if (localStorage.getItem("expertTaller.notifAsked") === "1")
+                    return;
+            } catch (e) { }
+            setTimeout(function () { setShowFirstPerm(true); }, 600);
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
@@ -7672,17 +7615,24 @@ function App() {
                                     cloudStatus === "error" ? `Error de conexión: ${cloudError}` :
                                         "Trabajando solo en este navegador", className: "hidden sm:flex w-9 h-9 rounded-xl items-center justify-center transition-colors hover:bg-white/5 active:scale-95", style: { background: C.surfaceHi, border: `1px solid ${C.borderSoft}`, color: cloudStatus === "connected" ? C.success : cloudStatus === "error" ? C.danger : C.textMute } }, cloudStatus === "offline" ? React.createElement(CloudOff, { size: 16 }) : React.createElement(CloudIcon, { size: 16 })),
                         React.createElement(NotificationsBell, { proformas: proformas, clients: clients, avisosBroadcast: avisosBroadcast, onEnablePush: ensurePushToken, onResetPush: resetPushRegistration, pushReady: pushReady, pushError: pushError, onOpenProforma: openProformaFromNotification }),
-                        React.createElement("button", { type: "button", onClick: () => setShowPermSetup(true), className: "w-9 h-9 rounded-xl flex items-center justify-center transition-colors hover:bg-white/5", style: { background: C.surfaceHi, border: `1px solid ${pushReady ? C.success + "55" : C.borderSoft}`, color: pushReady ? C.success : C.textMute }, title: "Permisos de avisos" },
-                            React.createElement(Bell, { size: 16 })),
-                        React.createElement(PermissionsSetup, {
-                            open: showPermSetup,
-                            onClose: function () {
-                                setShowPermSetup(false);
-                                try { sessionStorage.setItem("expertTaller.permSetupDismissed", "1"); } catch (e) { }
+                        React.createElement(FirstLaunchPermDialog, {
+                            open: showFirstPerm,
+                            busy: firstPermBusy,
+                            onLater: function () {
+                                setShowFirstPerm(false);
+                                try { localStorage.setItem("expertTaller.notifAsked", "1"); } catch (e) { }
                             },
-                            onActivate: ensurePushToken,
-                            pushReady: pushReady,
-                            pushError: pushError,
+                            onAccept: async function () {
+                                setFirstPermBusy(true);
+                                try {
+                                    await ensurePushToken();
+                                    try { localStorage.setItem("expertTaller.notifAsked", "1"); } catch (e) { }
+                                    setShowFirstPerm(false);
+                                }
+                                finally {
+                                    setFirstPermBusy(false);
+                                }
+                            },
                         }),
                         React.createElement("button", { onClick: () => setActive("ajustes"), className: "hidden sm:flex items-center gap-2 pl-1 pr-3 h-9 rounded-xl transition-colors hover:bg-white/5 active:scale-95", style: { background: C.surfaceHi, border: `1px solid ${C.borderSoft}` } },
                             React.createElement(UserAvatar, { user: currentUser, role: currentRole, size: 26 }),
