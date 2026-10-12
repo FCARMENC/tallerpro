@@ -132,9 +132,14 @@
   // cuando activas los avisos push, y se hace en segundo plano para no retrasar la carga.
   if ("serviceWorker" in navigator) {
     window.addEventListener("load", function () {
-      navigator.serviceWorker.register("sw.js").catch(function (err) {
-        console.warn("No se pudo registrar el service worker (modo offline no disponible):", err);
-      });
+      (function () {
+        var p = window.location.pathname || "/";
+        var base = p.endsWith("/") ? p : p.replace(/\/[^/]*$/, "/");
+        if (!base) base = "/";
+        navigator.serviceWorker.register(base + "sw.js", { scope: base }).catch(function (err) {
+          console.warn("No se pudo registrar el service worker:", err);
+        });
+      })();
     });
   }
 </script>
@@ -7305,10 +7310,16 @@ function App() {
                 return { ok: false, reason: "sw" };
             }
 
-            // Registrar SW (ruta relativa = compatible con cualquier dominio)
-            let reg = await navigator.serviceWorker.getRegistration();
+            // GitHub Pages vive en /tallerpro/ — el SW debe registrarse en esa ruta
+            var path = window.location.pathname || "/";
+            var basePath = path.endsWith("/")
+                ? path
+                : path.replace(/\/[^/]*$/, "/");
+            if (!basePath) basePath = "/";
+            var swUrl = basePath + "sw.js";
+            var reg = await navigator.serviceWorker.getRegistration(basePath);
             if (!reg) {
-                reg = await navigator.serviceWorker.register("sw.js");
+                reg = await navigator.serviceWorker.register(swUrl, { scope: basePath });
             }
             try { await reg.update(); } catch (e) { }
             await navigator.serviceWorker.ready;
@@ -7380,15 +7391,18 @@ function App() {
                         var body = n.body || d.body || "";
                         if (!title && !body)
                             return;
-                        try {
-                            new Notification(title, {
-                                body: body,
-                                icon: n.icon || d.icon || "https://pushtaller.vercel.app/icon-192.png",
-                                tag: (d.tag || "expert-fg") + "-" + Date.now(),
-                            });
-                        } catch (err) {
-                            console.warn("Aviso en primer plano", err);
-                        }
+                        var opts = {
+                            body: body,
+                            icon: n.icon || d.icon || "https://pushtaller.vercel.app/icon-192.png",
+                            badge: "https://pushtaller.vercel.app/badge-72.png",
+                            tag: (d.tag || "expert-fg") + "-" + Date.now(),
+                        };
+                        // Android Chrome: showNotification del SW es más fiable que new Notification
+                        navigator.serviceWorker.ready.then(function (r) {
+                            return r.showNotification(title, opts);
+                        }).catch(function () {
+                            try { new Notification(title, opts); } catch (err) { console.warn(err); }
+                        });
                     });
                 } catch (e) {
                     console.warn("onMessage", e);
