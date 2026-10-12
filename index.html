@@ -6608,25 +6608,87 @@ function useSolicitudesPublicas(db) {
 function FirstLaunchPermDialog({ open, onAccept, onLater, busy }) {
     if (!open)
         return null;
+    // position:fixed + z-index alto fuera del header para que no se recorte
     return React.createElement("div", {
-        className: "fixed inset-0 z-[80] flex items-end sm:items-center justify-center p-4",
-        style: { background: "rgba(0,0,0,0.65)" },
+        style: {
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            zIndex: 9999,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "20px",
+            background: "rgba(0,0,0,0.72)",
+            boxSizing: "border-box",
+        },
     },
         React.createElement("div", {
-            className: "w-full sm:max-w-sm rounded-2xl p-5 space-y-4",
-            style: { background: C.raised, border: "1px solid " + C.border, boxShadow: C.shadowLg || "0 16px 48px rgba(0,0,0,0.4)" },
+            style: {
+                width: "100%",
+                maxWidth: "360px",
+                borderRadius: "20px",
+                padding: "22px 20px",
+                background: C.raised || "#18181C",
+                border: "1px solid " + (C.border || "rgba(255,255,255,0.08)"),
+                boxShadow: "0 24px 64px rgba(0,0,0,0.55)",
+                boxSizing: "border-box",
+            },
         },
-            React.createElement("div", { className: "flex items-center gap-3" },
-                React.createElement("div", { className: "w-11 h-11 rounded-xl flex items-center justify-center shrink-0", style: { background: C.accentSoft, color: C.accentText } },
-                    React.createElement(Bell, { size: 20 })),
-                React.createElement("div", null,
-                    React.createElement("div", { className: "text-base font-semibold", style: { color: C.text } }, "Permitir notificaciones"),
-                    React.createElement("p", { className: "text-sm mt-0.5", style: { color: C.textSoft } }, "Expert te avisará de citas, mensajes del equipo y resúmenes del taller."))),
-            React.createElement("div", { className: "flex flex-col gap-2" },
-                React.createElement(Button, { className: "w-full", disabled: !!busy, onClick: onAccept },
-                    busy ? "Activando…" : "Permitir"),
-                React.createElement(Button, { variant: "ghost", className: "w-full", disabled: !!busy, onClick: onLater },
-                    "Ahora no"))));
+            React.createElement("div", { style: { display: "flex", alignItems: "flex-start", gap: "14px", marginBottom: "18px" } },
+                React.createElement("div", {
+                    style: {
+                        width: "48px",
+                        height: "48px",
+                        borderRadius: "14px",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        flexShrink: 0,
+                        background: C.accentSoft || "rgba(255,106,26,0.12)",
+                        color: C.accentText || "#FFB380",
+                    },
+                }, React.createElement(Bell, { size: 22 })),
+                React.createElement("div", { style: { minWidth: 0, flex: 1 } },
+                    React.createElement("div", { style: { fontSize: "17px", fontWeight: 600, color: C.text || "#FAFAFA", lineHeight: 1.3 } }, "Permitir notificaciones"),
+                    React.createElement("p", { style: { fontSize: "14px", marginTop: "6px", color: C.textSoft || "#A1A1AA", lineHeight: 1.45, marginBottom: 0 } },
+                        "Expert te avisará de citas, mensajes del equipo y resúmenes del taller."))),
+            React.createElement("button", {
+                type: "button",
+                disabled: !!busy,
+                onClick: onAccept,
+                style: {
+                    width: "100%",
+                    height: "48px",
+                    borderRadius: "12px",
+                    border: "none",
+                    background: C.accent || "#FF6A1A",
+                    color: "#fff",
+                    fontSize: "15px",
+                    fontWeight: 600,
+                    cursor: busy ? "wait" : "pointer",
+                    opacity: busy ? 0.7 : 1,
+                    marginBottom: "10px",
+                },
+            }, busy ? "Activando…" : "Permitir"),
+            React.createElement("button", {
+                type: "button",
+                disabled: !!busy,
+                onClick: onLater,
+                style: {
+                    width: "100%",
+                    height: "44px",
+                    borderRadius: "12px",
+                    border: "1px solid " + (C.border || "rgba(255,255,255,0.08)"),
+                    background: "transparent",
+                    color: C.textSoft || "#A1A1AA",
+                    fontSize: "14px",
+                    fontWeight: 500,
+                    cursor: "pointer",
+                },
+            }, "Ahora no")));
 }
 
 function NotificationsBell({ proformas, clients, avisosBroadcast, onEnablePush, onResetPush, pushReady, pushError, onOpenProforma }) {
@@ -7595,8 +7657,28 @@ function App() {
             color: C.text,
             fontFamily: "'Geist', system-ui, sans-serif",
             minHeight: "100vh",
+            position: "relative",
         } },
         React.createElement("style", null, getFonts()),
+        React.createElement(FirstLaunchPermDialog, {
+            open: showFirstPerm,
+            busy: firstPermBusy,
+            onLater: function () {
+                setShowFirstPerm(false);
+                try { localStorage.setItem("expertTaller.notifAsked", "1"); } catch (e) { }
+            },
+            onAccept: async function () {
+                setFirstPermBusy(true);
+                try {
+                    await ensurePushToken();
+                    try { localStorage.setItem("expertTaller.notifAsked", "1"); } catch (e) { }
+                    setShowFirstPerm(false);
+                }
+                finally {
+                    setFirstPermBusy(false);
+                }
+            },
+        }),
         React.createElement("div", { className: "flex" },
             React.createElement(Sidebar, { active: active, setActive: setActive, mobileOpen: mobileOpen, setMobileOpen: setMobileOpen, settings: settings, role: currentRole, currentUser: currentUser, onLock: lockNow, onLogout: logout }),
             React.createElement(MobileTabBar, { active: active, setActive: setActive, mobileOpen: mobileOpen, setMobileOpen: setMobileOpen, role: currentRole, pendingSolicitudesCount: pendingSolicitudesCount }),
@@ -7615,25 +7697,6 @@ function App() {
                                     cloudStatus === "error" ? `Error de conexión: ${cloudError}` :
                                         "Trabajando solo en este navegador", className: "hidden sm:flex w-9 h-9 rounded-xl items-center justify-center transition-colors hover:bg-white/5 active:scale-95", style: { background: C.surfaceHi, border: `1px solid ${C.borderSoft}`, color: cloudStatus === "connected" ? C.success : cloudStatus === "error" ? C.danger : C.textMute } }, cloudStatus === "offline" ? React.createElement(CloudOff, { size: 16 }) : React.createElement(CloudIcon, { size: 16 })),
                         React.createElement(NotificationsBell, { proformas: proformas, clients: clients, avisosBroadcast: avisosBroadcast, onEnablePush: ensurePushToken, onResetPush: resetPushRegistration, pushReady: pushReady, pushError: pushError, onOpenProforma: openProformaFromNotification }),
-                        React.createElement(FirstLaunchPermDialog, {
-                            open: showFirstPerm,
-                            busy: firstPermBusy,
-                            onLater: function () {
-                                setShowFirstPerm(false);
-                                try { localStorage.setItem("expertTaller.notifAsked", "1"); } catch (e) { }
-                            },
-                            onAccept: async function () {
-                                setFirstPermBusy(true);
-                                try {
-                                    await ensurePushToken();
-                                    try { localStorage.setItem("expertTaller.notifAsked", "1"); } catch (e) { }
-                                    setShowFirstPerm(false);
-                                }
-                                finally {
-                                    setFirstPermBusy(false);
-                                }
-                            },
-                        }),
                         React.createElement("button", { onClick: () => setActive("ajustes"), className: "hidden sm:flex items-center gap-2 pl-1 pr-3 h-9 rounded-xl transition-colors hover:bg-white/5 active:scale-95", style: { background: C.surfaceHi, border: `1px solid ${C.borderSoft}` } },
                             React.createElement(UserAvatar, { user: currentUser, role: currentRole, size: 26 }),
                             React.createElement("span", { className: "text-xs font-medium max-w-[110px] truncate" }, currentUser === null || currentUser === void 0 ? void 0 : currentUser.name)))),
