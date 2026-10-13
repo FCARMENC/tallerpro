@@ -21,8 +21,8 @@ firebase.initializeApp({
   appId: "1:832448264902:web:d434c241dae0b0e18775c7",
 });
 
-var ICON = "https://pushtaller.vercel.app/icon-192.png";
-var BADGE = "https://pushtaller.vercel.app/badge-72.png";
+var ICON = "https://fcarmenc.github.io/tallerpro/icon-192.png";
+var BADGE = "https://fcarmenc.github.io/tallerpro/badge-72.png";
 
 function displayPush(payload) {
   payload = payload || {};

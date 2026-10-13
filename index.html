@@ -2385,7 +2385,7 @@ async function testPushNotification() {
     // 1) Local inmediato (no depende del servidor)
     if (typeof Notification !== "undefined" && Notification.permission === "granted") {
         try {
-            new Notification(title, { body: body, icon: "/icon-192.png", tag: "expert-test-local" });
+            new Notification(title, { body: body, icon: "https://fcarmenc.github.io/tallerpro/icon-192.png", tag: "expert-test-local" });
         } catch (e) {
             console.warn(e);
         }
@@ -7396,8 +7396,8 @@ function App() {
                             return;
                         var opts = {
                             body: body,
-                            icon: n.icon || d.icon || "https://pushtaller.vercel.app/icon-192.png",
-                            badge: "https://pushtaller.vercel.app/badge-72.png",
+                            icon: n.icon || d.icon || "https://fcarmenc.github.io/tallerpro/icon-192.png",
+                            badge: "https://fcarmenc.github.io/tallerpro/badge-72.png",
                             tag: (d.tag || "expert-fg") + "-" + Date.now(),
                         };
                         // Android Chrome: showNotification del SW es más fiable que new Notification
