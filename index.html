@@ -7034,6 +7034,9 @@ function showLocalNotification(title, body, tag) {
 // Programa la próxima notificación aleatoria dentro de una ventana de horas laborables.
 // Máximo 4 al día. Si no hay permiso de notificaciones, no hace nada.
 function scheduleNextDailyTip(getSnapshot, enabledRef) {
+    // Desactivado: los tips/resúmenes del día los envía el SERVIDOR (cron + FCM)
+    // para que lleguen con la app cerrada. No usar notificaciones locales aquí.
+    return null;
     if (!enabledRef.current) return null;
     if (typeof Notification === "undefined" || Notification.permission !== "granted") return null;
     const stats = getDailyTipStats();
