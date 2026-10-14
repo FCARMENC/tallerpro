@@ -1753,19 +1753,16 @@ async function buildServiceReportDoc(order, client, vehicle, settings) {
     doc.text(order.code, pageWidth - marginX, y + 6, { align: "right" });
     doc.text(`Fecha: ${fmtDatePE(new Date().toISOString().slice(0, 10))}`, pageWidth - marginX, y + 11, { align: "right" });
     y = Math.max(subY, y + 18) + 6;
-    if (order.tech) {
-        doc.setFont("helvetica", "normal");
-        doc.setFontSize(9);
-        doc.setTextColor(70, 70, 80);
-        doc.text(`Técnico asignado: ${order.tech}`, marginX, y);
-    }
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.setTextColor(70, 70, 80);
+    doc.text(`Técnico asignado: ${(order.tech && String(order.tech).trim()) || "Sin asignar"}`, marginX, y);
+    y += 5;
     if (settings.ownerName) {
-        doc.setFont("helvetica", "normal");
-        doc.setFontSize(9);
-        doc.setTextColor(70, 70, 80);
-        doc.text(`Jefe de taller: ${settings.ownerName}${settings.ownerRole ? " · " + settings.ownerRole : ""}`, order.tech ? pageWidth / 2 : marginX, y);
+        const role = (settings.ownerRole && String(settings.ownerRole).trim()) || "Jefe de taller";
+        doc.text(`${role}: ${settings.ownerName}`, marginX, y);
+        y += 5;
     }
-    if (order.tech || settings.ownerName) y += 6;
     doc.setDrawColor(220, 220, 220);
     doc.line(marginX, y, pageWidth - marginX, y);
     y += 8;
@@ -2030,20 +2027,21 @@ async function buildOrderProgressDoc(order, client, vehicle, settings, mechanicN
         if (vehicle.mileage != null) bits.push(`${vehicle.mileage} km`);
         doc.text(bits.join(" · "), col2, y);
     }
-    const techLabel = (order && order.tech) || mechanicName || "";
-    const jefeLabel = (settings && settings.ownerName)
-        ? `${settings.ownerName}${settings.ownerRole ? " · " + settings.ownerRole : ""}`
-        : "";
-    if (techLabel) {
-        doc.setTextColor(80, 80, 90);
-        doc.text(`Técnico asignado: ${techLabel}`, marginX, y);
+    // Técnico y jefe en líneas propias (debajo de cliente/vehículo) para no solapar
+    y += 3;
+    const techLabel = (order && order.tech && String(order.tech).trim()) || "";
+    const jefeName = (settings && settings.ownerName && String(settings.ownerName).trim()) || "";
+    const jefeRole = (settings && settings.ownerRole && String(settings.ownerRole).trim()) || "Jefe de taller";
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.setTextColor(70, 70, 80);
+    doc.text(`Técnico asignado: ${techLabel || "Sin asignar"}`, marginX, y);
+    y += 5;
+    if (jefeName) {
+        doc.text(`${jefeRole}: ${jefeName}`, marginX, y);
+        y += 5;
     }
-    if (jefeLabel) {
-        doc.setTextColor(80, 80, 90);
-        doc.text(`Jefe de taller: ${jefeLabel}`, techLabel ? (pageWidth / 2 + 2) : marginX, y);
-    }
-    if (techLabel || jefeLabel) y += 5;
-    y += 8;
+    y += 4;
 
     // Línea divisoria
     doc.setDrawColor(220, 222, 228);
@@ -5915,12 +5913,12 @@ function AjustesView({ settings, setSettings, cloudStatus, cloudError, cloudProj
                 React.createElement(Field, { label: "Nombre del taller" },
                     React.createElement(Input, { disabled: readOnly, value: form.tallerNombre, onChange: update("tallerNombre"), placeholder: "Ej: Taller Mec\u00E1nico R\u00EDos" })),
                 React.createElement("div", { className: "grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 min-w-0" },
-                    React.createElement(Field, { label: "Nombre del due\u00F1o / encargado" },
-                        React.createElement(Input, { disabled: readOnly, value: form.ownerName, onChange: update("ownerName"), placeholder: "Ej: Carlos R\u00EDos" })),
-                    React.createElement(Field, { label: "Cargo" },
+                    React.createElement(Field, { label: "Jefe de taller (nombre)" },
+                        React.createElement(Input, { disabled: readOnly, value: form.ownerName, onChange: update("ownerName"), placeholder: "Ej: F\u00E9lix R\u00EDos" })),
+                    React.createElement(Field, { label: "Cargo del jefe" },
                         React.createElement(Input, { disabled: readOnly, value: form.ownerRole, onChange: update("ownerRole"), placeholder: "Ej: Jefe de taller" }))),
                 React.createElement("div", { className: "mt-2 mb-1", style: { color: C.textMute, fontSize: 13, fontWeight: 600 } }, "Equipo del taller"),
-                React.createElement("p", { className: "text-xs mb-2", style: { color: C.textMute } }, "El jefe de taller es el nombre y cargo de arriba. Aquí editas la lista de técnicos que aparecen al crear o editar una orden."),
+                React.createElement("p", { className: "text-xs mb-2", style: { color: C.textMute } }, "Arriba defines el jefe de taller. Aquí la lista de técnicos para asignar en cada orden o cita."),
                 React.createElement("div", { className: "space-y-2 mb-3" },
                     (Array.isArray(form.tecnicos) ? form.tecnicos : []).map((t, i) => React.createElement("div", { key: i, className: "flex gap-2 items-center min-w-0" },
                         React.createElement(Input, {
