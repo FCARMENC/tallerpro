@@ -704,7 +704,15 @@ const initialAppointments = [
     { id: "a3", date: "2026-07-21", time: "10:00", client: "Milagros Chávez", vehicle: "BXR-902 · Accent", service: "Cambio de pastillas", tech: "Luis Quiroz" },
     { id: "a4", date: "2026-07-22", time: "15:00", client: "Diego Farfán", vehicle: "CJP-405 · Versa", service: "Revisión de A/C", tech: "Luis Quiroz" },
 ];
-const TECHS = ["Marco Ibáñez", "Luis Quiroz", "Sin asignar"];
+const DEFAULT_TECHS = ["Marco Ibáñez", "Luis Quiroz", "Sin asignar"];
+const TECHS = DEFAULT_TECHS;
+function getTechs(settings) {
+    const list = settings && Array.isArray(settings.tecnicos)
+        ? settings.tecnicos.map(function (t) { return String(t || "").trim(); }).filter(Boolean)
+        : [];
+    if (list.length) return list;
+    return DEFAULT_TECHS.slice();
+}
 const initialSettings = {
     tallerNombre: "",
     ownerName: "Carlos Ríos",
@@ -717,6 +725,7 @@ const initialSettings = {
     logoAspect: 1,
     accentColor: "",
     security: { autoLockMinutes: 20, lockOnOpen: true },
+    tecnicos: ["Marco Ibáñez", "Luis Quiroz", "Sin asignar"],
 };
 /* ---------------------------------- IMAGEN Y MARCA (logo / color de acento) ---------------------------------- */
 // Paleta de acentos sugerida para que cada taller pueda diferenciarse sin tener que escribir
@@ -1744,6 +1753,19 @@ async function buildServiceReportDoc(order, client, vehicle, settings) {
     doc.text(order.code, pageWidth - marginX, y + 6, { align: "right" });
     doc.text(`Fecha: ${fmtDatePE(new Date().toISOString().slice(0, 10))}`, pageWidth - marginX, y + 11, { align: "right" });
     y = Math.max(subY, y + 18) + 6;
+    if (order.tech) {
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(9);
+        doc.setTextColor(70, 70, 80);
+        doc.text(`Técnico asignado: ${order.tech}`, marginX, y);
+    }
+    if (settings.ownerName) {
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(9);
+        doc.setTextColor(70, 70, 80);
+        doc.text(`Jefe de taller: ${settings.ownerName}${settings.ownerRole ? " · " + settings.ownerRole : ""}`, order.tech ? pageWidth / 2 : marginX, y);
+    }
+    if (order.tech || settings.ownerName) y += 6;
     doc.setDrawColor(220, 220, 220);
     doc.line(marginX, y, pageWidth - marginX, y);
     y += 8;
@@ -2008,10 +2030,19 @@ async function buildOrderProgressDoc(order, client, vehicle, settings, mechanicN
         if (vehicle.mileage != null) bits.push(`${vehicle.mileage} km`);
         doc.text(bits.join(" · "), col2, y);
     }
-    if (mechanicName) {
+    const techLabel = (order && order.tech) || mechanicName || "";
+    const jefeLabel = (settings && settings.ownerName)
+        ? `${settings.ownerName}${settings.ownerRole ? " · " + settings.ownerRole : ""}`
+        : "";
+    if (techLabel) {
         doc.setTextColor(80, 80, 90);
-        doc.text(`Mecánico: ${mechanicName}`, marginX, y);
+        doc.text(`Técnico asignado: ${techLabel}`, marginX, y);
     }
+    if (jefeLabel) {
+        doc.setTextColor(80, 80, 90);
+        doc.text(`Jefe de taller: ${jefeLabel}`, techLabel ? (pageWidth / 2 + 2) : marginX, y);
+    }
+    if (techLabel || jefeLabel) y += 5;
     y += 8;
 
     // Línea divisoria
@@ -2865,7 +2896,7 @@ function OrdenesView({ orders, setOrders, clients, setClients, vehicles, setVehi
         filtered.length === 0 ? (React.createElement(Card, { className: "p-10 text-center" },
             React.createElement("p", { style: { color: C.textMute }, className: "text-sm" }, "No hay \u00F3rdenes que coincidan con la b\u00FAsqueda."))) : (React.createElement("div", { className: "grid sm:grid-cols-2 xl:grid-cols-3 gap-4" }, filtered.map((o) => (React.createElement(Ticket, { key: o.id, order: o, client: findClient(o.clientId), vehicle: findVehicle(o.vehicleId), onOpen: () => setOpenOrder(o) }))))),
         openOrder && (React.createElement(OrderDetail, { order: orders.find((o) => o.id === openOrder.id), client: findClient(openOrder.clientId), vehicle: findVehicle(openOrder.vehicleId), parts: parts, onClose: () => setOpenOrder(null), onStatusChange: (status, options) => onChangeStatus(orders.find((o) => o.id === openOrder.id), status, options), onRegistrarAbono: (amount) => onRegistrarAbono(openOrder.id, amount), onSaveCheckin: (checkin) => saveCheckin(openOrder.id, checkin), onSaveRequirement: (requirement) => saveRequirement(openOrder.id, requirement), onSaveFindings: (findings) => saveFindings(openOrder.id, findings), onSaveServices: (services) => saveServices(openOrder.id, services), onUpdateOrder: (patch) => updateOrderFields(openOrder.id, patch), onDelete: () => { removeOrder(openOrder.id); setOpenOrder(null); }, settings: settings, currentUser: currentUser })),
-        showNew && (React.createElement(NewOrderModal, { clients: clients, setClients: setClients, vehicles: vehicles, setVehicles: setVehicles, code: nextCode(), onClose: () => setShowNew(false), onCreate: (order) => {
+        showNew && (React.createElement(NewOrderModal, { clients: clients, setClients: setClients, vehicles: vehicles, setVehicles: setVehicles, code: nextCode(), techs: getTechs(settings), onClose: () => setShowNew(false), onCreate: (order) => {
                 setOrders((prev) => [order, ...prev]);
                 setShowNew(false);
                 playSound("ordenNueva");
@@ -2949,7 +2980,7 @@ function OrderDetail({ order, client, vehicle, parts, onClose, onStatusChange, o
     const handleDownloadProgress = async () => {
         setProgressError("");
         try {
-            await downloadOrderProgressPDF(order, client, vehicle, settings || {}, currentUser && currentUser.name);
+            await downloadOrderProgressPDF(order, client, vehicle, settings || {}, (order && order.tech) || (currentUser && currentUser.name));
         }
         catch (e) {
             setProgressError((e && e.message) || "No se pudo generar el informe de avance.");
@@ -2959,7 +2990,7 @@ function OrderDetail({ order, client, vehicle, parts, onClose, onStatusChange, o
         setProgressError("");
         setProgressBusy(true);
         try {
-            await shareOrderProgressWhatsApp(order, client, vehicle, settings || {}, currentUser && currentUser.name);
+            await shareOrderProgressWhatsApp(order, client, vehicle, settings || {}, (order && order.tech) || (currentUser && currentUser.name));
         }
         catch (e) {
             setProgressError((e && e.message) || "No se pudo compartir el informe de avance.");
@@ -3057,7 +3088,7 @@ function OrderDetail({ order, client, vehicle, parts, onClose, onStatusChange, o
             React.createElement(Card, { className: "p-4" },
                 React.createElement("div", { className: "text-xs uppercase tracking-wide mb-2", style: { color: C.textMute } }, "T\u00E9cnico asignado"),
                 onUpdateOrder ? React.createElement(Select, { value: order.tech || "", onChange: (e) => onUpdateOrder({ tech: e.target.value }) },
-                    (typeof TECHS !== "undefined" ? TECHS : [order.tech || ""]).map((t) => React.createElement("option", { key: t, value: t }, t)))
+                    getTechs(settings).map((t) => React.createElement("option", { key: t, value: t }, t)))
                     : React.createElement("div", { className: "text-sm font-medium" }, order.tech),
                 React.createElement("div", { className: "text-xs mt-1", style: { color: C.textMute } },
                     "Ingreso ",
@@ -3259,7 +3290,7 @@ function OrderDetail({ order, client, vehicle, parts, onClose, onStatusChange, o
         showRequirement && (React.createElement(RequirementModal, { order: order, requirement: requirement, parts: parts, onClose: () => setShowRequirement(false), onSave: (req) => { onSaveRequirement(req); setShowRequirement(false); } })),
         showFindings && (React.createElement(FindingsModal, { order: order, findings: findings, onClose: () => setShowFindings(false), onSave: (items) => { onSaveFindings && onSaveFindings(items); setShowFindings(false); } })),
         pendingServices && (React.createElement(ConfirmPinModal, { title: "Confirmar precio", description: "Por seguridad, ingresa tu PIN para modificar el precio de esta orden.", currentUser: currentUser, onCancel: () => setPendingServices(null), onConfirmed: async () => { onSaveServices && onSaveServices(pendingServices); setPendingServices(null); } })),
-        showEditOrder && React.createElement(EditOrderModal, { order: order, onClose: () => setShowEditOrder(false), onSave: (patch) => {
+        showEditOrder && React.createElement(EditOrderModal, { order: order, techs: getTechs(settings), onClose: () => setShowEditOrder(false), onSave: (patch) => {
                 if (onSaveServices && patch.services)
                     onSaveServices(patch.services);
                 if (onUpdateOrder) {
@@ -3274,7 +3305,7 @@ function OrderDetail({ order, client, vehicle, parts, onClose, onStatusChange, o
                 React.createElement(Trash2, { size: 13 }),
                 " Eliminar orden")))))));
 }
-function NewOrderModal({ clients, setClients, vehicles, setVehicles, code, onClose, onCreate }) {
+function NewOrderModal({ clients, setClients, vehicles, setVehicles, code, onClose, onCreate, techs }) {
     var _a;
     const [mode, setMode] = useState("existing");
     const [clientId, setClientId] = useState(((_a = clients[0]) === null || _a === void 0 ? void 0 : _a.id) || "");
@@ -3285,7 +3316,8 @@ function NewOrderModal({ clients, setClients, vehicles, setVehicles, code, onClo
     const [occBrand, setOccBrand] = useState("");
     const [occModel, setOccModel] = useState("");
     const [description, setDescription] = useState("");
-    const [tech, setTech] = useState(TECHS[0]);
+    const techList = (techs && techs.length) ? techs : TECHS;
+    const [tech, setTech] = useState(techList[0]);
     const [est, setEst] = useState("");
     const [serviceLines, setServiceLines] = useState([{ name: "", price: "" }]);
     const [showNewClient, setShowNewClient] = useState(false);
@@ -3375,7 +3407,7 @@ function NewOrderModal({ clients, setClients, vehicles, setVehicles, code, onClo
                 React.createElement(TextArea, { rows: 3, value: description, onChange: (e) => setDescription(e.target.value), placeholder: "Ej: Ruido en frenos delanteros" })),
             React.createElement("div", { className: "grid grid-cols-2 gap-4" },
                 React.createElement(Field, { label: "T\u00E9cnico" },
-                    React.createElement(Select, { value: tech, onChange: (e) => setTech(e.target.value) }, TECHS.map((t) => React.createElement("option", { key: t, value: t }, t)))),
+                    React.createElement(Select, { value: tech, onChange: (e) => setTech(e.target.value) }, techList.map((t) => React.createElement("option", { key: t, value: t }, t)))),
                 React.createElement(Field, { label: "Fecha estimada" },
                     React.createElement(Input, { type: "date", value: est, onChange: (e) => setEst(e.target.value) }))),
             React.createElement("div", { className: "space-y-2" },
@@ -3409,9 +3441,10 @@ function NewOrderModal({ clients, setClients, vehicles, setVehicles, code, onClo
             } }))));
 }
 
-function EditOrderModal({ order, onClose, onSave }) {
+function EditOrderModal({ order, onClose, onSave, techs }) {
     const [description, setDescription] = useState(order.description || "");
-    const [tech, setTech] = useState(order.tech || (typeof TECHS !== "undefined" && TECHS[0]) || "");
+    const techList = (techs && techs.length) ? techs : TECHS;
+    const [tech, setTech] = useState(order.tech || techList[0] || "");
     const [est, setEst] = useState(order.est || "");
     const [serviceLines, setServiceLines] = useState(() => {
         const list = (order.services || []).map((s) => ({ name: s.name || "", price: String(s.price != null ? s.price : "") }));
@@ -3444,7 +3477,7 @@ function EditOrderModal({ order, onClose, onSave }) {
             React.createElement("div", { className: "grid sm:grid-cols-2 gap-3" },
                 React.createElement(Field, { label: "Técnico" },
                     React.createElement(Select, { value: tech, onChange: (e) => setTech(e.target.value) },
-                        (typeof TECHS !== "undefined" ? TECHS : [tech]).map((t) => React.createElement("option", { key: t, value: t }, t)))),
+                        techList.map((t) => React.createElement("option", { key: t, value: t }, t)))),
                 React.createElement(Field, { label: "Fecha estimada" },
                     React.createElement(Input, { type: "date", value: est, onChange: (e) => setEst(e.target.value) }))),
             React.createElement("div", { className: "space-y-2" },
@@ -4734,7 +4767,7 @@ function SolicitudesView({ items, onMarkAtendida, onDelete, onCreateClient }) {
             React.createElement(Bell, { size: 24, style: { color: C.textMute }, className: "mx-auto mb-2" }),
             React.createElement("p", { className: "text-sm", style: { color: C.textMute } }, "No hay solicitudes por aqu\u00ED todav\u00EDa."))) : (React.createElement("div", { className: "grid sm:grid-cols-2 gap-3" }, filtered.map((item) => (React.createElement(SolicitudCard, { key: item.id, item: item, onMarkAtendida: onMarkAtendida, onDelete: onDelete, onCreateClient: onCreateClient })))))));
 }
-function AgendaView({ appointments, setAppointments }) {
+function AgendaView({ appointments, setAppointments, settings }) {
     const [showNew, setShowNew] = useState(false);
     const [editing, setEditing] = useState(null);
     const grouped = useMemo(() => {
@@ -4781,16 +4814,17 @@ function AgendaView({ appointments, setAppointments }) {
                 React.createElement(Badge, { color: C.info, soft: C.infoSoft }, a.tech),
                 React.createElement("button", { type: "button", onClick: () => deleteAppointment(a.id), className: "inline-flex items-center justify-center w-8 h-8 rounded-lg shrink-0", style: { background: C.surfaceHi, border: `1px solid ${C.borderSoft}`, color: C.danger } },
                     React.createElement(Trash2, { size: 14 })))))))))),
-        showNew && (React.createElement(NewAppointmentModal, { onClose: () => setShowNew(false), onCreate: saveAppointment })),
-        editing && (React.createElement(NewAppointmentModal, { initial: editing, onClose: () => setEditing(null), onCreate: saveAppointment }))));
+        showNew && (React.createElement(NewAppointmentModal, { onClose: () => setShowNew(false), onCreate: saveAppointment, techs: getTechs(settings) })),
+        editing && (React.createElement(NewAppointmentModal, { initial: editing, onClose: () => setEditing(null), onCreate: saveAppointment, techs: getTechs(settings) }))));
 }
-function NewAppointmentModal({ initial, onClose, onCreate }) {
+function NewAppointmentModal({ initial, onClose, onCreate, techs }) {
+    const techList = (techs && techs.length) ? techs : TECHS;
     const [date, setDate] = useState((initial && initial.date) || "");
     const [time, setTime] = useState((initial && initial.time) || "");
     const [client, setClient] = useState((initial && initial.client) || "");
     const [vehicle, setVehicle] = useState((initial && initial.vehicle) || "");
     const [service, setService] = useState((initial && initial.service) || "");
-    const [tech, setTech] = useState((initial && initial.tech) || TECHS[0]);
+    const [tech, setTech] = useState((initial && initial.tech) || techList[0]);
     const submit = () => {
         if (!date || !time || !client || !service)
             return;
@@ -4810,7 +4844,7 @@ function NewAppointmentModal({ initial, onClose, onCreate }) {
             React.createElement(Field, { label: "Servicio" },
                 React.createElement(Input, { value: service, onChange: (e) => setService(e.target.value), placeholder: "Ej: Cambio de aceite" })),
             React.createElement(Field, { label: "T\u00E9cnico" },
-                React.createElement(Select, { value: tech, onChange: (e) => setTech(e.target.value) }, TECHS.map((t) => React.createElement("option", { key: t, value: t }, t)))),
+                React.createElement(Select, { value: tech, onChange: (e) => setTech(e.target.value) }, techList.map((t) => React.createElement("option", { key: t, value: t }, t)))),
             React.createElement("div", { className: "flex gap-3 pt-2" },
                 React.createElement(Button, { variant: "ghost", onClick: onClose, className: "flex-1" }, "Cancelar"),
                 React.createElement(Button, { onClick: submit, className: "flex-1" }, initial ? "Guardar cambios" : "Guardar cita")))));
@@ -5663,7 +5697,13 @@ function AuditLogView({ auditLog, tallerNombre }) {
             }))))));
 }
 function AjustesView({ settings, setSettings, cloudStatus, cloudError, cloudProjectId, db, users, setUsers, roles, setRoles, currentUser, currentRole, themeMode, setThemeMode, soundsEnabled, setSoundsEnabled, dailyTipsEnabled, setDailyTipsEnabled, onLock, auditLog, logAudit }) {
-    const [form, setForm] = useState(settings);
+    const [form, setForm] = useState(() => ({
+        ...settings,
+        tecnicos: (settings && Array.isArray(settings.tecnicos) && settings.tecnicos.length)
+            ? settings.tecnicos
+            : DEFAULT_TECHS.slice(),
+    }));
+    const [newTech, setNewTech] = useState("");
     const [saved, setSaved] = useState(false);
     const [tab, setTab] = useState("general");
     const showUsersTab = canManageUsers(currentRole);
@@ -5879,6 +5919,64 @@ function AjustesView({ settings, setSettings, cloudStatus, cloudError, cloudProj
                         React.createElement(Input, { disabled: readOnly, value: form.ownerName, onChange: update("ownerName"), placeholder: "Ej: Carlos R\u00EDos" })),
                     React.createElement(Field, { label: "Cargo" },
                         React.createElement(Input, { disabled: readOnly, value: form.ownerRole, onChange: update("ownerRole"), placeholder: "Ej: Jefe de taller" }))),
+                React.createElement("div", { className: "mt-2 mb-1", style: { color: C.textMute, fontSize: 13, fontWeight: 600 } }, "Equipo del taller"),
+                React.createElement("p", { className: "text-xs mb-2", style: { color: C.textMute } }, "El jefe de taller es el nombre y cargo de arriba. Aquí editas la lista de técnicos que aparecen al crear o editar una orden."),
+                React.createElement("div", { className: "space-y-2 mb-3" },
+                    (Array.isArray(form.tecnicos) ? form.tecnicos : []).map((t, i) => React.createElement("div", { key: i, className: "flex gap-2 items-center min-w-0" },
+                        React.createElement(Input, {
+                            disabled: readOnly,
+                            value: t,
+                            onChange: (e) => setForm((prev) => {
+                                const list = Array.isArray(prev.tecnicos) ? prev.tecnicos.slice() : [];
+                                list[i] = e.target.value;
+                                return { ...prev, tecnicos: list };
+                            }),
+                            placeholder: "Nombre del técnico",
+                        }),
+                        !readOnly && React.createElement("button", {
+                            type: "button",
+                            className: "shrink-0 px-2 py-2 rounded-lg text-sm",
+                            style: { background: "rgba(239,68,68,0.12)", color: "#DC2626" },
+                            onClick: () => setForm((prev) => ({
+                                ...prev,
+                                tecnicos: (Array.isArray(prev.tecnicos) ? prev.tecnicos : []).filter((_, j) => j !== i),
+                            })),
+                        }, "Quitar")
+                    )),
+                    !readOnly && React.createElement("div", { className: "flex gap-2 items-center" },
+                        React.createElement(Input, {
+                            value: newTech,
+                            onChange: (e) => setNewTech(e.target.value),
+                            placeholder: "Nuevo técnico",
+                            onKeyDown: (e) => {
+                                if (e.key === "Enter") {
+                                    e.preventDefault();
+                                    const name = (newTech || "").trim();
+                                    if (!name) return;
+                                    setForm((prev) => ({
+                                        ...prev,
+                                        tecnicos: [...(Array.isArray(prev.tecnicos) ? prev.tecnicos : []), name],
+                                    }));
+                                    setNewTech("");
+                                }
+                            },
+                        }),
+                        React.createElement("button", {
+                            type: "button",
+                            className: "shrink-0 px-3 py-2 rounded-lg text-sm font-medium",
+                            style: { background: C.accent, color: "#1A0D05" },
+                            onClick: () => {
+                                const name = (newTech || "").trim();
+                                if (!name) return;
+                                setForm((prev) => ({
+                                    ...prev,
+                                    tecnicos: [...(Array.isArray(prev.tecnicos) ? prev.tecnicos : []), name],
+                                }));
+                                setNewTech("");
+                            },
+                        }, "Agregar")
+                    )
+                ),
                 React.createElement("div", { className: "grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 min-w-0" },
                     React.createElement(Field, { label: "Tel\u00E9fono" },
                         React.createElement(Input, { disabled: readOnly, value: form.phone, onChange: update("phone"), placeholder: "987 654 321" })),
