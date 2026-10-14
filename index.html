@@ -713,6 +713,20 @@ function getTechs(settings) {
     if (list.length) return list;
     return DEFAULT_TECHS.slice();
 }
+function resolveOrderTech(order, fallback) {
+    if (order && typeof order === "object") {
+        const keys = ["tech", "technician", "tecnico", "tecnicoAsignado", "assignedTo", "mechanic", "mecanico"];
+        for (let i = 0; i < keys.length; i++) {
+            const v = order[keys[i]];
+            if (v == null || v === "") continue;
+            const s = typeof v === "object" ? String((v && (v.name || v.label)) || "") : String(v);
+            const t = s.trim();
+            if (t) return t;
+        }
+    }
+    if (fallback != null && String(fallback).trim()) return String(fallback).trim();
+    return "Sin asignar";
+}
 const initialSettings = {
     tallerNombre: "",
     ownerName: "Carlos Ríos",
@@ -1753,7 +1767,7 @@ async function buildServiceReportDoc(order, client, vehicle, settings) {
     doc.text(order.code, pageWidth - marginX, y + 6, { align: "right" });
     doc.text(`Fecha: ${fmtDatePE(new Date().toISOString().slice(0, 10))}`, pageWidth - marginX, y + 11, { align: "right" });
     y = Math.max(subY, y + 18) + 6;
-    const techSvc = String((order && (order.tech || order.technician || order.tecnico)) || "").trim() || "Sin asignar";
+    const techSvc = resolveOrderTech(order, null);
     doc.setFont("helvetica", "bold");
     doc.setFontSize(9);
     doc.setTextColor(40, 40, 50);
@@ -2029,9 +2043,8 @@ async function buildOrderProgressDoc(order, client, vehicle, settings, mechanicN
         doc.text(bits.join(" · "), col2, y);
         y += 5;
     }
-    // Técnico: línea completa debajo, sin jefe de taller
-    const techRaw = (order && (order.tech || order.technician || order.tecnico)) || mechanicName || "";
-    const techLabel = String(techRaw || "").trim() || "Sin asignar";
+    // Técnico: línea completa debajo (sin jefe de taller)
+    const techLabel = resolveOrderTech(order, mechanicName);
     y += 2;
     doc.setFont("helvetica", "bold");
     doc.setFontSize(9);
@@ -2979,7 +2992,9 @@ function OrderDetail({ order, client, vehicle, parts, onClose, onStatusChange, o
     const handleDownloadProgress = async () => {
         setProgressError("");
         try {
-            await downloadOrderProgressPDF(order, client, vehicle, settings || {}, (order && order.tech) || (currentUser && currentUser.name));
+            const techName = resolveOrderTech(order, currentUser && currentUser.name);
+            const orderForPdf = Object.assign({}, order, { tech: techName });
+            await downloadOrderProgressPDF(orderForPdf, client, vehicle, settings || {}, techName);
         }
         catch (e) {
             setProgressError((e && e.message) || "No se pudo generar el informe de avance.");
@@ -2989,7 +3004,9 @@ function OrderDetail({ order, client, vehicle, parts, onClose, onStatusChange, o
         setProgressError("");
         setProgressBusy(true);
         try {
-            await shareOrderProgressWhatsApp(order, client, vehicle, settings || {}, (order && order.tech) || (currentUser && currentUser.name));
+            const techName = resolveOrderTech(order, currentUser && currentUser.name);
+            const orderForPdf = Object.assign({}, order, { tech: techName });
+            await shareOrderProgressWhatsApp(orderForPdf, client, vehicle, settings || {}, techName);
         }
         catch (e) {
             setProgressError((e && e.message) || "No se pudo compartir el informe de avance.");
@@ -2999,7 +3016,9 @@ function OrderDetail({ order, client, vehicle, parts, onClose, onStatusChange, o
     const handleDownloadReport = () => {
         setReportError("");
         try {
-            const res = downloadServiceReportPDF(order, client, vehicle, settings || {});
+            const techName = resolveOrderTech(order, null);
+            const orderForPdf = Object.assign({}, order, { tech: techName });
+            const res = downloadServiceReportPDF(orderForPdf, client, vehicle, settings || {});
             if (res && res.warnings && res.warnings.length)
                 setReportError(`El PDF se descargó, pero ${res.warnings.length} foto(s) no se pudieron incluir: ${res.warnings.join(" · ")}`);
         }
@@ -3086,9 +3105,13 @@ function OrderDetail({ order, client, vehicle, parts, onClose, onStatusChange, o
                     client.phone)),
             React.createElement(Card, { className: "p-4" },
                 React.createElement("div", { className: "text-xs uppercase tracking-wide mb-2", style: { color: C.textMute } }, "T\u00E9cnico asignado"),
-                onUpdateOrder ? React.createElement(Select, { value: order.tech || "", onChange: (e) => onUpdateOrder({ tech: e.target.value }) },
-                    getTechs(settings).map((t) => React.createElement("option", { key: t, value: t }, t)))
-                    : React.createElement("div", { className: "text-sm font-medium" }, order.tech),
+                onUpdateOrder ? React.createElement(Select, {
+                    value: (order.tech != null && String(order.tech).trim() !== "") ? String(order.tech) : "",
+                    onChange: (e) => onUpdateOrder({ tech: e.target.value }),
+                },
+                    React.createElement("option", { value: "" }, "Sin asignar"),
+                    getTechs(settings).filter((t) => t && t !== "Sin asignar").map((t) => React.createElement("option", { key: t, value: t }, t)))
+                    : React.createElement("div", { className: "text-sm font-medium" }, resolveOrderTech(order, null)),
                 React.createElement("div", { className: "text-xs mt-1", style: { color: C.textMute } },
                     "Ingreso ",
                     order.entry,
