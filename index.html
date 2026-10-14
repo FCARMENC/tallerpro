@@ -1989,6 +1989,12 @@ async function buildOrderProgressDoc(order, client, vehicle, settings, mechanicN
     doc.setFontSize(8.5);
     doc.setTextColor(110, 110, 120);
     doc.text(`Generado: ${fmtDatePE(new Date().toISOString().slice(0, 10))} ${new Date().toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit" })}`, pageWidth - marginX, y + 11, { align: "right" });
+    const headerTech = resolveOrderTech(order, mechanicName);
+    if (headerTech && headerTech !== "Sin asignar") {
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(60, 60, 70);
+        doc.text(`Técnico: ${headerTech}`, pageWidth - marginX, y + 16, { align: "right" });
+    }
 
     y = Math.max(subY, y + 16) + 4;
 
@@ -2932,6 +2938,10 @@ function OrderDetail({ order, client, vehicle, parts, onClose, onStatusChange, o
     const [reportBusy, setReportBusy] = useState(false);
     const [progressError, setProgressError] = useState("");
     const [progressBusy, setProgressBusy] = useState(false);
+    const [techDraft, setTechDraft] = useState(() => (order && order.tech) ? String(order.tech) : "");
+    React.useEffect(function () {
+        setTechDraft((order && order.tech) ? String(order.tech) : "");
+    }, [order && order.id, order && order.tech]);
     const [editingDesc, setEditingDesc] = useState(false);
     const [showEditOrder, setShowEditOrder] = useState(false);
     const [descDraft, setDescDraft] = useState("");
@@ -2992,7 +3002,8 @@ function OrderDetail({ order, client, vehicle, parts, onClose, onStatusChange, o
     const handleDownloadProgress = async () => {
         setProgressError("");
         try {
-            const techName = resolveOrderTech(order, currentUser && currentUser.name);
+            const techName = (techDraft && String(techDraft).trim())
+                || resolveOrderTech(order, currentUser && currentUser.name);
             const orderForPdf = Object.assign({}, order, { tech: techName });
             await downloadOrderProgressPDF(orderForPdf, client, vehicle, settings || {}, techName);
         }
@@ -3004,7 +3015,8 @@ function OrderDetail({ order, client, vehicle, parts, onClose, onStatusChange, o
         setProgressError("");
         setProgressBusy(true);
         try {
-            const techName = resolveOrderTech(order, currentUser && currentUser.name);
+            const techName = (techDraft && String(techDraft).trim())
+                || resolveOrderTech(order, currentUser && currentUser.name);
             const orderForPdf = Object.assign({}, order, { tech: techName });
             await shareOrderProgressWhatsApp(orderForPdf, client, vehicle, settings || {}, techName);
         }
@@ -3016,7 +3028,8 @@ function OrderDetail({ order, client, vehicle, parts, onClose, onStatusChange, o
     const handleDownloadReport = () => {
         setReportError("");
         try {
-            const techName = resolveOrderTech(order, null);
+            const techName = (techDraft && String(techDraft).trim())
+                || resolveOrderTech(order, null);
             const orderForPdf = Object.assign({}, order, { tech: techName });
             const res = downloadServiceReportPDF(orderForPdf, client, vehicle, settings || {});
             if (res && res.warnings && res.warnings.length)
@@ -3106,12 +3119,21 @@ function OrderDetail({ order, client, vehicle, parts, onClose, onStatusChange, o
             React.createElement(Card, { className: "p-4" },
                 React.createElement("div", { className: "text-xs uppercase tracking-wide mb-2", style: { color: C.textMute } }, "T\u00E9cnico asignado"),
                 onUpdateOrder ? React.createElement(Select, {
-                    value: (order.tech != null && String(order.tech).trim() !== "") ? String(order.tech) : "",
-                    onChange: (e) => onUpdateOrder({ tech: e.target.value }),
+                    value: techDraft || "",
+                    onChange: (e) => {
+                        const v = e.target.value;
+                        setTechDraft(v);
+                        onUpdateOrder({ tech: v });
+                    },
                 },
                     React.createElement("option", { value: "" }, "Sin asignar"),
-                    getTechs(settings).filter((t) => t && t !== "Sin asignar").map((t) => React.createElement("option", { key: t, value: t }, t)))
-                    : React.createElement("div", { className: "text-sm font-medium" }, resolveOrderTech(order, null)),
+                    getTechs(settings).filter((t) => t && t !== "Sin asignar").map((t) => React.createElement("option", { key: t, value: t }, t)),
+                    // si el técnico guardado no está en la lista, igual lo mostramos
+                    (techDraft && getTechs(settings).indexOf(techDraft) === -1 && techDraft !== "Sin asignar")
+                        ? React.createElement("option", { key: "custom-tech", value: techDraft }, techDraft)
+                        : null
+                )
+                    : React.createElement("div", { className: "text-sm font-medium" }, techDraft || resolveOrderTech(order, null)),
                 React.createElement("div", { className: "text-xs mt-1", style: { color: C.textMute } },
                     "Ingreso ",
                     order.entry,
