@@ -1753,16 +1753,17 @@ async function buildServiceReportDoc(order, client, vehicle, settings) {
     doc.text(order.code, pageWidth - marginX, y + 6, { align: "right" });
     doc.text(`Fecha: ${fmtDatePE(new Date().toISOString().slice(0, 10))}`, pageWidth - marginX, y + 11, { align: "right" });
     y = Math.max(subY, y + 18) + 6;
-    doc.setFont("helvetica", "normal");
+    const techSvc = String((order && (order.tech || order.technician || order.tecnico)) || "").trim() || "Sin asignar";
+    doc.setFont("helvetica", "bold");
     doc.setFontSize(9);
-    doc.setTextColor(70, 70, 80);
-    doc.text(`Técnico asignado: ${(order.tech && String(order.tech).trim()) || "Sin asignar"}`, marginX, y);
-    y += 5;
-    if (settings.ownerName) {
-        const role = (settings.ownerRole && String(settings.ownerRole).trim()) || "Jefe de taller";
-        doc.text(`${role}: ${settings.ownerName}`, marginX, y);
-        y += 5;
-    }
+    doc.setTextColor(40, 40, 50);
+    doc.text("Técnico asignado", marginX, y);
+    y += 4.5;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    doc.setTextColor(30, 30, 35);
+    doc.text(techSvc, marginX, y);
+    y += 6;
     doc.setDrawColor(220, 220, 220);
     doc.line(marginX, y, pageWidth - marginX, y);
     y += 8;
@@ -2000,7 +2001,7 @@ async function buildOrderProgressDoc(order, client, vehicle, settings, mechanicN
     }
     y += 22;
 
-    // Cliente y vehículo en dos columnas
+    // Cliente y vehículo en dos columnas (sin mezclar técnico aquí)
     const col2 = pageWidth / 2 + 2;
     doc.setFont("helvetica", "bold");
     doc.setFontSize(8.5);
@@ -2026,22 +2027,22 @@ async function buildOrderProgressDoc(order, client, vehicle, settings, mechanicN
         if (vehicle.color) bits.push(vehicle.color);
         if (vehicle.mileage != null) bits.push(`${vehicle.mileage} km`);
         doc.text(bits.join(" · "), col2, y);
-    }
-    // Técnico y jefe en líneas propias (debajo de cliente/vehículo) para no solapar
-    y += 3;
-    const techLabel = (order && order.tech && String(order.tech).trim()) || "";
-    const jefeName = (settings && settings.ownerName && String(settings.ownerName).trim()) || "";
-    const jefeRole = (settings && settings.ownerRole && String(settings.ownerRole).trim()) || "Jefe de taller";
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(9);
-    doc.setTextColor(70, 70, 80);
-    doc.text(`Técnico asignado: ${techLabel || "Sin asignar"}`, marginX, y);
-    y += 5;
-    if (jefeName) {
-        doc.text(`${jefeRole}: ${jefeName}`, marginX, y);
         y += 5;
     }
-    y += 4;
+    // Técnico: línea completa debajo, sin jefe de taller
+    const techRaw = (order && (order.tech || order.technician || order.tecnico)) || mechanicName || "";
+    const techLabel = String(techRaw || "").trim() || "Sin asignar";
+    y += 2;
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(9);
+    doc.setTextColor(40, 40, 50);
+    doc.text("Técnico asignado", marginX, y);
+    y += 4.5;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    doc.setTextColor(30, 30, 35);
+    doc.text(techLabel, marginX, y);
+    y += 8;
 
     // Línea divisoria
     doc.setDrawColor(220, 222, 228);
