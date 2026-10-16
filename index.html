@@ -3195,13 +3195,36 @@ function OrderDetail({ order, client, vehicle, parts, onClose, onStatusChange, o
                     React.createElement(CheckCircle2, { size: 14 }),
                     " Cobrado en su totalidad"))),
 
-        total > 0 && saldo > 0 && (React.createElement("div", { className: "mb-6" },
+        total > 0 && (React.createElement("div", { className: "mb-6" },
             React.createElement("div", { className: "text-xs uppercase tracking-wide mb-2", style: { color: C.textMute } }, "Adelanto del cliente"),
-            showAbonoForm ? (React.createElement("div", { className: "flex flex-col sm:flex-row gap-2" },
+            React.createElement("div", { className: "rounded-2xl p-3 mb-3 space-y-2", style: { background: C.bgSoft || C.bg, border: `1px solid ${C.borderSoft || C.border}` } },
+                React.createElement("div", { className: "flex justify-between text-sm" },
+                    React.createElement("span", { style: { color: C.textMute } }, "Total orden"),
+                    React.createElement("span", { className: "font-semibold" }, "S/ " + total.toFixed(2))),
+                React.createElement("div", { className: "flex justify-between text-sm" },
+                    React.createElement("span", { style: { color: C.textMute } }, "Abonado"),
+                    React.createElement("span", { className: "font-semibold", style: { color: "#16A34A" } }, "S/ " + abonado.toFixed(2))),
+                React.createElement("div", { className: "flex justify-between text-sm pt-1", style: { borderTop: `1px solid ${C.borderSoft || C.border}` } },
+                    React.createElement("span", { className: "font-medium" }, "Saldo"),
+                    React.createElement("span", { className: "font-bold", style: { color: saldo > 0 ? "#DC2626" : "#16A34A" } }, "S/ " + saldo.toFixed(2))),
+                (order.pagos && order.pagos.length > 0) && React.createElement("div", { className: "pt-2 space-y-1.5" },
+                    React.createElement("div", { className: "text-xs font-medium", style: { color: C.textMute } }, "Historial de abonos"),
+                    order.pagos.map(function (p, i) {
+                        const when = p.at || p.date || p.createdAt || "";
+                        const label = when ? String(when).slice(0, 16).replace("T", " ") : ("Abono " + (i + 1));
+                        return React.createElement("div", { key: p.id || i, className: "flex justify-between text-xs rounded-lg px-2 py-1.5", style: { background: C.bg || "#fff" } },
+                            React.createElement("span", { style: { color: C.textMute } }, label),
+                            React.createElement("span", { className: "font-semibold" }, "S/ " + (Number(p.amount) || 0).toFixed(2)));
+                    })
+                ),
+                saldo <= 0 && React.createElement("div", { className: "text-xs font-medium pt-1", style: { color: "#16A34A" } }, "Orden pagada al día")
+            ),
+            saldo > 0 && (showAbonoForm ? (React.createElement("div", { className: "flex flex-col sm:flex-row gap-2" },
                 React.createElement(Input, { type: "number", autoFocus: true, value: abonoAmount, onChange: (e) => setAbonoAmount(e.target.value), placeholder: `Máx. ${saldo.toFixed(2)}`, max: saldo, min: "0" }),
                 React.createElement("div", { className: "flex gap-2" },
                     React.createElement(Button, { onClick: submitAbono, className: "flex-1 sm:flex-none" }, "Registrar"),
-                    React.createElement(Button, { variant: "ghost", onClick: () => { setShowAbonoForm(false); setAbonoAmount(""); }, className: "flex-1 sm:flex-none" }, "Cancelar")))) : (React.createElement(Button, { variant: "subtle", onClick: () => setShowAbonoForm(true) }, "+ Registrar abono")))),
+                    React.createElement(Button, { variant: "ghost", onClick: () => { setShowAbonoForm(false); setAbonoAmount(""); }, className: "flex-1 sm:flex-none" }, "Cancelar")))) : (React.createElement(Button, { variant: "subtle", onClick: () => setShowAbonoForm(true) }, "+ Registrar abono")))
+        )),
         React.createElement("div", { className: "mb-6" },
             React.createElement("div", { className: "text-xs uppercase tracking-wide mb-2", style: { color: C.textMute } }, "Recepci\u00F3n del veh\u00EDculo"),
             !ck || !ck.completed ? (React.createElement(Card, { className: "p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3" },
@@ -7588,7 +7611,14 @@ function App() {
             return;
         if (Notification.permission === "granted") {
             ensurePushToken();
-            return;
+            // Cada 1 hora vuelve a registrar el token (evita tokens viejos / fallos de push)
+            const HOUR_MS = 60 * 60 * 1000;
+            const refreshId = setInterval(function () {
+                if (typeof Notification !== "undefined" && Notification.permission === "granted") {
+                    ensurePushToken().catch(function () { });
+                }
+            }, HOUR_MS);
+            return function () { clearInterval(refreshId); };
         }
         // Primera vez (el sistema aún no preguntó): mostrar diálogo como una app normal
         if (Notification.permission === "default") {
