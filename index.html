@@ -2997,6 +2997,37 @@ function OrderDetail({ order, client, vehicle, parts, onClose, onStatusChange, o
         setShowAddService(false);
         applyServices(next);
     };
+    const applyParts = (next) => {
+        if (onUpdateOrder)
+            onUpdateOrder({ parts: next });
+    };
+    const addNewPart = () => {
+        const catalog = parts || [];
+        const fromCat = catalog.find((p) => p.id === newPartId);
+        const qty = Math.max(1, Number(newPartQty) || 1);
+        let name = fromCat ? fromCat.name : "";
+        let price = Number(newPartPrice);
+        if (fromCat && (isNaN(price) || newPartPrice === ""))
+            price = Number(fromCat.price) || 0;
+        if (!name && newPartId && !fromCat)
+            name = String(newPartId).trim();
+        if (!name || isNaN(price) || price < 0)
+            return;
+        const next = [...(order.parts || []), {
+            id: (fromCat && fromCat.id) || ("px" + Date.now()),
+            name: name,
+            qty: qty,
+            price: price,
+        }];
+        setNewPartId("");
+        setNewPartQty("1");
+        setNewPartPrice("");
+        setShowAddPart(false);
+        applyParts(next);
+    };
+    const removePartLine = (idx) => {
+        applyParts((order.parts || []).filter((_, i) => i !== idx));
+    };
     const requirement = order.requirement;
     const findings = order.findings || [];
     const handleDownloadProgress = async () => {
@@ -3168,9 +3199,30 @@ function OrderDetail({ order, client, vehicle, parts, onClose, onStatusChange, o
                         onSaveServices && React.createElement("div", { className: "flex gap-1 shrink-0" },
                             React.createElement(Button, { type: "button", variant: "subtle", className: "text-xs px-2 py-1", onClick: () => startEditService(i) }, "Editar"),
                             React.createElement(Button, { type: "button", variant: "ghost", className: "text-xs px-2 py-1", onClick: () => removeService(i), style: { color: C.danger } }, "Quitar")))),
-            (order.parts || []).map((p, i) => React.createElement("div", { key: "p" + i, className: "flex justify-between text-sm py-1", style: { color: C.textSoft } },
-                React.createElement("span", null, (p.name || "Repuesto") + " × " + p.qty),
-                React.createElement("span", { className: "font-mono" }, money((p.price || 0) * (p.qty || 1))))),
+            (order.parts || []).map((p, i) => React.createElement("div", { key: "p" + i, className: "flex justify-between items-center text-sm py-1.5 gap-2", style: { color: C.textSoft } },
+                React.createElement("span", { className: "min-w-0" }, (p.name || "Repuesto") + " × " + (p.qty || 1)),
+                React.createElement("div", { className: "flex items-center gap-2 shrink-0" },
+                    React.createElement("span", { className: "font-mono" }, money((p.price || 0) * (p.qty || 1))),
+                    onUpdateOrder && React.createElement(Button, { type: "button", variant: "ghost", className: "text-xs px-2 py-1", onClick: () => removePartLine(i), style: { color: C.danger } }, "Quitar"))),
+            onUpdateOrder && (showAddPart
+                ? React.createElement("div", { className: "rounded-xl p-3 space-y-2 mt-1", style: { border: `1px dashed ${C.border}` } },
+                    React.createElement("div", { className: "text-xs font-medium", style: { color: C.textMute } }, "Agregar repuesto a la orden"),
+                    React.createElement(Select, { value: newPartId, onChange: (e) => {
+                        const id = e.target.value;
+                        setNewPartId(id);
+                        const p = (parts || []).find((x) => x.id === id);
+                        if (p)
+                            setNewPartPrice(String(p.price != null ? p.price : ""));
+                    } },
+                        React.createElement("option", { value: "" }, "Elegir del inventario…"),
+                        (parts || []).map((p) => React.createElement("option", { key: p.id, value: p.id }, p.name + " (stock " + p.stock + ") · " + money(p.price)))),
+                    React.createElement("div", { className: "flex gap-2" },
+                        React.createElement(Input, { type: "number", min: "1", placeholder: "Cant.", value: newPartQty, onChange: (e) => setNewPartQty(e.target.value), className: "w-24" }),
+                        React.createElement(Input, { type: "number", min: "0", step: "0.01", placeholder: "Precio unit. S/", value: newPartPrice, onChange: (e) => setNewPartPrice(e.target.value), className: "flex-1" })),
+                    React.createElement("div", { className: "flex gap-2" },
+                        React.createElement(Button, { type: "button", onClick: addNewPart, className: "text-xs flex-1" }, "Agregar a la orden"),
+                        React.createElement(Button, { type: "button", variant: "ghost", onClick: () => setShowAddPart(false), className: "text-xs" }, "Cancelar")))
+                : React.createElement(Button, { type: "button", variant: "subtle", className: "text-xs mt-1", onClick: () => setShowAddPart(true) }, "+ Agregar repuesto")),
             onSaveServices && (showAddService
                 ? React.createElement("div", { className: "rounded-xl p-3 space-y-2", style: { border: `1px dashed ${C.border}` } },
                     React.createElement(Input, { autoFocus: true, placeholder: "Nombre del trabajo (ej. Cambio de aceite)", value: newServiceName, onChange: (e) => setNewServiceName(e.target.value) }),
@@ -3181,9 +3233,16 @@ function OrderDetail({ order, client, vehicle, parts, onClose, onStatusChange, o
                 : React.createElement(Button, { type: "button", variant: "subtle", className: "w-full text-sm", onClick: () => setShowAddService(true) },
                     React.createElement(Plus, { size: 14 }),
                     " Agregar trabajo")),
-            React.createElement("div", { className: "flex justify-between text-sm pt-2 font-semibold border-t", style: { borderColor: C.borderSoft } },
-                React.createElement("span", null, "Total"),
-                React.createElement("span", { className: "font-mono", style: { color: C.accentText } }, money(total))),
+            React.createElement("div", { className: "space-y-1 pt-2 border-t", style: { borderColor: C.borderSoft } },
+                React.createElement("div", { className: "flex justify-between text-xs", style: { color: C.textMute } },
+                    React.createElement("span", null, "Mano de obra / trabajos"),
+                    React.createElement("span", { className: "font-mono" }, money(orderServicesTotal(order)))),
+                React.createElement("div", { className: "flex justify-between text-xs", style: { color: C.textMute } },
+                    React.createElement("span", null, "Repuestos"),
+                    React.createElement("span", { className: "font-mono" }, money(orderPartsTotal(order)))),
+                React.createElement("div", { className: "flex justify-between text-sm font-semibold" },
+                    React.createElement("span", null, "Total orden"),
+                    React.createElement("span", { className: "font-mono", style: { color: C.accentText } }, money(total)))),
             abonado > 0 && React.createElement("div", { className: "flex justify-between text-sm" },
                 React.createElement("span", { style: { color: C.textSoft } }, "Abonado"),
                 React.createElement("span", { className: "font-mono", style: { color: C.success } }, money(abonado))),
@@ -3370,7 +3429,7 @@ function OrderDetail({ order, client, vehicle, parts, onClose, onStatusChange, o
             React.createElement("button", { onClick: () => { if (window.confirm("¿Eliminar esta orden de trabajo? Esta acción no se puede deshacer."))
                     onDelete(); }, className: "text-xs flex items-center gap-1.5", style: { color: C.danger } },
                 React.createElement(Trash2, { size: 13 }),
-                " Eliminar orden")))))));
+                " Eliminar orden"))))))));
 }
 function NewOrderModal({ clients, setClients, vehicles, setVehicles, code, onClose, onCreate, techs }) {
     var _a;
@@ -4585,6 +4644,7 @@ function NewVehicleModal({ clients, lockedClient, onClose, onCreate }) {
 }
 /* ---------------------------------- INVENTARIO ---------------------------------- */
 function InventarioView({ parts, setParts }) {
+    // Inventario de repuestos (caja aparte de la del taller)
     const [query, setQuery] = useState("");
     const [showNew, setShowNew] = useState(false);
     const filtered = parts.filter((p) => p.name.toLowerCase().includes(query.toLowerCase()) || p.sku.toLowerCase().includes(query.toLowerCase()));
@@ -4593,7 +4653,7 @@ function InventarioView({ parts, setParts }) {
     };
     return (React.createElement("div", { className: "space-y-5" },
         React.createElement("div", { className: "flex flex-col sm:flex-row sm:items-center justify-between gap-3" },
-            React.createElement("h1", { style: { fontFamily: "'Geist', system-ui, sans-serif" }, className: "text-2xl tracking-wide" }, "Inventario"),
+            React.createElement("h1", { style: { fontFamily: "'Geist', system-ui, sans-serif" }, className: "text-2xl tracking-wide" }, "Repuestos"),
             React.createElement(Button, { onClick: () => setShowNew(true) },
                 React.createElement(Plus, { size: 16 }),
                 " Nuevo repuesto")),
@@ -5096,7 +5156,13 @@ function CajaView({ caja: cajaTodos, liquidaciones = [], onLiquidar, onDeshacerL
     // Los movimientos ya liquidados se conservan, pero no cuentan en los totales actuales.
     const cerradosIds = new Set();
     liquidaciones.forEach((l) => (l.movIds || []).forEach((id) => cerradosIds.add(id)));
-    const caja = cajaTodos.filter((m) => !cerradosIds.has(m.id));
+    const [boxFilter, setBoxFilter] = useState("todas"); // todas | taller | repuestos
+    const cajaBase = cajaTodos.filter((m) => !cerradosIds.has(m.id));
+    const caja = cajaBase.filter((m) => {
+        const box = m.box || "taller";
+        if (boxFilter === "todas") return true;
+        return box === boxFilter;
+    });
     const liqOrdenadas = [...liquidaciones].sort((a, b) => (b.ts || 0) - (a.ts || 0));
     const [filter, setFilter] = useState("todas");
     const [query, setQuery] = useState("");
@@ -5132,6 +5198,19 @@ function CajaView({ caja: cajaTodos, liquidaciones = [], onLiquidar, onDeshacerL
                     React.createElement(Plus, { size: 16 }),
                     " Nuevo",
                     React.createElement("span", { className: "hidden sm:inline" }, " movimiento")))),
+        React.createElement("div", { className: "flex gap-2 flex-wrap" },
+            [["todas", "Todas"], ["taller", "Caja taller"], ["repuestos", "Caja repuestos"]].map(function (pair) {
+                const id = pair[0], label = pair[1];
+                const on = boxFilter === id;
+                return React.createElement("button", {
+                    key: id,
+                    type: "button",
+                    onClick: () => setBoxFilter(id),
+                    className: "px-3 py-1.5 rounded-full text-xs font-medium transition-colors",
+                    style: { background: on ? C.accent : C.surfaceHi, color: on ? "#1A0D05" : C.textSoft, border: `1px solid ${on ? C.accent : C.border}` },
+                }, label);
+            })
+        ),
         React.createElement(KpiStrip, { items: kpis }),
         pendientesPago.length > 0 && (React.createElement(Card, { className: "p-5", style: { borderColor: `${C.warning}55` } },
             React.createElement("div", { className: "flex items-center gap-2 mb-3" },
@@ -5163,7 +5242,9 @@ function CajaView({ caja: cajaTodos, liquidaciones = [], onLiquidar, onDeshacerL
             } },
             React.createElement("div", { className: "w-9 h-9 rounded-lg flex items-center justify-center shrink-0", style: { background: m.type === "ingreso" ? C.successSoft : C.dangerSoft } }, m.type === "ingreso" ? React.createElement(TrendingUp, { size: 15, style: { color: C.success } }) : React.createElement(TrendingDown, { size: 15, style: { color: C.danger } })),
             React.createElement("div", { className: "min-w-0 flex-1 basis-40" },
-                React.createElement("div", { className: "text-sm font-medium truncate" }, m.concept),
+                React.createElement("div", { className: "text-sm font-medium truncate flex items-center gap-2" },
+                    React.createElement("span", { className: "truncate" }, m.concept),
+                    React.createElement("span", { className: "shrink-0 text-[10px] px-1.5 py-0.5 rounded-full font-medium", style: { background: (m.box || "taller") === "repuestos" ? "rgba(59,130,246,0.15)" : "rgba(234,88,12,0.15)", color: (m.box || "taller") === "repuestos" ? "#2563EB" : "#EA580C" } }, (m.box || "taller") === "repuestos" ? "Repuestos" : "Taller")),
                 React.createElement("div", { className: "text-xs mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1", style: { color: C.textMute } },
                     React.createElement("span", { className: "shrink-0" }, m.date),
                     m.source !== "manual" && React.createElement(Badge, { color: C.info, soft: C.infoSoft }, "Vinculado a OT"))),
@@ -5219,17 +5300,21 @@ function NewMovementModal({ onClose, onCreate }) {
     const [concept, setConcept] = useState("");
     const [amount, setAmount] = useState("");
     const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+    const [box, setBox] = useState("taller");
     const submit = () => {
         const amt = Number(amount);
         if (!concept || !amt || amt <= 0)
             return;
-        onCreate({ type, concept, amount: amt, date, source: "manual", orderId: null });
+        onCreate({ type, concept, amount: amt, date, source: "manual", box: box || "taller", orderId: null });
     };
     return (React.createElement(Modal, { title: "Nuevo movimiento", onClose: onClose },
         React.createElement("div", { className: "space-y-4" },
             React.createElement("div", { className: "flex gap-2" },
                 React.createElement("button", { onClick: () => setType("ingreso"), className: "flex-1 py-2.5 rounded-xl text-sm font-medium transition-colors", style: { background: type === "ingreso" ? C.successSoft : C.surfaceHi, color: type === "ingreso" ? C.success : C.textSoft } }, "Ingreso"),
                 React.createElement("button", { onClick: () => setType("gasto"), className: "flex-1 py-2.5 rounded-xl text-sm font-medium transition-colors", style: { background: type === "gasto" ? C.dangerSoft : C.surfaceHi, color: type === "gasto" ? C.danger : C.textSoft } }, "Gasto")),
+            React.createElement("div", { className: "flex gap-2" },
+                React.createElement("button", { type: "button", onClick: () => setBox("taller"), className: "flex-1 py-2 rounded-xl text-xs font-medium", style: { background: box === "taller" ? C.accentSoft || C.surfaceHi : C.surfaceHi, color: box === "taller" ? C.accent : C.textSoft, border: box === "taller" ? `1px solid ${C.accent}` : `1px solid ${C.border}` } }, "Caja taller"),
+                React.createElement("button", { type: "button", onClick: () => setBox("repuestos"), className: "flex-1 py-2 rounded-xl text-xs font-medium", style: { background: box === "repuestos" ? C.accentSoft || C.surfaceHi : C.surfaceHi, color: box === "repuestos" ? C.accent : C.textSoft, border: box === "repuestos" ? `1px solid ${C.accent}` : `1px solid ${C.border}` } }, "Caja repuestos")),
             React.createElement(Field, { label: "Concepto" },
                 React.createElement(Input, { value: concept, onChange: (e) => setConcept(e.target.value), placeholder: "Ej: Pago de luz, venta de repuesto suelto" })),
             React.createElement("div", { className: "grid grid-cols-2 gap-4" },
@@ -7756,17 +7841,52 @@ function App() {
         if (!order || !(amount > 0))
             return;
         const client = clients.find((c) => c.id === order.clientId);
+        // Reparte el abono entre caja taller (mano de obra) y caja repuestos
+        const svc = orderServicesTotal(order);
+        const prt = orderPartsTotal(order);
+        const tot = svc + prt;
+        let amountTaller = amount;
+        let amountRepuestos = 0;
+        if (tot > 0) {
+            amountTaller = Math.round((amount * (svc / tot)) * 100) / 100;
+            amountRepuestos = Math.round((amount - amountTaller) * 100) / 100;
+        }
+        const pagoId = "pg" + Date.now();
         setOrders((prev) => prev.map((o) => o.id === orderId
-            ? { ...o, pagos: [...(o.pagos || []), { id: "pg" + Date.now(), amount, date: new Date().toISOString().slice(0, 10), source: "abono" }] }
+            ? { ...o, pagos: [...(o.pagos || []), { id: pagoId, amount, amountTaller, amountRepuestos, date: new Date().toISOString().slice(0, 10), source: "abono" }] }
             : o));
-        addCajaMovement({
-            type: "ingreso",
-            concept: `Abono ${order.code} · ${(client === null || client === void 0 ? void 0 : client.name) || "Cliente"}`,
-            amount,
-            source: "abono",
-            orderId,
-        });
-        triggerPushNotification(null, { title: `Abono registrado · ${order.code}`, body: `${(client === null || client === void 0 ? void 0 : client.name) || "Cliente"} abonó ${money(amount)}` });
+        const clientName = (client && client.name) || "Cliente";
+        if (amountTaller > 0) {
+            addCajaMovement({
+                type: "ingreso",
+                concept: `Abono taller ${order.code} · ${clientName}`,
+                amount: amountTaller,
+                source: "abono",
+                box: "taller",
+                orderId,
+            });
+        }
+        if (amountRepuestos > 0) {
+            addCajaMovement({
+                type: "ingreso",
+                concept: `Abono repuestos ${order.code} · ${clientName}`,
+                amount: amountRepuestos,
+                source: "abono",
+                box: "repuestos",
+                orderId,
+            });
+        }
+        if (amountTaller <= 0 && amountRepuestos <= 0) {
+            addCajaMovement({
+                type: "ingreso",
+                concept: `Abono ${order.code} · ${clientName}`,
+                amount,
+                source: "abono",
+                box: "taller",
+                orderId,
+            });
+        }
+        triggerPushNotification(null, { title: `Abono registrado · ${order.code}`, body: `${clientName} abonó ${money(amount)}` });
         playSound("pago");
     };
     const changeOrderStatus = (order, newStatus, options = {}) => {
@@ -7886,7 +8006,7 @@ function App() {
         proformas: "Proformas",
         clientes: "Clientes",
         vehiculos: "Vehículos",
-        inventario: "Inventario",
+        inventario: "Repuestos",
         agenda: "Agenda",
         mecanica: "Base Mecánica",
         caja: "Caja",
