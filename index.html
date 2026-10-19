@@ -3578,64 +3578,114 @@ function NewOrderModal({ clients, setClients, vehicles, setVehicles, code, onClo
 }
 
 function EditOrderModal({ order, onClose, onSave, techs }) {
-    const [description, setDescription] = useState(order.description || "");
-    const techList = (techs && techs.length) ? techs : TECHS;
-    const [tech, setTech] = useState(order.tech || techList[0] || "");
-    const [est, setEst] = useState(order.est || "");
-    const [serviceLines, setServiceLines] = useState(() => {
-        const list = (order.services || []).map((s) => ({ name: s.name || "", price: String(s.price != null ? s.price : "") }));
+    const safeOrder = order || {};
+    const techList = (techs && techs.length) ? techs : (typeof TECHS !== "undefined" ? TECHS : ["Sin asignar"]);
+    const [description, setDescription] = useState(safeOrder.description || "");
+    const [tech, setTech] = useState(safeOrder.tech || techList[0] || "");
+    const [est, setEst] = useState(safeOrder.est || "");
+    const [serviceLines, setServiceLines] = useState(function () {
+        const list = (safeOrder.services || []).map(function (s) {
+            return { name: s.name || "", price: String(s.price != null ? s.price : "") };
+        });
         return list.length ? list : [{ name: "", price: "" }];
     });
-    const servicesSubtotal = serviceLines.reduce((s, l) => s + (Number(l.price) || 0), 0);
-    const updateServiceLine = (idx, key, val) => {
-        setServiceLines((prev) => prev.map((l, i) => (i === idx ? { ...l, [key]: val } : l)));
+    const [partLines, setPartLines] = useState(function () {
+        return (safeOrder.parts || []).map(function (p) {
+            return {
+                name: p.name || "",
+                qty: String(p.qty != null ? p.qty : 1),
+                price: String(p.price != null ? p.price : ""),
+            };
+        });
+    });
+    const servicesSubtotal = serviceLines.reduce(function (s, l) { return s + (Number(l.price) || 0); }, 0);
+    const partsSubtotal = partLines.reduce(function (s, l) {
+        return s + (Number(l.price) || 0) * Math.max(1, Number(l.qty) || 1);
+    }, 0);
+    const updateServiceLine = function (idx, key, val) {
+        setServiceLines(function (prev) { return prev.map(function (l, i) { return i === idx ? Object.assign({}, l, { [key]: val }) : l; }); });
     };
-    const addServiceLine = () => setServiceLines((prev) => [...prev, { name: "", price: "" }]);
-    const removeServiceLine = (idx) => {
-        setServiceLines((prev) => (prev.length <= 1 ? prev : prev.filter((_, i) => i !== idx)));
+    const addServiceLine = function () { setServiceLines(function (prev) { return prev.concat([{ name: "", price: "" }]); }); };
+    const removeServiceLine = function (idx) {
+        setServiceLines(function (prev) { return prev.length <= 1 ? prev : prev.filter(function (_, i) { return i !== idx; }); });
     };
-    const submit = () => {
+    const updatePartLine = function (idx, key, val) {
+        setPartLines(function (prev) { return prev.map(function (l, i) { return i === idx ? Object.assign({}, l, { [key]: val }) : l; }); });
+    };
+    const addPartLine = function () { setPartLines(function (prev) { return prev.concat([{ name: "", qty: "1", price: "" }]); }); };
+    const removePartLine = function (idx) {
+        setPartLines(function (prev) { return prev.filter(function (_, i) { return i !== idx; }); });
+    };
+    const submit = function () {
         const services = serviceLines
-            .map((l) => ({ name: String(l.name || "").trim() || "Trabajo", price: Number(l.price) || 0 }))
-            .filter((l) => l.price > 0 || (l.name && l.name !== "Trabajo"));
+            .map(function (l) { return { name: String(l.name || "").trim() || "Trabajo", price: Number(l.price) || 0 }; })
+            .filter(function (l) { return l.price > 0 || (l.name && l.name !== "Trabajo"); });
+        const parts = partLines
+            .map(function (l) {
+                return {
+                    name: String(l.name || "").trim() || "Repuesto",
+                    qty: Math.max(1, Number(l.qty) || 1),
+                    price: Number(l.price) || 0,
+                };
+            })
+            .filter(function (l) { return l.price > 0 || (l.name && l.name !== "Repuesto"); });
         onSave({
             description: description.trim(),
-            tech,
-            est: est || order.est,
-            services,
+            tech: tech,
+            est: est || safeOrder.est,
+            services: services,
+            parts: parts,
         });
     };
-    return (React.createElement(Modal, { title: "Editar orden " + (order.code || ""), onClose: onClose, wide: true },
+    return React.createElement(Modal, { title: "Editar orden " + (safeOrder.code || ""), onClose: onClose, wide: true },
         React.createElement("div", { className: "space-y-4" },
-            React.createElement("p", { className: "text-xs", style: { color: C.textMute } }, "Igual que al crear: cambia la descripción, el técnico y agrega o quita trabajos. El total se suma solo."),
+            React.createElement("p", { className: "text-xs", style: { color: C.textMute } }, "Cambia la descripción, el técnico, trabajos y repuestos. El total se calcula solo."),
             React.createElement(Field, { label: "Descripción del problema" },
-                React.createElement("textarea", { className: "w-full rounded-xl px-3 py-2 text-sm", style: { background: C.bg, border: `1px solid ${C.border}`, color: C.text, minHeight: "80px" }, value: description, onChange: (e) => setDescription(e.target.value) })),
+                React.createElement("textarea", {
+                    className: "w-full rounded-xl px-3 py-2 text-sm",
+                    style: { background: C.bg, border: "1px solid " + C.border, color: C.text, minHeight: "80px" },
+                    value: description,
+                    onChange: function (e) { setDescription(e.target.value); },
+                })),
             React.createElement("div", { className: "grid sm:grid-cols-2 gap-3" },
                 React.createElement(Field, { label: "Técnico" },
-                    React.createElement(Select, { value: tech, onChange: (e) => setTech(e.target.value) },
-                        techList.map((t) => React.createElement("option", { key: t, value: t }, t)))),
+                    React.createElement(Select, { value: tech, onChange: function (e) { setTech(e.target.value); } },
+                        techList.map(function (t) { return React.createElement("option", { key: t, value: t }, t); }))),
                 React.createElement(Field, { label: "Fecha estimada" },
-                    React.createElement(Input, { type: "date", value: est, onChange: (e) => setEst(e.target.value) }))),
+                    React.createElement(Input, { type: "date", value: est || "", onChange: function (e) { setEst(e.target.value); } }))),
             React.createElement("div", { className: "space-y-2" },
                 React.createElement("div", { className: "text-xs font-medium", style: { color: C.textSoft } }, "Trabajos / servicios"),
-                serviceLines.map((line, idx) => React.createElement("div", { key: idx, className: "flex gap-2 items-center" },
-                    React.createElement(Input, { placeholder: "Ej. Cambio de aceite", value: line.name, onChange: (e) => updateServiceLine(idx, "name", e.target.value), className: "flex-1" }),
-                    React.createElement(Input, { type: "number", min: "0", step: "0.01", placeholder: "S/", value: line.price, onChange: (e) => updateServiceLine(idx, "price", e.target.value), style: { width: "100px" } }),
-                    React.createElement("button", { type: "button", onClick: () => removeServiceLine(idx), className: "w-8 h-8 rounded-lg flex items-center justify-center shrink-0", style: { color: C.textMute, opacity: serviceLines.length <= 1 ? 0.3 : 1 }, disabled: serviceLines.length <= 1 },
-                        React.createElement(X, { size: 14 })))),
-                React.createElement("div", { className: "flex items-center justify-between gap-2 pt-1" },
-                    React.createElement(Button, { type: "button", variant: "ghost", onClick: addServiceLine, className: "text-xs" },
-                        React.createElement(Plus, { size: 14 }),
-                        " Agregar otro trabajo"),
-                    React.createElement("div", { className: "text-sm font-semibold font-mono" }, "Subtotal trabajos: ", money(servicesSubtotal)))),
+                serviceLines.map(function (line, idx) {
+                    return React.createElement("div", { key: "s" + idx, className: "flex gap-2 items-center" },
+                        React.createElement(Input, { placeholder: "Ej. Cambio de aceite", value: line.name, onChange: function (e) { updateServiceLine(idx, "name", e.target.value); }, className: "flex-1" }),
+                        React.createElement(Input, { type: "number", min: "0", step: "0.01", placeholder: "S/", value: line.price, onChange: function (e) { updateServiceLine(idx, "price", e.target.value); }, style: { width: "100px" } }),
+                        React.createElement("button", {
+                            type: "button",
+                            onClick: function () { removeServiceLine(idx); },
+                            className: "w-8 h-8 rounded-lg flex items-center justify-center shrink-0",
+                            style: { color: C.textMute, opacity: serviceLines.length <= 1 ? 0.3 : 1 },
+                            disabled: serviceLines.length <= 1,
+                        }, "×"));
+                }),
+                React.createElement("button", { type: "button", onClick: addServiceLine, className: "text-xs flex items-center gap-1", style: { color: C.accentText } },
+                    React.createElement(Plus, { size: 14 }),
+                    " Agregar otro trabajo"),
+                React.createElement("div", { className: "text-sm font-semibold font-mono" }, "Subtotal trabajos: ", money(servicesSubtotal))),
             React.createElement("div", { className: "space-y-2" },
                 React.createElement("div", { className: "text-xs font-medium", style: { color: C.textSoft } }, "Repuestos"),
                 partLines.length === 0 && React.createElement("div", { className: "text-xs", style: { color: C.textMute } }, "Sin repuestos. Puedes agregar abajo."),
-                partLines.map((line, idx) => React.createElement("div", { key: "pl" + idx, className: "flex gap-2 items-center flex-wrap" },
-                    React.createElement(Input, { placeholder: "Nombre repuesto", value: line.name, onChange: (e) => updatePartLine(idx, "name", e.target.value), className: "flex-1 min-w-[120px]" }),
-                    React.createElement(Input, { type: "number", min: "1", placeholder: "Cant", value: line.qty, onChange: (e) => updatePartLine(idx, "qty", e.target.value), style: { width: "70px" } }),
-                    React.createElement(Input, { type: "number", min: "0", step: "0.01", placeholder: "S/", value: line.price, onChange: (e) => updatePartLine(idx, "price", e.target.value), style: { width: "90px" } }),
-                    React.createElement("button", { type: "button", onClick: () => removePartLine(idx), className: "w-8 h-8 rounded-lg flex items-center justify-center shrink-0", style: { color: C.danger } }, "×")),
+                partLines.map(function (line, idx) {
+                    return React.createElement("div", { key: "p" + idx, className: "flex gap-2 items-center flex-wrap" },
+                        React.createElement(Input, { placeholder: "Nombre repuesto", value: line.name, onChange: function (e) { updatePartLine(idx, "name", e.target.value); }, className: "flex-1 min-w-[120px]" }),
+                        React.createElement(Input, { type: "number", min: "1", placeholder: "Cant", value: line.qty, onChange: function (e) { updatePartLine(idx, "qty", e.target.value); }, style: { width: "70px" } }),
+                        React.createElement(Input, { type: "number", min: "0", step: "0.01", placeholder: "S/", value: line.price, onChange: function (e) { updatePartLine(idx, "price", e.target.value); }, style: { width: "90px" } }),
+                        React.createElement("button", {
+                            type: "button",
+                            onClick: function () { removePartLine(idx); },
+                            className: "w-8 h-8 rounded-lg flex items-center justify-center shrink-0",
+                            style: { color: C.danger },
+                        }, "×"));
+                }),
                 React.createElement("button", { type: "button", onClick: addPartLine, className: "text-xs flex items-center gap-1", style: { color: C.accentText } },
                     React.createElement(Plus, { size: 14 }),
                     " Agregar repuesto"),
@@ -3643,8 +3693,10 @@ function EditOrderModal({ order, onClose, onSave, techs }) {
                 React.createElement("div", { className: "text-sm font-bold font-mono pt-1", style: { color: C.accentText } }, "Total orden: ", money(servicesSubtotal + partsSubtotal))),
             React.createElement("div", { className: "flex gap-2 pt-2" },
                 React.createElement(Button, { variant: "ghost", className: "flex-1", onClick: onClose }, "Cancelar"),
-                React.createElement(Button, { className: "flex-1", onClick: submit }, "Guardar cambios"))))));
+                React.createElement(Button, { className: "flex-1", onClick: submit }, "Guardar cambios"))));
 }
+
+
 
 
 /* ---------------------------------- RECEPCIÓN DIGITAL (checklist + fotos) ---------------------------------- */
