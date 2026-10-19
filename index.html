@@ -1145,9 +1145,10 @@ const timeAgo = (iso) => {
         return `hace ${days} d`;
     return new Date(iso).toLocaleDateString("es-PE", { day: "2-digit", month: "short" });
 };
-const orderTotal = (o) => (o.services || []).reduce((s, x) => s + x.price, 0) +
-    (o.parts || []).reduce((s, x) => s + x.price * x.qty, 0);
-const orderAbonado = (o) => (o.pagos || []).reduce((s, p) => s + p.amount, 0);
+const orderServicesTotal = (o) => (o.services || []).reduce((s, x) => s + (Number(x.price) || 0), 0);
+const orderPartsTotal = (o) => (o.parts || []).reduce((s, x) => s + (Number(x.price) || 0) * (Number(x.qty) || 1), 0);
+const orderTotal = (o) => orderServicesTotal(o) + orderPartsTotal(o);
+const orderAbonado = (o) => (o.pagos || []).reduce((s, p) => s + (Number(p.amount) || 0), 0);
 const orderSaldo = (o) => Math.max(0, orderTotal(o) - orderAbonado(o));
 const IGV_RATE = 0.18;
 const proformaSubtotal = (pf) => (pf.items || []).reduce((s, it) => s + it.qty * it.price, 0);
@@ -2921,6 +2922,9 @@ function OrdenesView({ orders, setOrders, clients, setClients, vehicles, setVehi
             } }))));
 }
 function OrderDetail({ order, client, vehicle, parts, onClose, onStatusChange, onRegistrarAbono, onSaveCheckin, onSaveRequirement, onSaveFindings, onSaveServices, onUpdateOrder, onDelete, settings, currentUser }) {
+    if (!order) {
+        return React.createElement("div", { className: "p-6 text-sm", style: { color: C.textMute } }, "Orden no encontrada.");
+    }
     const st = statusOf(order.status);
     const total = orderTotal(order);
     const abonado = orderAbonado(order);
