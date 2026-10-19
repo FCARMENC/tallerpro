@@ -1903,35 +1903,21 @@ async function buildServiceReportDoc(order, client, vehicle, settings) {
             y += imgH + captionH + 5;
         }
     }
-    // Observaciones y próximo cambio de aceite
+    // Solo observaciones al final
     const obsR = (order.observaciones || "").trim();
-    const kmA = order.kmActual || order.km || "";
-    const kmP = order.kmProximoAceite || "";
-    if (obsR || kmA || kmP) {
+    if (obsR) {
         if (y > pageHeight - 40) { doc.addPage(); y = 18; }
         doc.setFont("helvetica", "bold");
         doc.setFontSize(9);
         doc.setTextColor(40, 40, 50);
-        doc.text("Observaciones y mantenimiento", marginX, y);
+        doc.text("Observaciones", marginX, y);
         y += 5;
         doc.setFont("helvetica", "normal");
         doc.setFontSize(9);
-        doc.setTextColor(50, 50, 55);
-        if (kmA || kmP) {
-            const parts = [];
-            if (kmA) parts.push("Km actual: " + kmA);
-            if (kmP) parts.push("Próximo cambio de aceite: " + kmP + " km");
-            doc.setFont("helvetica", "bold");
-            doc.text(parts.join("   ·   "), marginX, y);
-            y += 5;
-            doc.setFont("helvetica", "normal");
-        }
-        if (obsR) {
-            const lines = doc.splitTextToSize(obsR, pageWidth - marginX * 2);
-            doc.setTextColor(70, 70, 80);
-            doc.text(lines, marginX, y);
-            y += lines.length * 4.3 + 4;
-        }
+        doc.setTextColor(70, 70, 80);
+        const lines = doc.splitTextToSize(obsR, pageWidth - marginX * 2);
+        doc.text(lines, marginX, y);
+        y += lines.length * 4.3 + 4;
     }
 
     doc.setFont("helvetica", "italic");
@@ -2085,6 +2071,20 @@ async function buildOrderProgressDoc(order, client, vehicle, settings, mechanicN
         doc.text(bits.join(" · "), col2, y);
         y += 5;
     }
+    {
+        const kmActPdf = order.kmActual || order.km || "";
+        const kmAceitePdf = order.kmProximoAceite || order.nextOilKm || "";
+        if (kmActPdf || kmAceitePdf) {
+            doc.setFont("helvetica", "normal");
+            doc.setFontSize(9);
+            doc.setTextColor(50, 50, 55);
+            const kmBits = [];
+            if (kmActPdf) kmBits.push("Km actual: " + kmActPdf);
+            if (kmAceitePdf) kmBits.push("Próx. cambio aceite: " + kmAceitePdf + " km");
+            doc.text(kmBits.join("   ·   "), marginX, y);
+            y += 5;
+        }
+    }
     // Técnico: línea completa debajo (sin jefe de taller)
     const techLabel = resolveOrderTech(order, mechanicName);
     y += 2;
@@ -2231,41 +2231,25 @@ async function buildOrderProgressDoc(order, client, vehicle, settings, mechanicN
         y += noteLines.length * 4.3 + 6;
     }
 
-    // Observaciones y próximo cambio de aceite
+    // Solo observaciones al final (km va arriba con el vehículo)
     const obsText = (order.observaciones || order.clientNotes || "").trim();
-    const kmActual = order.kmActual || order.km || (vehicle && (vehicle.km || vehicle.mileage)) || "";
-    const kmAceite = order.kmProximoAceite || order.nextOilKm || "";
-    if (obsText || kmActual || kmAceite) {
-        if (y > pageHeight - 50) { doc.addPage(); y = 18; }
+    if (obsText) {
+        if (y > pageHeight - 40) { doc.addPage(); y = 18; }
         doc.setFont("helvetica", "bold");
         doc.setFontSize(9);
         doc.setTextColor(40, 40, 50);
-        doc.text("Observaciones y mantenimiento", marginX, y);
+        doc.text("Observaciones", marginX, y);
         y += 5;
         doc.setDrawColor(accentRgb[0], accentRgb[1], accentRgb[2]);
         doc.setLineWidth(0.4);
-        doc.line(marginX, y, marginX + 48, y);
+        doc.line(marginX, y, marginX + 28, y);
         y += 5;
         doc.setFont("helvetica", "normal");
         doc.setFontSize(9);
-        doc.setTextColor(50, 50, 55);
-        if (kmActual || kmAceite) {
-            const kmLine = [];
-            if (kmActual) kmLine.push("Km actual: " + kmActual);
-            if (kmAceite) kmLine.push("Próximo cambio de aceite: " + kmAceite + " km");
-            doc.setFont("helvetica", "bold");
-            doc.text(kmLine.join("   ·   "), marginX, y);
-            y += 5;
-            doc.setFont("helvetica", "normal");
-        }
-        if (obsText) {
-            doc.setTextColor(70, 70, 80);
-            const obsLines = doc.splitTextToSize(obsText, pageWidth - marginX * 2);
-            doc.text(obsLines, marginX, y);
-            y += obsLines.length * 4.3 + 4;
-        } else {
-            y += 2;
-        }
+        doc.setTextColor(70, 70, 80);
+        const obsLines = doc.splitTextToSize(obsText, pageWidth - marginX * 2);
+        doc.text(obsLines, marginX, y);
+        y += obsLines.length * 4.3 + 4;
     }
 
     // Pie de página profesional
@@ -3006,7 +2990,7 @@ function OrderDetail({ order, client, vehicle, parts, onClose, onStatusChange, o
     const [showReception, setShowReception] = useState(false);
     const [showRequirement, setShowRequirement] = useState(false);
     const [showFindings, setShowFindings] = useState(false);
-    const [confirmEntregaPago, setConfirmEntregaPago] = useState(false);
+    const [pendingStatus, setPendingStatus] = useState(null);
     const [pdfError, setPdfError] = useState("");
     const [reqError, setReqError] = useState("");
     const [reqBusy, setReqBusy] = useState(false);
@@ -3512,27 +3496,66 @@ function OrderDetail({ order, client, vehicle, parts, onClose, onStatusChange, o
                     React.createElement(Download, { size: 14 }),
                     " Descargar avance PDF"))),
         React.createElement("div", null,
-            React.createElement("div", { className: "text-xs uppercase tracking-wide mb-2", style: { color: C.textMute } }, "Actualizar estado"),
-            React.createElement("div", { className: "flex flex-wrap gap-2" }, getStatus().map((s) => (React.createElement("button", { key: s.key, onClick: () => {
-                    if (s.key === "entregado" && order.status !== "entregado" && total > 0 && saldo > 0) {
-                        setConfirmEntregaPago(true);
-                    }
-                    else {
-                        onStatusChange(s.key);
-                    }
-                }, className: "px-3 py-1.5 rounded-full text-xs font-medium border", style: {
-                    background: order.status === s.key ? s.soft : "transparent",
-                    color: order.status === s.key ? s.color : C.textSoft,
-                    borderColor: order.status === s.key ? s.color : C.border,
-                } }, s.label)))),
+            React.createElement("div", { className: "text-xs uppercase tracking-wide mb-3", style: { color: C.textMute } }, "Estado de la orden"),
+            React.createElement("div", { className: "grid grid-cols-2 sm:grid-cols-3 gap-2" }, getStatus().map(function (s) {
+                var active = order.status === s.key;
+                return React.createElement("button", {
+                    key: s.key,
+                    type: "button",
+                    onClick: function () {
+                        if (s.key === order.status) return;
+                        if ((s.key === "listo" || s.key === "entregado") && total > 0 && saldo > 0) {
+                            setPendingStatus(s.key);
+                        } else {
+                            onStatusChange(s.key, { skipCollect: true });
+                        }
+                    },
+                    className: "text-left rounded-2xl px-3 py-3 transition-all border",
+                    style: {
+                        background: active ? s.soft : C.bg,
+                        borderColor: active ? s.color : (C.borderSoft || C.border),
+                        boxShadow: active ? "0 0 0 1px " + s.color + "33" : "none",
+                    },
+                },
+                    React.createElement("div", { className: "flex items-center gap-2" },
+                        React.createElement("span", { className: "w-2.5 h-2.5 rounded-full shrink-0", style: { background: active ? s.color : C.border } }),
+                        React.createElement("span", { className: "text-xs font-semibold leading-tight", style: { color: active ? s.color : C.textSoft } }, s.label)),
+                    active && React.createElement("div", { className: "text-[10px] mt-1.5 font-medium", style: { color: s.color } }, "Estado actual"));
+            })),
             (order.status === "listo" || order.status === "entregado") && total > 0 && saldo <= 0 && (React.createElement("p", { className: "text-xs mt-2 flex items-center gap-1.5", style: { color: C.textMute } }, "\uD83D\uDCB0 El saldo se registr\u00F3 autom\u00E1ticamente en Caja.")),
             order.status === "entregado" && total > 0 && saldo > 0 && (React.createElement("p", { className: "text-xs mt-2 flex items-center gap-1.5", style: { color: C.warning } }, "\u26A0\uFE0F Entregado con saldo pendiente de ", money(saldo), " \u2014 visible en Caja."))),
-        confirmEntregaPago && (React.createElement(Modal, { title: "Confirmar entrega", onClose: () => setConfirmEntregaPago(false) },
+        pendingStatus && (React.createElement(Modal, {
+            title: pendingStatus === "listo" ? "Listo para entrega" : "Confirmar entrega",
+            onClose: function () { setPendingStatus(null); },
+        },
             React.createElement("div", { className: "space-y-4" },
-                React.createElement("p", { className: "text-sm", style: { color: C.textSoft } }, `Esta orden tiene un saldo pendiente de ${money(saldo)}. ¿El cliente ya pagó?`),
-                React.createElement("div", { className: "flex gap-2" },
-                    React.createElement(Button, { variant: "subtle", className: "flex-1", onClick: () => { setConfirmEntregaPago(false); onStatusChange("entregado", { skipCollect: true }); } }, "No, aún debe"),
-                    React.createElement(Button, { className: "flex-1", onClick: () => { setConfirmEntregaPago(false); onStatusChange("entregado"); } }, "Sí, ya pagó"))))),
+                React.createElement("div", { className: "rounded-2xl p-4", style: { background: C.bg, border: "1px solid " + (C.borderSoft || C.border) } },
+                    React.createElement("div", { className: "text-xs uppercase tracking-wide mb-1", style: { color: C.textMute } }, "Saldo pendiente"),
+                    React.createElement("div", { className: "text-2xl font-bold font-mono", style: { color: C.warning } }, money(saldo)),
+                    React.createElement("p", { className: "text-sm mt-2", style: { color: C.textSoft } },
+                        pendingStatus === "listo"
+                            ? "Al marcar como lista para entrega: ¿el cliente ya pagó este saldo?"
+                            : "Al marcar como entregada: ¿el cliente ya pagó este saldo?")),
+                React.createElement("p", { className: "text-xs", style: { color: C.textMute } },
+                    "Si aún no paga, el estado sí cambia pero el monto NO se agrega a caja hasta que registres el cobro."),
+                React.createElement("div", { className: "flex flex-col sm:flex-row gap-2" },
+                    React.createElement(Button, {
+                        variant: "subtle",
+                        className: "flex-1",
+                        onClick: function () {
+                            var st = pendingStatus;
+                            setPendingStatus(null);
+                            onStatusChange(st, { skipCollect: true });
+                        },
+                    }, "No, aún no paga"),
+                    React.createElement(Button, {
+                        className: "flex-1",
+                        onClick: function () {
+                            var st = pendingStatus;
+                            setPendingStatus(null);
+                            onStatusChange(st, { collect: true });
+                        },
+                    }, "Sí, ya pagó — registrar en caja"))))),
         ),
         showReception && (React.createElement(ReceptionModal, { order: order, client: client, vehicle: vehicle, onClose: () => setShowReception(false), onSave: (checkin) => { onSaveCheckin(checkin); setShowReception(false); } })),
         showRequirement && (React.createElement(RequirementModal, { order: order, requirement: requirement, parts: parts, onClose: () => setShowRequirement(false), onSave: (req) => { onSaveRequirement(req); setShowRequirement(false); } })),
@@ -5469,8 +5492,17 @@ function CajaView({ caja: cajaTodos, liquidaciones = [], onLiquidar, onDeshacerL
             React.createElement("span", { className: "font-mono text-sm font-medium shrink-0 ml-auto sm:ml-0", style: { color: m.type === "ingreso" ? C.success : C.danger } },
                 m.type === "ingreso" ? "+" : "−",
                 money(m.amount)),
-            m.source === "manual" && (React.createElement("button", { onClick: (e) => { e.stopPropagation(); if (window.confirm("¿Eliminar este movimiento?"))
-                    onRemoveMovement(m.id); }, className: "w-7 h-7 rounded-md flex items-center justify-center shrink-0 transition-colors hover:bg-white/5", style: { color: C.textMute } },
+            canEdit && onRemoveMovement && (React.createElement("button", {
+                type: "button",
+                title: "Eliminar movimiento",
+                onClick: function (e) {
+                    e.stopPropagation();
+                    if (window.confirm("¿Eliminar este movimiento de caja?\n\n" + (m.concept || "") + " · " + money(m.amount)))
+                        onRemoveMovement(m.id);
+                },
+                className: "w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-colors",
+                style: { color: C.danger, background: C.dangerSoft || "rgba(239,68,68,0.12)" },
+            },
                 React.createElement(Trash2, { size: 14 })))))))),
         liqOrdenadas.length > 0 && (React.createElement(Card, { className: "overflow-hidden" },
             React.createElement("button", { onClick: () => setShowHistorial((v) => !v), className: "w-full flex items-center justify-between gap-3 px-5 py-4 text-left" },
@@ -8115,7 +8147,8 @@ function App() {
         // Si el usuario confirmó que el cliente AÚN no paga (ver aviso al marcar "Entregado"),
         // no se cobra el saldo automáticamente: la orden queda entregada pero con saldo
         // pendiente, y aparecerá en Caja bajo "Pendientes de pago".
-        const willCollect = isCollected && !wasCollected && saldo > 0 && !skipCollect;
+        // Solo cobra en caja si options.collect === true (confirmó que ya pagó)
+        const willCollect = options.collect === true && isCollected && !wasCollected && saldo > 0;
         setOrders((prev) => prev.map((o) => {
             if (o.id !== order.id)
                 return o;
@@ -8137,13 +8170,46 @@ function App() {
         }
         if (willCollect) {
             const client = clients.find((c) => c.id === order.clientId);
-            addCajaMovement({
-                type: "ingreso",
-                concept: `OT ${order.code} · ${(client === null || client === void 0 ? void 0 : client.name) || "Cliente"}`,
-                amount: saldo,
-                source: "cobro_final",
-                orderId: order.id,
-            });
+            const clientName = (client && client.name) || "Cliente";
+            const svc = orderServicesTotal(order);
+            const prt = orderPartsTotal(order);
+            const tot = svc + prt;
+            let amtTaller = saldo;
+            let amtRep = 0;
+            if (tot > 0) {
+                amtTaller = Math.round((saldo * (svc / tot)) * 100) / 100;
+                amtRep = Math.round((saldo - amtTaller) * 100) / 100;
+            }
+            if (amtTaller > 0) {
+                addCajaMovement({
+                    type: "ingreso",
+                    concept: `Cobro taller ${order.code} · ${clientName}`,
+                    amount: amtTaller,
+                    source: "cobro_final",
+                    box: "taller",
+                    orderId: order.id,
+                });
+            }
+            if (amtRep > 0) {
+                addCajaMovement({
+                    type: "ingreso",
+                    concept: `Cobro repuestos ${order.code} · ${clientName}`,
+                    amount: amtRep,
+                    source: "cobro_final",
+                    box: "repuestos",
+                    orderId: order.id,
+                });
+            }
+            if (amtTaller <= 0 && amtRep <= 0) {
+                addCajaMovement({
+                    type: "ingreso",
+                    concept: `OT ${order.code} · ${clientName}`,
+                    amount: saldo,
+                    source: "cobro_final",
+                    box: "taller",
+                    orderId: order.id,
+                });
+            }
             if (newStatus !== "listo") {
                 // Si la orden pasó directo a "Entregado" (sin pasar por "Listo"), el sonido de
                 // "orden lista" no sonó arriba, así que avisamos aquí que se cobró el saldo.
