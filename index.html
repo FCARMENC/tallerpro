@@ -1903,6 +1903,37 @@ async function buildServiceReportDoc(order, client, vehicle, settings) {
             y += imgH + captionH + 5;
         }
     }
+    // Observaciones y próximo cambio de aceite
+    const obsR = (order.observaciones || "").trim();
+    const kmA = order.kmActual || order.km || "";
+    const kmP = order.kmProximoAceite || "";
+    if (obsR || kmA || kmP) {
+        if (y > pageHeight - 40) { doc.addPage(); y = 18; }
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(9);
+        doc.setTextColor(40, 40, 50);
+        doc.text("Observaciones y mantenimiento", marginX, y);
+        y += 5;
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(9);
+        doc.setTextColor(50, 50, 55);
+        if (kmA || kmP) {
+            const parts = [];
+            if (kmA) parts.push("Km actual: " + kmA);
+            if (kmP) parts.push("Próximo cambio de aceite: " + kmP + " km");
+            doc.setFont("helvetica", "bold");
+            doc.text(parts.join("   ·   "), marginX, y);
+            y += 5;
+            doc.setFont("helvetica", "normal");
+        }
+        if (obsR) {
+            const lines = doc.splitTextToSize(obsR, pageWidth - marginX * 2);
+            doc.setTextColor(70, 70, 80);
+            doc.text(lines, marginX, y);
+            y += lines.length * 4.3 + 4;
+        }
+    }
+
     doc.setFont("helvetica", "italic");
     doc.setFontSize(7.8);
     doc.setTextColor(140, 140, 140);
@@ -2198,6 +2229,43 @@ async function buildOrderProgressDoc(order, client, vehicle, settings, mechanicN
         const noteLines = doc.splitTextToSize(order.clientNotes || order.progressNote, pageWidth - marginX * 2);
         doc.text(noteLines, marginX, y);
         y += noteLines.length * 4.3 + 6;
+    }
+
+    // Observaciones y próximo cambio de aceite
+    const obsText = (order.observaciones || order.clientNotes || "").trim();
+    const kmActual = order.kmActual || order.km || (vehicle && (vehicle.km || vehicle.mileage)) || "";
+    const kmAceite = order.kmProximoAceite || order.nextOilKm || "";
+    if (obsText || kmActual || kmAceite) {
+        if (y > pageHeight - 50) { doc.addPage(); y = 18; }
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(9);
+        doc.setTextColor(40, 40, 50);
+        doc.text("Observaciones y mantenimiento", marginX, y);
+        y += 5;
+        doc.setDrawColor(accentRgb[0], accentRgb[1], accentRgb[2]);
+        doc.setLineWidth(0.4);
+        doc.line(marginX, y, marginX + 48, y);
+        y += 5;
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(9);
+        doc.setTextColor(50, 50, 55);
+        if (kmActual || kmAceite) {
+            const kmLine = [];
+            if (kmActual) kmLine.push("Km actual: " + kmActual);
+            if (kmAceite) kmLine.push("Próximo cambio de aceite: " + kmAceite + " km");
+            doc.setFont("helvetica", "bold");
+            doc.text(kmLine.join("   ·   "), marginX, y);
+            y += 5;
+            doc.setFont("helvetica", "normal");
+        }
+        if (obsText) {
+            doc.setTextColor(70, 70, 80);
+            const obsLines = doc.splitTextToSize(obsText, pageWidth - marginX * 2);
+            doc.text(obsLines, marginX, y);
+            y += obsLines.length * 4.3 + 4;
+        } else {
+            y += 2;
+        }
     }
 
     // Pie de página profesional
@@ -3627,6 +3695,9 @@ function EditOrderModal({ order, onClose, onSave, techs }) {
     const [description, setDescription] = useState(safeOrder.description || "");
     const [tech, setTech] = useState(safeOrder.tech || techList[0] || "");
     const [est, setEst] = useState(safeOrder.est || "");
+    const [observaciones, setObservaciones] = useState(safeOrder.observaciones || "");
+    const [kmActual, setKmActual] = useState(safeOrder.kmActual != null ? String(safeOrder.kmActual) : "");
+    const [kmProximoAceite, setKmProximoAceite] = useState(safeOrder.kmProximoAceite != null ? String(safeOrder.kmProximoAceite) : "");
     const [serviceLines, setServiceLines] = useState(function () {
         const list = (safeOrder.services || []).map(function (s) {
             return { name: s.name || "", price: String(s.price != null ? s.price : "") };
@@ -3681,6 +3752,9 @@ function EditOrderModal({ order, onClose, onSave, techs }) {
             est: est || safeOrder.est,
             services: services,
             parts: parts,
+            observaciones: observaciones.trim(),
+            kmActual: kmActual.trim(),
+            kmProximoAceite: kmProximoAceite.trim(),
         });
     };
     return React.createElement(Modal, { title: "Editar orden " + (safeOrder.code || ""), onClose: onClose, wide: true },
@@ -3699,6 +3773,19 @@ function EditOrderModal({ order, onClose, onSave, techs }) {
                         techList.map(function (t) { return React.createElement("option", { key: t, value: t }, t); }))),
                 React.createElement(Field, { label: "Fecha estimada" },
                     React.createElement(Input, { type: "date", value: est || "", onChange: function (e) { setEst(e.target.value); } }))),
+            React.createElement("div", { className: "grid sm:grid-cols-2 gap-3" },
+                React.createElement(Field, { label: "Km actual" },
+                    React.createElement(Input, { type: "number", min: "0", placeholder: "Ej. 45200", value: kmActual, onChange: function (e) { setKmActual(e.target.value); } })),
+                React.createElement(Field, { label: "Próximo cambio de aceite (km)" },
+                    React.createElement(Input, { type: "number", min: "0", placeholder: "Ej. 50200", value: kmProximoAceite, onChange: function (e) { setKmProximoAceite(e.target.value); } }))),
+            React.createElement(Field, { label: "Observaciones (salen en el PDF)" },
+                React.createElement("textarea", {
+                    className: "w-full rounded-xl px-3 py-2 text-sm",
+                    style: { background: C.bg, border: "1px solid " + C.border, color: C.text, minHeight: "64px" },
+                    value: observaciones,
+                    onChange: function (e) { setObservaciones(e.target.value); },
+                    placeholder: "Recomendaciones, cuidados, notas para el cliente…",
+                })),
             React.createElement("div", { className: "space-y-2" },
                 React.createElement("div", { className: "text-xs font-medium", style: { color: C.textSoft } }, "Trabajos / servicios"),
                 serviceLines.map(function (line, idx) {
@@ -3720,11 +3807,21 @@ function EditOrderModal({ order, onClose, onSave, techs }) {
             React.createElement("div", { className: "space-y-2" },
                 React.createElement("div", { className: "text-xs font-medium", style: { color: C.textSoft } }, "Repuestos"),
                 partLines.length === 0 && React.createElement("div", { className: "text-xs", style: { color: C.textMute } }, "Sin repuestos. Puedes agregar abajo."),
+                React.createElement("div", { className: "flex gap-2 text-[10px] uppercase tracking-wide px-1", style: { color: C.textMute } },
+                    React.createElement("span", { className: "flex-1" }, "Nombre"),
+                    React.createElement("span", { style: { width: "56px", textAlign: "center" } }, "Cant"),
+                    React.createElement("span", { style: { width: "72px", textAlign: "center" } }, "P. unit"),
+                    React.createElement("span", { style: { width: "72px", textAlign: "right" } }, "Subtotal"),
+                    React.createElement("span", { style: { width: "32px" } })),
                 partLines.map(function (line, idx) {
-                    return React.createElement("div", { key: "p" + idx, className: "flex gap-2 items-center flex-wrap" },
-                        React.createElement(Input, { placeholder: "Nombre repuesto", value: line.name, onChange: function (e) { updatePartLine(idx, "name", e.target.value); }, className: "flex-1 min-w-[120px]" }),
-                        React.createElement(Input, { type: "number", min: "1", placeholder: "Cant", value: line.qty, onChange: function (e) { updatePartLine(idx, "qty", e.target.value); }, style: { width: "70px" } }),
-                        React.createElement(Input, { type: "number", min: "0", step: "0.01", placeholder: "S/", value: line.price, onChange: function (e) { updatePartLine(idx, "price", e.target.value); }, style: { width: "90px" } }),
+                    var q = Math.max(1, Number(line.qty) || 1);
+                    var pu = Number(line.price) || 0;
+                    var sub = q * pu;
+                    return React.createElement("div", { key: "p" + idx, className: "flex gap-2 items-center" },
+                        React.createElement(Input, { placeholder: "Nombre", value: line.name, onChange: function (e) { updatePartLine(idx, "name", e.target.value); }, className: "flex-1 min-w-0" }),
+                        React.createElement(Input, { type: "number", min: "1", placeholder: "1", value: line.qty, onChange: function (e) { updatePartLine(idx, "qty", e.target.value); }, style: { width: "56px" } }),
+                        React.createElement(Input, { type: "number", min: "0", step: "0.01", placeholder: "0", value: line.price, onChange: function (e) { updatePartLine(idx, "price", e.target.value); }, style: { width: "72px" } }),
+                        React.createElement("div", { className: "text-xs font-mono font-semibold shrink-0", style: { width: "72px", textAlign: "right" } }, money(sub)),
                         React.createElement("button", {
                             type: "button",
                             onClick: function () { removePartLine(idx); },
