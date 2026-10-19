@@ -2922,13 +2922,6 @@ function OrdenesView({ orders, setOrders, clients, setClients, vehicles, setVehi
             } }))));
 }
 function OrderDetail({ order, client, vehicle, parts, onClose, onStatusChange, onRegistrarAbono, onSaveCheckin, onSaveRequirement, onSaveFindings, onSaveServices, onUpdateOrder, onDelete, settings, currentUser }) {
-    if (!order) {
-        return React.createElement("div", { className: "p-6 text-sm", style: { color: C.textMute } }, "Orden no encontrada.");
-    }
-    const st = statusOf(order.status);
-    const total = orderTotal(order);
-    const abonado = orderAbonado(order);
-    const saldo = orderSaldo(order);
     const [showAbonoForm, setShowAbonoForm] = useState(false);
     const [abonoAmount, setAbonoAmount] = useState("");
     const [showReception, setShowReception] = useState(false);
@@ -2956,6 +2949,14 @@ function OrderDetail({ order, client, vehicle, parts, onClose, onStatusChange, o
     const [newServiceName, setNewServiceName] = useState("");
     const [newServicePrice, setNewServicePrice] = useState("");
     const [showAddService, setShowAddService] = useState(false);
+    const [showAddPart, setShowAddPart] = useState(false);
+    const [newPartId, setNewPartId] = useState("");
+    const [newPartQty, setNewPartQty] = useState("1");
+    const [newPartPrice, setNewPartPrice] = useState("");
+    const st = order ? statusOf(order.status) : statusOf("recibido");
+    const total = order ? orderTotal(order) : 0;
+    const abonado = order ? orderAbonado(order) : 0;
+    const saldo = order ? orderSaldo(order) : 0;
     const applyServices = (next) => {
         // Guarda directo: el usuario ya autenticó al entrar a la app
         if (onSaveServices)
@@ -3032,8 +3033,8 @@ function OrderDetail({ order, client, vehicle, parts, onClose, onStatusChange, o
     const removePartLine = (idx) => {
         applyParts((order.parts || []).filter((_, i) => i !== idx));
     };
-    const requirement = order.requirement;
-    const findings = order.findings || [];
+    const requirement = order && order.requirement;
+    const findings = (order && order.findings) || [];
     const handleDownloadProgress = async () => {
         setProgressError("");
         try {
@@ -3119,7 +3120,7 @@ function OrderDetail({ order, client, vehicle, parts, onClose, onStatusChange, o
         setAbonoAmount("");
         setShowAbonoForm(false);
     };
-    const ck = order.checkin;
+    const ck = order && order.checkin;
     const flaggedItems = ck ? ck.items.filter((it) => it.flagged) : [];
     const handleDownloadReception = () => {
         setPdfError("");
@@ -3130,6 +3131,9 @@ function OrderDetail({ order, client, vehicle, parts, onClose, onStatusChange, o
             setPdfError((e && e.message) || "No se pudo generar el PDF.");
         }
     };
+    if (!order) {
+        return React.createElement("div", { className: "p-6 text-sm", style: { color: C.textMute } }, "Orden no encontrada.");
+    }
     return (React.createElement(Modal, { title: order.code, onClose: onClose, wide: true },
         React.createElement("div", { className: "flex items-start justify-between gap-3 mb-5" },
             React.createElement("div", { className: "min-w-0 flex-1" },
