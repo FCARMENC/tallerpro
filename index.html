@@ -5472,16 +5472,25 @@ function CajaView({ caja: cajaTodos, liquidaciones = [], onLiquidar, onDeshacerL
                 React.createElement("span", { style: { color: C.warning } }, "\u26A0\uFE0F"),
                 React.createElement("h3", { style: { fontFamily: "'Geist', system-ui, sans-serif" }, className: "text-sm tracking-wide uppercase" }, "Pendientes de pago"),
                 React.createElement(Badge, { color: C.warning, soft: C.warningSoft }, pendientesPago.length)),
-            React.createElement("div", { className: "space-y-2" }, pendientesPago.map((o) => {
-                const c = findClient(o.clientId);
-                const v = findVehicle(o.vehicleId);
-                return (React.createElement("div", { key: o.id, className: "flex flex-wrap items-center justify-between gap-2 px-3 py-2.5 rounded-xl", style: { background: C.bg, border: `1px solid ${C.borderSoft}` } },
-                    React.createElement("div", { className: "min-w-0 cursor-pointer flex-1", onClick: function () { setOpenOrderId(o.id); } },
-                        React.createElement("div", { className: "text-sm font-medium truncate" }, (c && c.name) || "Cliente"),
-                        React.createElement("div", { className: "text-xs mt-0.5", style: { color: C.textMute } }, "OT " + o.code + (v ? " · " + v.brand + " " + v.model + " (" + v.plate + ")" : "") + (o.status === "listo" ? " · Lista" : " · Entregada"))),
+            React.createElement("div", { className: "space-y-2" }, pendientesPago.map(function (o) {
+                var cl = findClient(o.clientId);
+                var vh = findVehicle(o.vehicleId);
+                return React.createElement("div", {
+                    key: o.id,
+                    className: "flex flex-wrap items-center justify-between gap-2 px-3 py-2.5 rounded-xl",
+                    style: { background: C.bg, border: "1px solid " + (C.borderSoft || C.border) },
+                },
+                    React.createElement("div", {
+                        className: "min-w-0 cursor-pointer flex-1",
+                        onClick: function () { setOpenOrderId(o.id); },
+                    },
+                        React.createElement("div", { className: "text-sm font-medium truncate" }, (cl && cl.name) || "Cliente"),
+                        React.createElement("div", { className: "text-xs mt-0.5", style: { color: C.textMute } },
+                            "OT " + o.code + (vh ? " · " + vh.brand + " " + vh.model + " (" + vh.plate + ")" : "") + (o.status === "listo" ? " · Lista" : " · Entregada"))
+                    ),
                     React.createElement("div", { className: "flex items-center gap-2 shrink-0" },
                         React.createElement("span", { className: "font-mono text-sm font-medium", style: { color: C.warning } }, money(orderSaldo(o))),
-                        canEdit && onRegistrarCobroFinal && React.createElement("button", {
+                        (canEdit && onRegistrarCobroFinal) ? React.createElement("button", {
                             type: "button",
                             className: "text-xs font-semibold px-2.5 py-1.5 rounded-lg",
                             style: { background: C.accent, color: "#1A0D05" },
@@ -5490,7 +5499,9 @@ function CajaView({ caja: cajaTodos, liquidaciones = [], onLiquidar, onDeshacerL
                                 if (window.confirm("¿Registrar cobro de " + money(orderSaldo(o)) + " en caja?"))
                                     onRegistrarCobroFinal(o.id);
                             },
-                        }, "Ya pagó"))));
+                        }, "Ya pagó") : null
+                    )
+                );
             })))),
         React.createElement("div", { className: "flex flex-col sm:flex-row gap-3" },
             React.createElement("div", { className: "relative flex-1" },
