@@ -3371,73 +3371,59 @@ function OrderDetail({ order, client, vehicle, parts, onClose, onStatusChange, o
                         onSaveServices && React.createElement("div", { className: "flex gap-1 shrink-0" },
                             React.createElement(Button, { type: "button", variant: "subtle", className: "text-xs px-2 py-1", onClick: () => startEditService(i) }, "Editar"),
                             React.createElement(Button, { type: "button", variant: "ghost", className: "text-xs px-2 py-1", onClick: () => removeService(i), style: { color: C.danger } }, "Quitar")))),
-            React.createElement("div", { className: "mt-3 pt-3 space-y-3", style: { borderTop: "1px solid " + (C.borderSoft || C.border) } },
-                React.createElement("div", { className: "flex items-center justify-between" },
-                    React.createElement("div", { className: "text-xs uppercase tracking-wide font-medium", style: { color: C.textMute } }, "Repuestos de la orden"),
-                    React.createElement("div", { className: "text-xs font-mono font-semibold", style: { color: C.accentText } }, money(orderPartsTotal(order)))),
-                (!(order.parts || []).length) && React.createElement("div", { className: "text-xs py-2 px-3 rounded-xl", style: { color: C.textMute, background: C.bg } }, "Aún no hay repuestos en esta orden. Agrégalos aquí o con el lápiz de editar."),
-                (order.parts || []).map(function (p, i) {
-                    var qty = Math.max(1, Number(p.qty) || 1);
-                    var unit = Number(p.price) || 0;
-                    var lineTotal = unit * qty;
-                    var when = p.addedAt ? String(p.addedAt).slice(0, 16).replace("T", " ") : "";
-                    return React.createElement("div", {
-                        key: "part-" + i + "-" + (p.id || ""),
-                        className: "rounded-xl px-3 py-2",
-                        style: { background: C.bg, border: "1px solid " + (C.borderSoft || C.border) },
-                    },
-                        React.createElement("div", { className: "flex justify-between items-start gap-2" },
-                            React.createElement("div", { className: "min-w-0 flex-1" },
-                                React.createElement("div", { className: "text-sm font-medium" }, (p.name || "Repuesto")),
-                                React.createElement("div", { className: "text-xs mt-0.5", style: { color: C.textMute } },
-                                    qty + " × " + money(unit) + (when ? " · " + when : ""))),
-                            React.createElement("div", { className: "flex items-center gap-2 shrink-0" },
-                                React.createElement("span", { className: "text-sm font-mono font-semibold" }, money(lineTotal)),
-                                onUpdateOrder ? React.createElement(Button, {
-                                    type: "button",
-                                    variant: "ghost",
-                                    className: "text-xs px-2 py-1",
-                                    onClick: function () { removePartLine(i); },
-                                    style: { color: C.danger },
-                                }, "Quitar") : null)));
-                }),
-                onUpdateOrder && (showAddPart
-                    ? React.createElement("div", { className: "rounded-xl p-3 space-y-2", style: { border: "1px dashed " + C.border } },
-                        React.createElement("div", { className: "text-xs font-medium", style: { color: C.textMute } }, "Agregar repuesto"),
-                        React.createElement(Select, {
-                            value: newPartId,
-                            onChange: function (e) {
-                                var id = e.target.value;
-                                setNewPartId(id);
-                                var cat = (parts || []).find(function (x) { return x.id === id; });
-                                if (cat) {
-                                    setNewPartName(cat.name || "");
-                                    setNewPartPrice(String(cat.price != null ? cat.price : ""));
-                                }
-                            },
-                        },
-                            React.createElement("option", { value: "" }, "Elegir del inventario…"),
-                            (parts || []).map(function (p) {
-                                return React.createElement("option", { key: p.id, value: p.id }, p.name + " · stock " + p.stock + " · " + money(p.price));
-                            })),
-                        React.createElement(Input, { placeholder: "O escribe el nombre", value: newPartName, onChange: function (e) { setNewPartName(e.target.value); } }),
-                        React.createElement("div", { className: "flex gap-2" },
-                            React.createElement(Input, { type: "number", min: "1", placeholder: "Cant.", value: newPartQty, onChange: function (e) { setNewPartQty(e.target.value); }, className: "w-24" }),
-                            React.createElement(Input, { type: "number", min: "0", step: "0.01", placeholder: "Precio unit. S/", value: newPartPrice, onChange: function (e) { setNewPartPrice(e.target.value); }, className: "flex-1" })),
-                        React.createElement("div", { className: "flex gap-2" },
-                            React.createElement(Button, { type: "button", onClick: addNewPart, className: "text-xs flex-1" }, "Agregar a la orden"),
-                            React.createElement(Button, { type: "button", variant: "ghost", onClick: function () { setShowAddPart(false); }, className: "text-xs" }, "Cancelar")))
-                    : React.createElement(Button, { type: "button", variant: "subtle", className: "text-xs w-full", onClick: function () { setShowAddPart(true); } }, "+ Agregar repuesto")),
-                React.createElement("div", { className: "space-y-1.5 pt-2 border-t", style: { borderColor: C.borderSoft } },
-                    React.createElement("div", { className: "flex justify-between text-xs", style: { color: C.textMute } },
-                        React.createElement("span", null, "Mano de obra / trabajos"),
-                        React.createElement("span", { className: "font-mono" }, money(orderServicesTotal(order)))),
-                    React.createElement("div", { className: "flex justify-between text-xs", style: { color: C.textMute } },
-                        React.createElement("span", null, "Repuestos (" + ((order.parts || []).length) + ")"),
-                        React.createElement("span", { className: "font-mono" }, money(orderPartsTotal(order)))),
-                    React.createElement("div", { className: "flex justify-between text-sm font-semibold" },
-                        React.createElement("span", null, "Total orden"),
-                        React.createElement("span", { className: "font-mono", style: { color: C.accentText } }, money(orderTotal(order)))))),
+            ),
+        React.createElement(Card, { className: "p-4 mb-6 space-y-3" },
+            React.createElement("div", { className: "flex items-center justify-between gap-2" },
+                React.createElement("div", { className: "text-sm font-semibold" }, "Repuestos"),
+                React.createElement("span", { className: "text-sm font-mono font-semibold", style: { color: C.accentText } }, money(orderPartsTotal(order)))),
+            (!(order.parts || []).length) && React.createElement("p", { className: "text-xs", style: { color: C.textMute } },
+                "Aún no hay repuestos. Agrégalos aquí o con el lápiz de editar."),
+            (order.parts || []).map(function (p, i) {
+                var qty = Math.max(1, Number(p.qty) || 1);
+                var unit = Number(p.price) || 0;
+                var lineTotal = unit * qty;
+                return React.createElement("div", {
+                    key: "part-" + i + "-" + (p.id || p.name || i),
+                    className: "rounded-xl p-3",
+                    style: { background: C.bg, border: "1px solid " + (C.borderSoft || C.border) },
+                },
+                    React.createElement("div", { className: "flex items-center justify-between gap-2" },
+                        React.createElement("div", { className: "min-w-0" },
+                            React.createElement("div", { className: "text-sm font-medium truncate" }, p.name || "Repuesto"),
+                            React.createElement("div", { className: "text-xs mt-0.5", style: { color: C.textMute } }, qty + " × " + money(unit))),
+                        React.createElement("div", { className: "flex items-center gap-2 shrink-0" },
+                            React.createElement("div", { className: "text-sm font-mono", style: { color: C.accentText } }, money(lineTotal)),
+                            onUpdateOrder && React.createElement(Button, {
+                                type: "button",
+                                variant: "ghost",
+                                className: "text-xs px-2 py-1",
+                                style: { color: C.danger },
+                                onClick: function () { removePartLine(i); },
+                            }, "Quitar")
+                        )
+                    )
+                );
+            }),
+            showAddPart
+                ? React.createElement("div", { className: "rounded-xl p-3 space-y-2", style: { background: C.bg, border: "1px solid " + (C.borderSoft || C.border) } },
+                    React.createElement(Input, { placeholder: "Nombre del repuesto", value: newPartName, onChange: function (e) { setNewPartName(e.target.value); } }),
+                    React.createElement("div", { className: "flex gap-2" },
+                        React.createElement(Input, { type: "number", min: "1", placeholder: "Cant.", value: newPartQty, onChange: function (e) { setNewPartQty(e.target.value); }, className: "w-20" }),
+                        React.createElement(Input, { type: "number", min: "0", step: "0.01", placeholder: "Precio unit.", value: newPartPrice, onChange: function (e) { setNewPartPrice(e.target.value); }, className: "flex-1" })),
+                    React.createElement("div", { className: "flex gap-2" },
+                        React.createElement(Button, { type: "button", className: "text-xs flex-1", onClick: addNewPart }, "Guardar repuesto"),
+                        React.createElement(Button, { type: "button", variant: "ghost", className: "text-xs", onClick: function () { setShowAddPart(false); setNewPartName(""); setNewPartPrice(""); } }, "Cancelar")))
+                : (onUpdateOrder && React.createElement(Button, { type: "button", variant: "subtle", className: "text-xs w-full", onClick: function () { setShowAddPart(true); } }, "+ Agregar repuesto")),
+            React.createElement("div", { className: "space-y-1.5 pt-2", style: { borderTop: "1px solid " + (C.borderSoft || C.border) } },
+                React.createElement("div", { className: "flex justify-between text-xs", style: { color: C.textMute } },
+                    React.createElement("span", null, "Mano de obra / trabajos"),
+                    React.createElement("span", { className: "font-mono" }, money(orderServicesTotal(order)))),
+                React.createElement("div", { className: "flex justify-between text-xs", style: { color: C.textMute } },
+                    React.createElement("span", null, "Repuestos (" + ((order.parts || []).length) + ")"),
+                    React.createElement("span", { className: "font-mono" }, money(orderPartsTotal(order)))),
+                React.createElement("div", { className: "flex justify-between text-sm font-semibold" },
+                    React.createElement("span", null, "Total orden"),
+                    React.createElement("span", { className: "font-mono", style: { color: C.accentText } }, money(orderTotal(order))))),
             abonado > 0 && React.createElement("div", { className: "flex justify-between text-sm" },
                 React.createElement("span", { style: { color: C.textSoft } }, "Abonado"),
                 React.createElement("span", { className: "font-mono", style: { color: C.success } }, money(abonado))),
@@ -3447,7 +3433,8 @@ function OrderDetail({ order, client, vehicle, parts, onClose, onStatusChange, o
                     React.createElement("span", { className: "font-mono", style: { color: C.warning } }, money(saldo)))
                 : (total > 0 && React.createElement("div", { className: "flex items-center gap-1.5 text-sm font-semibold", style: { color: C.success } },
                     React.createElement(CheckCircle2, { size: 14 }),
-                    " Cobrado en su totalidad"))),
+                    " Cobrado en su totalidad"))
+        ),
 
         total > 0 && (React.createElement("div", { className: "mb-6" },
             React.createElement("div", { className: "text-xs uppercase tracking-wide mb-2", style: { color: C.textMute } }, "Adelanto del cliente"),
