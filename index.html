@@ -2637,8 +2637,9 @@ function Select(props) {
 function TextArea(props) {
     return React.createElement("textarea", { ...props, className: `${inputClass} ${props.className || ""}`, style: { ...getInputStyle(), ...getInputRingStyle(), ...props.style, resize: "none" } });
 }
-function Modal({ title, onClose, children, wide }) {
-    return ReactDOM.createPortal(React.createElement("div", { className: "fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-6", style: { background: "rgba(0,0,0,0.65)", backdropFilter: "blur(8px)" }, onClick: onClose },
+function Modal({ title, onClose, children, wide, zIndex }) {
+    const z = zIndex || 50;
+    return ReactDOM.createPortal(React.createElement("div", { className: "fixed inset-0 flex items-end sm:items-center justify-center p-0 sm:p-6", style: { background: "rgba(0,0,0,0.65)", backdropFilter: "blur(8px)", zIndex: z }, onClick: onClose },
         React.createElement("div", { onClick: (e) => e.stopPropagation(), className: `modal-in modal-sheet w-full ${wide ? "sm:max-w-2xl" : "sm:max-w-md"} max-h-[92vh] overflow-y-auto`, style: { background: C.raised, border: `1px solid ${C.border}`, boxShadow: C.shadowLg } },
             React.createElement("div", { className: "sticky top-0 z-10 px-5 sm:px-6 pt-2 sm:pt-0 backdrop-blur-xl", style: { background: `${C.raised}F5`, borderBottom: `1px solid ${C.borderSoft}` } },
                 React.createElement("div", { className: "sm:hidden mx-auto mb-1.5 h-1 w-10 rounded-full", style: { background: C.border } }),
@@ -3207,6 +3208,28 @@ function OrderDetail({ order, client, vehicle, parts, onClose, onStatusChange, o
     if (!order) {
         return React.createElement("div", { className: "p-6 text-sm", style: { color: C.textMute } }, "Orden no encontrada.");
     }
+    // Modo edición: reemplaza la vista de detalle (más fiable que modal encima de modal)
+    if (showEditOrder) {
+        return React.createElement(EditOrderModal, {
+            key: "edit-" + (order.id || order.code || "x"),
+            order: order,
+            techs: (typeof getTechs === "function" ? getTechs(settings) : []),
+            onClose: function () { setShowEditOrder(false); },
+            onSave: function (patch) {
+                try {
+                    if (onSaveServices && patch && patch.services)
+                        onSaveServices(patch.services);
+                    if (onUpdateOrder && patch) {
+                        var rest = Object.assign({}, patch);
+                        delete rest.services;
+                        onUpdateOrder(rest);
+                    }
+                } finally {
+                    setShowEditOrder(false);
+                }
+            },
+        });
+    }
     return (React.createElement(React.Fragment, null,
         React.createElement(Modal, { title: order.code, onClose: onClose, wide: true },
         React.createElement("div", { className: "flex items-start justify-between gap-3 mb-5" },
@@ -3219,8 +3242,17 @@ function OrderDetail({ order, client, vehicle, parts, onClose, onStatusChange, o
                     vehicle.year),
                 React.createElement("div", { className: "text-sm mt-1 font-mono tracking-widest truncate", style: { color: C.textSoft } }, vehicle === null || vehicle === void 0 ? void 0 : vehicle.plate)),
             React.createElement("div", { className: "flex items-center gap-2 shrink-0" },
-                (onSaveServices || onUpdateOrder) && React.createElement("button", { type: "button", onClick: () => setShowEditOrder(true), className: "w-9 h-9 rounded-xl flex items-center justify-center", style: { background: C.accentSoft, color: C.accentText }, title: "Editar orden" },
-                    React.createElement(Pencil, { size: 16 })),
+                React.createElement("button", {
+                    type: "button",
+                    onClick: function (e) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setShowEditOrder(true);
+                    },
+                    className: "w-9 h-9 rounded-xl flex items-center justify-center",
+                    style: { background: C.accentSoft, color: C.accentText },
+                    title: "Editar orden",
+                }, React.createElement(Pencil, { size: 16 })),
                 onDelete && React.createElement("button", {
                     type: "button",
                     onClick: function () {
@@ -3603,15 +3635,7 @@ function OrderDetail({ order, client, vehicle, parts, onClose, onStatusChange, o
         showRequirement && (React.createElement(RequirementModal, { order: order, requirement: requirement, parts: parts, onClose: () => setShowRequirement(false), onSave: (req) => { onSaveRequirement(req); setShowRequirement(false); } })),
         showFindings && (React.createElement(FindingsModal, { order: order, findings: findings, onClose: () => setShowFindings(false), onSave: (items) => { onSaveFindings && onSaveFindings(items); setShowFindings(false); } })),
         pendingServices && (React.createElement(ConfirmPinModal, { title: "Confirmar precio", description: "Por seguridad, ingresa tu PIN para modificar el precio de esta orden.", currentUser: currentUser, onCancel: () => setPendingServices(null), onConfirmed: async () => { onSaveServices && onSaveServices(pendingServices); setPendingServices(null); } })),
-        showEditOrder && React.createElement(EditOrderModal, { order: order, techs: getTechs(settings), onClose: () => setShowEditOrder(false), onSave: (patch) => {
-                if (onSaveServices && patch.services)
-                    onSaveServices(patch.services);
-                if (onUpdateOrder) {
-                    const { services, ...rest } = patch;
-                    onUpdateOrder(rest); // description, tech, est, parts
-                }
-                setShowEditOrder(false);
-            } }),
+        
         onDelete && (React.createElement("div", { className: "mt-6 pt-4", style: { borderTop: `1px solid ${C.borderSoft}` } },
             React.createElement("button", { onClick: () => { if (window.confirm("¿Eliminar esta orden de trabajo? Esta acción no se puede deshacer."))
                     onDelete(); }, className: "text-xs flex items-center gap-1.5", style: { color: C.danger } },
@@ -3822,7 +3846,7 @@ function EditOrderModal({ order, onClose, onSave, techs }) {
             kmProximoAceite: kmProximoAceite.trim(),
         });
     };
-    return React.createElement(Modal, { title: "Editar orden " + (safeOrder.code || ""), onClose: onClose, wide: true },
+    return React.createElement(Modal, { title: "Editar orden " + (safeOrder.code || ""), onClose: onClose, wide: true, zIndex: 80 },
         React.createElement("div", { className: "space-y-4" },
             React.createElement("p", { className: "text-xs", style: { color: C.textMute } }, "Cambia la descripción, el técnico, trabajos y repuestos. El total se calcula solo."),
             React.createElement(Field, { label: "Descripción del problema" },
