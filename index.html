@@ -2977,7 +2977,7 @@ function OrdenesView({ orders, setOrders, clients, setClients, vehicles, setVehi
                 ")")))),
         filtered.length === 0 ? (React.createElement(Card, { className: "p-10 text-center" },
             React.createElement("p", { style: { color: C.textMute }, className: "text-sm" }, "No hay \u00F3rdenes que coincidan con la b\u00FAsqueda."))) : (React.createElement("div", { className: "grid sm:grid-cols-2 xl:grid-cols-3 gap-4" }, filtered.map((o) => (React.createElement(Ticket, { key: o.id, order: o, client: findClient(o.clientId), vehicle: findVehicle(o.vehicleId), onOpen: () => setOpenOrder(o) }))))),
-        openOrder && (React.createElement(OrderDetail, { order: orders.find((o) => o.id === openOrder.id), client: findClient(openOrder.clientId), vehicle: findVehicle(openOrder.vehicleId), parts: parts, onClose: () => setOpenOrder(null), onStatusChange: (status, options) => onChangeStatus(orders.find((o) => o.id === openOrder.id), status, options), onRegistrarAbono: (amount) => onRegistrarAbono(openOrder.id, amount), onSaveCheckin: (checkin) => saveCheckin(openOrder.id, checkin), onSaveRequirement: (requirement) => saveRequirement(openOrder.id, requirement), onSaveFindings: (findings) => saveFindings(openOrder.id, findings), onSaveServices: (services) => saveServices(openOrder.id, services), onUpdateOrder: (patch) => updateOrderFields(openOrder.id, patch), onDelete: () => { removeOrder(openOrder.id); setOpenOrder(null); }, settings: settings, currentUser: currentUser })),
+        openOrder && (React.createElement(OrderDetail, { order: orders.find((o) => o.id === openOrder.id), client: findClient(openOrder.clientId), vehicle: findVehicle(openOrder.vehicleId), parts: parts, onClose: () => setOpenOrder(null), onStatusChange: (status, options) => onChangeStatus(orders.find((o) => o.id === openOrder.id), status, options), onRegistrarAbono: (amount) => onRegistrarAbono(openOrder.id, amount), onRegistrarCobroFinal: onRegistrarCobroFinal ? function () { onRegistrarCobroFinal(openOrder.id); } : undefined, onSaveCheckin: (checkin) => saveCheckin(openOrder.id, checkin), onSaveRequirement: (requirement) => saveRequirement(openOrder.id, requirement), onSaveFindings: (findings) => saveFindings(openOrder.id, findings), onSaveServices: (services) => saveServices(openOrder.id, services), onUpdateOrder: (patch) => updateOrderFields(openOrder.id, patch), onDelete: () => { removeOrder(openOrder.id); setOpenOrder(null); }, settings: settings, currentUser: currentUser })),
         showNew && (React.createElement(NewOrderModal, { clients: clients, setClients: setClients, vehicles: vehicles, setVehicles: setVehicles, code: nextCode(), techs: getTechs(settings), onClose: () => setShowNew(false), onCreate: (order) => {
                 setOrders((prev) => [order, ...prev]);
                 setShowNew(false);
@@ -3504,7 +3504,8 @@ function OrderDetail({ order, client, vehicle, parts, onClose, onStatusChange, o
                     type: "button",
                     onClick: function () {
                         if (s.key === order.status) return;
-                        if ((s.key === "listo" || s.key === "entregado") && total > 0 && saldo > 0) {
+                        // Siempre preguntar al pasar a listo/entregado
+                        if (s.key === "listo" || s.key === "entregado") {
                             setPendingStatus(s.key);
                         } else {
                             onStatusChange(s.key, { skipCollect: true });
@@ -3522,36 +3523,54 @@ function OrderDetail({ order, client, vehicle, parts, onClose, onStatusChange, o
                         React.createElement("span", { className: "text-xs font-semibold leading-tight", style: { color: active ? s.color : C.textSoft } }, s.label)),
                     active && React.createElement("div", { className: "text-[10px] mt-1.5 font-medium", style: { color: s.color } }, "Estado actual"));
             })),
-            (order.status === "listo" || order.status === "entregado") && total > 0 && saldo > 0 && (React.createElement("div", {
-                className: "mt-3 rounded-2xl p-3 space-y-2",
-                style: { background: C.warningSoft || "rgba(245,158,11,0.12)", border: "1px solid " + (C.warning || "#F59E0B") + "55" },
+            (order.status === "listo" || order.status === "entregado") && total > 0 && saldo > 0 && React.createElement("div", { className: "mt-3 space-y-2" },
+            React.createElement("div", {
+                className: "rounded-2xl p-3",
+                style: { background: C.warningSoft || "rgba(245,158,11,0.15)", border: "1px solid " + (C.warning || "#F59E0B") },
             },
-                React.createElement("div", { className: "text-xs font-medium", style: { color: C.warning } },
+                React.createElement("div", { className: "text-sm font-semibold", style: { color: C.warning } },
                     (order.status === "listo" ? "Lista para entrega" : "Entregada") + " · saldo pendiente: " + money(saldo)),
-                React.createElement("p", { className: "text-xs", style: { color: C.textSoft } },
-                    "El cliente aún no pagó. Cuando pague, usa el botón de abajo o Caja → Pendientes de pago."),
-                onRegistrarCobroFinal && React.createElement(Button, {
-                    type: "button",
-                    className: "w-full text-sm",
-                    onClick: function () {
-                        if (window.confirm("¿Registrar cobro de " + money(saldo) + " en caja?\n\nSe reparte entre taller y repuestos."))
-                            onRegistrarCobroFinal();
-                    },
-                }, "Cliente ya pagó — registrar en caja"))),
+                React.createElement("p", { className: "text-xs mt-1", style: { color: C.textSoft } },
+                    "El cliente aún no pagó. Cuando pague, pulsa el botón de abajo para registrar el cobro en caja.")
+            ),
+            React.createElement("button", {
+                type: "button",
+                className: "w-full rounded-2xl px-4 py-3.5 text-sm font-bold",
+                style: {
+                    background: C.accent || "#22C55E",
+                    color: "#1A0D05",
+                    border: "none",
+                    boxShadow: "0 4px 14px rgba(0,0,0,0.25)",
+                },
+                onClick: function () {
+                    if (!window.confirm("¿Registrar cobro de " + money(saldo) + " en caja?\n\nSe reparte entre taller y repuestos según la orden."))
+                        return;
+                    if (typeof onRegistrarCobroFinal === "function") {
+                        onRegistrarCobroFinal();
+                    } else if (typeof onStatusChange === "function") {
+                        onStatusChange(order.status, { collect: true });
+                    } else {
+                        window.alert("No se pudo registrar el cobro. Recarga la app e inténtalo de nuevo.");
+                    }
+                },
+            }, "Cliente ya pagó — registrar en caja")
+        ),
         pendingStatus && (React.createElement(Modal, {
             title: pendingStatus === "listo" ? "Listo para entrega" : "Confirmar entrega",
             onClose: function () { setPendingStatus(null); },
         },
             React.createElement("div", { className: "space-y-4" },
                 React.createElement("div", { className: "rounded-2xl p-4", style: { background: C.bg, border: "1px solid " + (C.borderSoft || C.border) } },
-                    React.createElement("div", { className: "text-xs uppercase tracking-wide mb-1", style: { color: C.textMute } }, "Saldo pendiente"),
-                    React.createElement("div", { className: "text-2xl font-bold font-mono", style: { color: C.warning } }, money(saldo)),
+                    React.createElement("div", { className: "text-xs uppercase tracking-wide mb-1", style: { color: C.textMute } }, saldo > 0 ? "Saldo pendiente" : "Total de la orden"),
+                    React.createElement("div", { className: "text-2xl font-bold font-mono", style: { color: saldo > 0 ? C.warning : C.text } }, money(saldo > 0 ? saldo : total)),
                     React.createElement("p", { className: "text-sm mt-2", style: { color: C.textSoft } },
-                        pendingStatus === "listo"
-                            ? "Al marcar como lista para entrega: ¿el cliente ya pagó este saldo?"
-                            : "Al marcar como entregada: ¿el cliente ya pagó este saldo?")),
-                React.createElement("p", { className: "text-xs", style: { color: C.textMute } },
-                    "Si aún no paga, el estado sí cambia pero el monto NO se agrega a caja hasta que registres el cobro."),
+                        saldo > 0
+                            ? (pendingStatus === "listo"
+                                ? "Vas a marcar la orden como LISTA PARA ENTREGA. ¿El cliente ya pagó?"
+                                : "Vas a marcar la orden como ENTREGADA. ¿El cliente ya pagó?")
+                            : "No hay saldo pendiente. ¿Confirmas el cambio de estado?")),
+                saldo > 0 && React.createElement("p", { className: "text-xs", style: { color: C.textMute } },
+                    "Si aún no paga, el estado cambia pero NO se agrega nada a caja. Luego podrás pulsar «Cliente ya pagó»."),
                 React.createElement("div", { className: "flex flex-col sm:flex-row gap-2" },
                     React.createElement(Button, {
                         variant: "subtle",
@@ -3561,16 +3580,15 @@ function OrderDetail({ order, client, vehicle, parts, onClose, onStatusChange, o
                             setPendingStatus(null);
                             onStatusChange(st, { skipCollect: true });
                         },
-                    }, "No, aún no paga"),
+                    }, saldo > 0 ? "No, aún no paga" : "Cancelar"),
                     React.createElement(Button, {
                         className: "flex-1",
                         onClick: function () {
                             var st = pendingStatus;
                             setPendingStatus(null);
-                            onStatusChange(st, { collect: true });
+                            onStatusChange(st, { collect: saldo > 0 });
                         },
-                    }, "Sí, ya pagó — registrar en caja"))))),
-        ),
+                    }, saldo > 0 ? "Sí, ya pagó — registrar en caja" : "Confirmar")))),
         showReception && (React.createElement(ReceptionModal, { order: order, client: client, vehicle: vehicle, onClose: () => setShowReception(false), onSave: (checkin) => { onSaveCheckin(checkin); setShowReception(false); } })),
         showRequirement && (React.createElement(RequirementModal, { order: order, requirement: requirement, parts: parts, onClose: () => setShowRequirement(false), onSave: (req) => { onSaveRequirement(req); setShowRequirement(false); } })),
         showFindings && (React.createElement(FindingsModal, { order: order, findings: findings, onClose: () => setShowFindings(false), onSave: (items) => { onSaveFindings && onSaveFindings(items); setShowFindings(false); } })),
@@ -3588,7 +3606,7 @@ function OrderDetail({ order, client, vehicle, parts, onClose, onStatusChange, o
             React.createElement("button", { onClick: () => { if (window.confirm("¿Eliminar esta orden de trabajo? Esta acción no se puede deshacer."))
                     onDelete(); }, className: "text-xs flex items-center gap-1.5", style: { color: C.danger } },
                 React.createElement(Trash2, { size: 13 }),
-                " Eliminar orden"))))))));
+                " Eliminar orden"))))))))));
 }
 function NewOrderModal({ clients, setClients, vehicles, setVehicles, code, onClose, onCreate, techs }) {
     var _a;
