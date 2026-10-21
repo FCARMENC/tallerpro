@@ -2890,7 +2890,7 @@ function Dashboard({ orders, clients, vehicles, parts, appointments, goTo, setti
                                 " u."))))))))));
 }
 /* ---------------------------------- ÓRDENES ---------------------------------- */
-function OrdenesView({ orders, setOrders, clients, setClients, vehicles, setVehicles, parts, onChangeStatus, onRegistrarAbono, settings, logAudit, currentUser }) {
+function OrdenesView({ orders, setOrders, clients, setClients, vehicles, setVehicles, parts, onChangeStatus, onRegistrarAbono, onRegistrarCobroFinal, settings, logAudit, currentUser }) {
     const [filter, setFilter] = useState("todas");
     const [query, setQuery] = useState("");
     const [openOrder, setOpenOrder] = useState(null);
@@ -2984,7 +2984,7 @@ function OrdenesView({ orders, setOrders, clients, setClients, vehicles, setVehi
                 playSound("ordenNueva");
             } }))));
 }
-function OrderDetail({ order, client, vehicle, parts, onClose, onStatusChange, onRegistrarAbono, onSaveCheckin, onSaveRequirement, onSaveFindings, onSaveServices, onUpdateOrder, onDelete, settings, currentUser }) {
+function OrderDetail({ order, client, vehicle, parts, onClose, onStatusChange, onRegistrarAbono, onRegistrarCobroFinal, onSaveCheckin, onSaveRequirement, onSaveFindings, onSaveServices, onUpdateOrder, onDelete, settings, currentUser }) {
     const [showAbonoForm, setShowAbonoForm] = useState(false);
     const [abonoAmount, setAbonoAmount] = useState("");
     const [showReception, setShowReception] = useState(false);
@@ -3522,8 +3522,22 @@ function OrderDetail({ order, client, vehicle, parts, onClose, onStatusChange, o
                         React.createElement("span", { className: "text-xs font-semibold leading-tight", style: { color: active ? s.color : C.textSoft } }, s.label)),
                     active && React.createElement("div", { className: "text-[10px] mt-1.5 font-medium", style: { color: s.color } }, "Estado actual"));
             })),
-            (order.status === "listo" || order.status === "entregado") && total > 0 && saldo <= 0 && (React.createElement("p", { className: "text-xs mt-2 flex items-center gap-1.5", style: { color: C.textMute } }, "\uD83D\uDCB0 El saldo se registr\u00F3 autom\u00E1ticamente en Caja.")),
-            order.status === "entregado" && total > 0 && saldo > 0 && (React.createElement("p", { className: "text-xs mt-2 flex items-center gap-1.5", style: { color: C.warning } }, "\u26A0\uFE0F Entregado con saldo pendiente de ", money(saldo), " \u2014 visible en Caja."))),
+            (order.status === "listo" || order.status === "entregado") && total > 0 && saldo > 0 && (React.createElement("div", {
+                className: "mt-3 rounded-2xl p-3 space-y-2",
+                style: { background: C.warningSoft || "rgba(245,158,11,0.12)", border: "1px solid " + (C.warning || "#F59E0B") + "55" },
+            },
+                React.createElement("div", { className: "text-xs font-medium", style: { color: C.warning } },
+                    (order.status === "listo" ? "Lista para entrega" : "Entregada") + " · saldo pendiente: " + money(saldo)),
+                React.createElement("p", { className: "text-xs", style: { color: C.textSoft } },
+                    "El cliente aún no pagó. Cuando pague, usa el botón de abajo o Caja → Pendientes de pago."),
+                onRegistrarCobroFinal && React.createElement(Button, {
+                    type: "button",
+                    className: "w-full text-sm",
+                    onClick: function () {
+                        if (window.confirm("¿Registrar cobro de " + money(saldo) + " en caja?\n\nSe reparte entre taller y repuestos."))
+                            onRegistrarCobroFinal();
+                    },
+                }, "Cliente ya pagó — registrar en caja"))),
         pendingStatus && (React.createElement(Modal, {
             title: pendingStatus === "listo" ? "Listo para entrega" : "Confirmar entrega",
             onClose: function () { setPendingStatus(null); },
@@ -3574,7 +3588,7 @@ function OrderDetail({ order, client, vehicle, parts, onClose, onStatusChange, o
             React.createElement("button", { onClick: () => { if (window.confirm("¿Eliminar esta orden de trabajo? Esta acción no se puede deshacer."))
                     onDelete(); }, className: "text-xs flex items-center gap-1.5", style: { color: C.danger } },
                 React.createElement(Trash2, { size: 13 }),
-                " Eliminar orden")))))));
+                " Eliminar orden"))))))));
 }
 function NewOrderModal({ clients, setClients, vehicles, setVehicles, code, onClose, onCreate, techs }) {
     var _a;
@@ -5390,7 +5404,7 @@ function MecanicaView({ entries, setEntries, vehicles, canEdit, logAudit }) {
                 removeEntry(openEntry.id); } }))));
 }
 /* ---------------------------------- CAJA ---------------------------------- */
-function CajaView({ caja: cajaTodos, liquidaciones = [], onLiquidar, onDeshacerLiquidacion, canEdit = true, onAddMovement, onRemoveMovement, orders = [], clients = [], vehicles = [], onChangeStatus, onRegistrarAbono }) {
+function CajaView({ caja: cajaTodos, liquidaciones = [], onLiquidar, onDeshacerLiquidacion, canEdit = true, onAddMovement, onRemoveMovement, orders = [], clients = [], vehicles = [], onChangeStatus, onRegistrarAbono, onRegistrarCobroFinal }) {
     const [showLiquidar, setShowLiquidar] = useState(false);
     const [showHistorial, setShowHistorial] = useState(false);
     const [openLiqId, setOpenLiqId] = useState(null);
@@ -5412,7 +5426,7 @@ function CajaView({ caja: cajaTodos, liquidaciones = [], onLiquidar, onDeshacerL
     const findClient = (id) => clients.find((c) => c.id === id);
     const findVehicle = (id) => vehicles.find((v) => v.id === id);
     const openOrder = openOrderId ? orders.find((o) => o.id === openOrderId) : null;
-    const pendientesPago = orders.filter((o) => o.status === "entregado" && orderSaldo(o) > 0);
+    const pendientesPago = orders.filter((o) => (o.status === "entregado" || o.status === "listo") && orderSaldo(o) > 0 && !(o.pagos || []).some((p) => p.source === "cobro_final"));
     const totalIngresos = caja.filter((m) => m.type === "ingreso").reduce((s, m) => s + m.amount, 0);
     const totalGastos = caja.filter((m) => m.type === "gasto").reduce((s, m) => s + m.amount, 0);
     const saldo = totalIngresos - totalGastos;
@@ -5461,11 +5475,22 @@ function CajaView({ caja: cajaTodos, liquidaciones = [], onLiquidar, onDeshacerL
             React.createElement("div", { className: "space-y-2" }, pendientesPago.map((o) => {
                 const c = findClient(o.clientId);
                 const v = findVehicle(o.vehicleId);
-                return (React.createElement("div", { key: o.id, onClick: () => setOpenOrderId(o.id), className: "flex flex-wrap items-center justify-between gap-2 px-3 py-2.5 rounded-xl cursor-pointer transition-colors hover:bg-white/5", style: { background: C.bg, border: `1px solid ${C.borderSoft}` } },
-                    React.createElement("div", { className: "min-w-0" },
-                        React.createElement("div", { className: "text-sm font-medium truncate" }, (c === null || c === void 0 ? void 0 : c.name) || "Cliente"),
-                        React.createElement("div", { className: "text-xs mt-0.5", style: { color: C.textMute } }, `OT ${o.code}${v ? ` · ${v.brand} ${v.model} (${v.plate})` : ""}`)),
-                    React.createElement("span", { className: "font-mono text-sm font-medium shrink-0", style: { color: C.warning } }, money(orderSaldo(o)))));
+                return (React.createElement("div", { key: o.id, className: "flex flex-wrap items-center justify-between gap-2 px-3 py-2.5 rounded-xl", style: { background: C.bg, border: `1px solid ${C.borderSoft}` } },
+                    React.createElement("div", { className: "min-w-0 cursor-pointer flex-1", onClick: function () { setOpenOrderId(o.id); } },
+                        React.createElement("div", { className: "text-sm font-medium truncate" }, (c && c.name) || "Cliente"),
+                        React.createElement("div", { className: "text-xs mt-0.5", style: { color: C.textMute } }, "OT " + o.code + (v ? " · " + v.brand + " " + v.model + " (" + v.plate + ")" : "") + (o.status === "listo" ? " · Lista" : " · Entregada"))),
+                    React.createElement("div", { className: "flex items-center gap-2 shrink-0" },
+                        React.createElement("span", { className: "font-mono text-sm font-medium", style: { color: C.warning } }, money(orderSaldo(o))),
+                        canEdit && onRegistrarCobroFinal && React.createElement("button", {
+                            type: "button",
+                            className: "text-xs font-semibold px-2.5 py-1.5 rounded-lg",
+                            style: { background: C.accent, color: "#1A0D05" },
+                            onClick: function (e) {
+                                e.stopPropagation();
+                                if (window.confirm("¿Registrar cobro de " + money(orderSaldo(o)) + " en caja?"))
+                                    onRegistrarCobroFinal(o.id);
+                            },
+                        }, "Ya pagó"))));
             })))),
         React.createElement("div", { className: "flex flex-col sm:flex-row gap-3" },
             React.createElement("div", { className: "relative flex-1" },
@@ -8035,10 +8060,14 @@ function App() {
         }
     }, [currentUser, currentRole, active]);
     const addCajaMovement = (mov) => {
-        setCaja((prev) => [
-            { id: "m" + Date.now() + Math.random().toString(36).slice(2, 7), date: new Date().toISOString().slice(0, 10), ...mov },
-            ...prev,
-        ]);
+        setCaja((prev) => {
+            if (mov && mov.source === "cobro_final" && mov.orderId) {
+                const box = mov.box || "taller";
+                if (prev.some((m) => m.orderId === mov.orderId && m.source === "cobro_final" && (m.box || "taller") === box))
+                    return prev;
+            }
+            return [{ id: "m" + Date.now() + Math.random().toString(36).slice(2, 7), date: new Date().toISOString().slice(0, 10), ...mov }, ...prev];
+        });
         logAudit("crear", "caja", mov.concept || (mov.type === "ingreso" ? "Ingreso" : "Gasto"), `${mov.type === "ingreso" ? "Ingreso" : "Gasto"} · ${money(mov.amount)}`);
         // Los ingresos que ya vienen de un abono o de un cobro final de orden tienen su propio
         // sonido (ver registrarAbono / changeOrderStatus), así que aquí solo suena para los
@@ -8140,85 +8169,88 @@ function App() {
         playSound("pago");
     };
     const changeOrderStatus = (order, newStatus, options = {}) => {
-        const skipCollect = options.skipCollect === true;
-        const wasCollected = order.status === "listo" || order.status === "entregado";
-        const isCollected = newStatus === "listo" || newStatus === "entregado";
-        const saldo = orderSaldo(order);
-        // Si el usuario confirmó que el cliente AÚN no paga (ver aviso al marcar "Entregado"),
-        // no se cobra el saldo automáticamente: la orden queda entregada pero con saldo
-        // pendiente, y aparecerá en Caja bajo "Pendientes de pago".
-        // Solo cobra en caja si options.collect === true (confirmó que ya pagó)
-        const willCollect = options.collect === true && isCollected && !wasCollected && saldo > 0;
+        const live = orders.find((o) => o.id === order.id) || order;
+        const isCollectedStatus = newStatus === "listo" || newStatus === "entregado";
+        const alreadyPagoFinal = (live.pagos || []).some((p) => p.source === "cobro_final");
+        const alreadyCajaFinal = (caja || []).some((m) => m.orderId === live.id && m.source === "cobro_final");
+        // Solo "ya cobrado" si hay registro real (no por estar entregado sin pago)
+        const alreadyCollected = alreadyPagoFinal || alreadyCajaFinal;
+        const saldo = orderSaldo(live);
+        const willCollect = options.collect === true && !alreadyCollected && saldo > 0;
         setOrders((prev) => prev.map((o) => {
-            if (o.id !== order.id)
-                return o;
+            if (o.id !== live.id) return o;
             let pagos = o.pagos || [];
-            if (willCollect) {
-                pagos = [...pagos, { id: "pg" + Date.now(), amount: saldo, date: new Date().toISOString().slice(0, 10), source: "cobro_final" }];
-            }
-            else if (!isCollected && wasCollected) {
+            const hadFinal = pagos.some((p) => p.source === "cobro_final");
+            if (willCollect && !hadFinal) {
+                const svc = orderServicesTotal(o);
+                const prt = orderPartsTotal(o);
+                const tot = svc + prt;
+                let amountTaller = saldo, amountRepuestos = 0;
+                if (tot > 0) {
+                    amountTaller = Math.round((saldo * (svc / tot)) * 100) / 100;
+                    amountRepuestos = Math.round((saldo - amountTaller) * 100) / 100;
+                }
+                pagos = pagos.concat([{
+                    id: "pg" + Date.now(),
+                    amount: saldo,
+                    amountTaller: amountTaller,
+                    amountRepuestos: amountRepuestos,
+                    date: new Date().toISOString().slice(0, 10),
+                    source: "cobro_final",
+                }]);
+            } else if (!isCollectedStatus && options.revertCollect === true) {
                 pagos = pagos.filter((p) => p.source !== "cobro_final");
             }
-            return { ...o, status: newStatus, pagos };
+            return Object.assign({}, o, { status: newStatus, pagos: pagos });
         }));
-        logAudit("estado", "ordenes", `OT ${order.code}`, `${order.status || "-"} → ${newStatus}`);
-        if (newStatus === "listo" && order.status !== "listo") {
-            const client = clients.find((c) => c.id === order.clientId);
-            const vehicle = vehicles.find((v) => v.id === order.vehicleId);
-            triggerPushNotification(null, { title: `Orden lista para entregar · ${order.code}`, body: `${(client === null || client === void 0 ? void 0 : client.name) || "Cliente"} · ${vehicle ? `${vehicle.brand} ${vehicle.model} (${vehicle.plate})` : ""}` });
+        logAudit("estado", "ordenes", "OT " + (live.code || live.id), (live.status || "-") + " → " + newStatus);
+        if (newStatus === "listo" && live.status !== "listo") {
+            const client = clients.find((cl) => cl.id === live.clientId);
+            const vehicle = vehicles.find((vh) => vh.id === live.vehicleId);
+            triggerPushNotification(null, {
+                title: "Orden lista para entregar · " + (live.code || ""),
+                body: ((client && client.name) || "Cliente") + (vehicle ? " · " + vehicle.brand + " " + vehicle.model + " (" + vehicle.plate + ")" : ""),
+            });
             playSound("ordenLista");
         }
         if (willCollect) {
-            const client = clients.find((c) => c.id === order.clientId);
-            const clientName = (client && client.name) || "Cliente";
-            const svc = orderServicesTotal(order);
-            const prt = orderPartsTotal(order);
-            const tot = svc + prt;
-            let amtTaller = saldo;
-            let amtRep = 0;
-            if (tot > 0) {
-                amtTaller = Math.round((saldo * (svc / tot)) * 100) / 100;
-                amtRep = Math.round((saldo - amtTaller) * 100) / 100;
+            const hasCaja = (caja || []).some((m) => m.orderId === live.id && m.source === "cobro_final");
+            if (!hasCaja) {
+                const client = clients.find((cl) => cl.id === live.clientId);
+                const clientName = (client && client.name) || "Cliente";
+                const svc = orderServicesTotal(live);
+                const prt = orderPartsTotal(live);
+                const tot = svc + prt;
+                let amtTaller = saldo, amtRep = 0;
+                if (tot > 0) {
+                    amtTaller = Math.round((saldo * (svc / tot)) * 100) / 100;
+                    amtRep = Math.round((saldo - amtTaller) * 100) / 100;
+                }
+                if (amtTaller > 0) {
+                    addCajaMovement({ type: "ingreso", concept: "Cobro taller " + (live.code || "") + " · " + clientName, amount: amtTaller, source: "cobro_final", box: "taller", orderId: live.id });
+                }
+                if (amtRep > 0) {
+                    addCajaMovement({ type: "ingreso", concept: "Cobro repuestos " + (live.code || "") + " · " + clientName, amount: amtRep, source: "cobro_final", box: "repuestos", orderId: live.id });
+                }
+                if (amtTaller <= 0 && amtRep <= 0) {
+                    addCajaMovement({ type: "ingreso", concept: "OT " + (live.code || "") + " · " + clientName, amount: saldo, source: "cobro_final", box: "taller", orderId: live.id });
+                }
+                if (newStatus !== "listo") playSound("pago");
             }
-            if (amtTaller > 0) {
-                addCajaMovement({
-                    type: "ingreso",
-                    concept: `Cobro taller ${order.code} · ${clientName}`,
-                    amount: amtTaller,
-                    source: "cobro_final",
-                    box: "taller",
-                    orderId: order.id,
-                });
-            }
-            if (amtRep > 0) {
-                addCajaMovement({
-                    type: "ingreso",
-                    concept: `Cobro repuestos ${order.code} · ${clientName}`,
-                    amount: amtRep,
-                    source: "cobro_final",
-                    box: "repuestos",
-                    orderId: order.id,
-                });
-            }
-            if (amtTaller <= 0 && amtRep <= 0) {
-                addCajaMovement({
-                    type: "ingreso",
-                    concept: `OT ${order.code} · ${clientName}`,
-                    amount: saldo,
-                    source: "cobro_final",
-                    box: "taller",
-                    orderId: order.id,
-                });
-            }
-            if (newStatus !== "listo") {
-                // Si la orden pasó directo a "Entregado" (sin pasar por "Listo"), el sonido de
-                // "orden lista" no sonó arriba, así que avisamos aquí que se cobró el saldo.
-                playSound("pago");
-            }
+        } else if (!isCollectedStatus && alreadyCollected && options.revertCollect === true) {
+            setCaja((prev) => prev.filter((m) => !(m.orderId === live.id && m.source === "cobro_final")));
         }
-        else if (!isCollected && wasCollected) {
-            setCaja((prev) => prev.filter((m) => !(m.orderId === order.id && m.source === "cobro_final")));
-        }
+    };
+    const registrarCobroFinal = (orderId) => {
+        const order = orders.find((o) => o.id === orderId);
+        if (!order) return { ok: false, reason: "no_order" };
+        const saldo = orderSaldo(order);
+        if (saldo <= 0) return { ok: false, reason: "sin_saldo" };
+        const already = (order.pagos || []).some((p) => p.source === "cobro_final")
+            || (caja || []).some((m) => m.orderId === orderId && m.source === "cobro_final");
+        if (already) return { ok: false, reason: "ya_cobrado" };
+        changeOrderStatus(order, order.status, { collect: true });
+        return { ok: true };
     };
     // Avisa en este dispositivo (mientras la pestana/PWA este abierta) apenas un cliente aprueba o
     // rechaza una proforma desde el enlace publico. No corre en la propia pagina de aprobacion del
@@ -8353,14 +8385,14 @@ function App() {
                         (currentRole === null || currentRole === void 0 ? void 0 : currentRole.name) || "sin rol",
                         ") no tiene permiso para ver esta secci\u00F3n."))) : (React.createElement(React.Fragment, null,
                     active === "dashboard" && (React.createElement(Dashboard, { orders: orders, clients: clients, vehicles: vehicles, parts: parts, appointments: appointments, goTo: setActive, settings: settings, verMontos: canSeeMoney(currentRole), currentUser: currentUser, proformas: proformas, canOpen: (k) => canView(currentRole, k) })),
-                    active === "ordenes" && (React.createElement(OrdenesView, { orders: orders, setOrders: setOrders, clients: clients, setClients: setClients, vehicles: vehicles, setVehicles: setVehicles, parts: parts, onChangeStatus: changeOrderStatus, onRegistrarAbono: registrarAbono, settings: settings, logAudit: logAudit, currentUser: currentUser })),
+                    active === "ordenes" && (React.createElement(OrdenesView, { orders: orders, setOrders: setOrders, clients: clients, setClients: setClients, vehicles: vehicles, setVehicles: setVehicles, parts: parts, onChangeStatus: changeOrderStatus, onRegistrarAbono: registrarAbono, onRegistrarCobroFinal: registrarCobroFinal, settings: settings, logAudit: logAudit, currentUser: currentUser })),
                     active === "proformas" && (React.createElement(ProformasView, { proformas: proformas, setProformas: setProformas, clients: clients, vehicles: vehicles, settings: settings, focusRequest: proformaFocus, logAudit: logAudit })),
                     active === "clientes" && React.createElement(ClientesView, { clients: clients, setClients: setClients, vehicles: vehicles, setVehicles: setVehicles, orders: orders }),
                     active === "vehiculos" && React.createElement(VehiculosView, { vehicles: vehicles, setVehicles: setVehicles, clients: clients, orders: orders, settings: settings }),
                     active === "inventario" && React.createElement(InventarioView, { parts: parts, setParts: setParts }),
                     active === "agenda" && React.createElement(AgendaView, { appointments: appointments, setAppointments: setAppointments }),
                     active === "mecanica" && React.createElement(MecanicaView, { entries: mecanicaEntries, setEntries: setMecanicaEntries, vehicles: vehicles, canEdit: canEditModule(currentRole, "mecanica"), logAudit: logAudit }),
-                    active === "caja" && (React.createElement(CajaView, { caja: caja, liquidaciones: liquidaciones, onLiquidar: liquidarCaja, onDeshacerLiquidacion: deshacerLiquidacion, canEdit: canEditModule(currentRole, "caja"), onAddMovement: addCajaMovement, onRemoveMovement: removeCajaMovement, orders: orders, clients: clients, vehicles: vehicles, onChangeStatus: changeOrderStatus, onRegistrarAbono: registrarAbono })),
+                    active === "caja" && (React.createElement(CajaView, { caja: caja, liquidaciones: liquidaciones, onLiquidar: liquidarCaja, onDeshacerLiquidacion: deshacerLiquidacion, canEdit: canEditModule(currentRole, "caja"), onAddMovement: addCajaMovement, onRemoveMovement: removeCajaMovement, orders: orders, clients: clients, vehicles: vehicles, onChangeStatus: changeOrderStatus, onRegistrarAbono: registrarAbono, onRegistrarCobroFinal: registrarCobroFinal })),
                     active === "pagos" && (React.createElement(PagosProgramadosView, { items: pagosProgramados, onSave: savePagoProgramado, onDelete: deletePagoProgramado, onToggleActivo: togglePagoProgramadoActivo, readOnly: !canEditModule(currentRole, "pagos") })),
                     active === "solicitudes" && (React.createElement(SolicitudesView, { items: solicitudes, onMarkAtendida: markSolicitudAtendida, onDelete: deleteSolicitud, onCreateClient: createClientFromSolicitud })),
                     active === "avisos" && (React.createElement(AvisosBroadcastView, { history: avisosBroadcast, onSend: sendBroadcast, sending: broadcastSending, error: broadcastError, deviceCount: fcmTokens.length, settings: settings, setSettings: setSettings })),
