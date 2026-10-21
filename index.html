@@ -3221,6 +3221,16 @@ function OrderDetail({ order, client, vehicle, parts, onClose, onStatusChange, o
             React.createElement("div", { className: "flex items-center gap-2 shrink-0" },
                 (onSaveServices || onUpdateOrder) && React.createElement("button", { type: "button", onClick: () => setShowEditOrder(true), className: "w-9 h-9 rounded-xl flex items-center justify-center", style: { background: C.accentSoft, color: C.accentText }, title: "Editar orden" },
                     React.createElement(Pencil, { size: 16 })),
+                onDelete && React.createElement("button", {
+                    type: "button",
+                    onClick: function () {
+                        if (window.confirm("¿Eliminar esta orden de trabajo? Esta acción no se puede deshacer."))
+                            onDelete();
+                    },
+                    className: "w-9 h-9 rounded-xl flex items-center justify-center",
+                    style: { background: C.dangerSoft || "rgba(239,68,68,0.15)", color: C.danger },
+                    title: "Eliminar orden",
+                }, React.createElement(Trash2, { size: 16 })),
                 React.createElement(Badge, { color: st.color, soft: st.soft }, st.label))),
         React.createElement("div", { className: "grid sm:grid-cols-2 gap-4 mb-6" },
             React.createElement(Card, { className: "p-4" },
