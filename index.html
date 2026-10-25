@@ -5457,8 +5457,9 @@ function MecanicaView({ entries, setEntries, vehicles, canEdit, logAudit }) {
                 removeEntry(openEntry.id); } }))));
 }
 /* ---------------------------------- CAJA ---------------------------------- */
-function CajaView({ caja: cajaTodos, liquidaciones = [], onLiquidar, onDeshacerLiquidacion, onRestaurarRepuestosLiq, canEdit = true, onAddMovement, onRemoveMovement, orders = [], clients = [], vehicles = [], onChangeStatus, onRegistrarAbono, onRegistrarCobroFinal }) {
+function CajaView({ caja: cajaTodos, liquidaciones = [], onLiquidar, onDeshacerLiquidacion, onRestaurarCajaLiq, canEdit = true, onAddMovement, onRemoveMovement, orders = [], clients = [], vehicles = [], onChangeStatus, onRegistrarAbono, onRegistrarCobroFinal }) {
     const [showLiquidar, setShowLiquidar] = useState(false);
+    const [liqBox, setLiqBox] = useState("todas"); // todas | taller | repuestos
     const [showHistorial, setShowHistorial] = useState(false);
     const [openLiqId, setOpenLiqId] = useState(null);
     // Los movimientos ya liquidados se conservan, pero no cuentan en los totales actuales.
@@ -5506,7 +5507,7 @@ function CajaView({ caja: cajaTodos, liquidaciones = [], onLiquidar, onDeshacerL
         React.createElement("div", { className: "flex flex-wrap items-center justify-between gap-3" },
             React.createElement("h1", { style: { fontFamily: "'Geist', system-ui, sans-serif" }, className: "text-2xl tracking-wide" }, "Caja"),
             React.createElement("div", { className: "flex items-center justify-end gap-2 ml-auto" },
-                canEdit && (React.createElement(Button, { variant: "soft", onClick: () => setShowLiquidar(true), disabled: caja.length === 0, className: "!px-3.5" },
+                canEdit && (React.createElement(Button, { variant: "soft", onClick: () => setShowLiquidar(true), disabled: cajaBase.length === 0, className: "!px-3.5" },
                     React.createElement(Wallet, { size: 16 }),
                     " Liquidar",
                     React.createElement("span", { className: "hidden sm:inline" }, " caja"))),
@@ -5602,108 +5603,132 @@ function CajaView({ caja: cajaTodos, liquidaciones = [], onLiquidar, onDeshacerL
             },
                 React.createElement(Trash2, { size: 14 })))))))),
         liqOrdenadas.length > 0 && (React.createElement(Card, { className: "overflow-hidden" },
-            React.createElement("button", { onClick: () => setShowHistorial((v) => !v), className: "w-full flex items-center justify-between gap-3 px-5 py-4 text-left" },
+            React.createElement("button", { type: "button", onClick: () => setShowHistorial((v) => !v), className: "w-full flex items-center justify-between gap-3 px-5 py-4 text-left" },
                 React.createElement("div", { className: "flex items-center gap-2" },
                     React.createElement("h3", { style: { fontFamily: "'Geist', system-ui, sans-serif" }, className: "text-sm tracking-wide uppercase" }, "Historial de liquidaciones"),
                     React.createElement(Badge, { color: C.info, soft: C.infoSoft }, liqOrdenadas.length)),
                 React.createElement("span", { className: "text-xs", style: { color: C.textMute } }, showHistorial ? "Ocultar" : "Ver")),
             showHistorial && (React.createElement("div", { style: { borderTop: `1px solid ${C.borderSoft}` } }, liqOrdenadas.map((l, i) => {
                 const abierta = openLiqId === l.id;
-                const movs = cajaTodos.filter((m) => (l.movIds || []).includes(m.id));
+                const ids = l.movIds || [];
+                const movs = cajaTodos.filter((m) => ids.includes(m.id));
+                const nTaller = movs.filter((m) => m.box !== "repuestos").length;
+                const nRepuestos = movs.filter((m) => m.box === "repuestos").length;
+                const etiquetaCaja = l.box === "taller" ? "Taller · " : l.box === "repuestos" ? "Repuestos · " : "Ambas · ";
                 return (React.createElement("div", { key: l.id, style: { borderBottom: i < liqOrdenadas.length - 1 ? `1px solid ${C.borderSoft}` : "none" } },
                     React.createElement("div", { onClick: () => setOpenLiqId(abierta ? null : l.id), className: "flex flex-wrap items-center gap-x-3 gap-y-1 px-5 py-3.5 cursor-pointer hover:bg-white/5" },
                         React.createElement("div", { className: "min-w-0 flex-1 basis-40" },
                             React.createElement("div", { className: "text-sm font-medium" }, l.desde === l.hasta ? l.hasta : `${l.desde} → ${l.hasta}`),
                             React.createElement("div", { className: "text-xs mt-0.5", style: { color: C.textMute } },
-                            (l.box === "taller" ? "Taller · " : l.box === "repuestos" ? "Repuestos · " : "Ambas · ") +
-                            `Ingresos ${money(l.ingresos)} · Gastos ${money(l.gastos)} · ${l.count} mov. · ${l.userName || ""}`)),
-                        React.createElement("span", { className: "font-mono text-sm font-medium shrink-0", style: { color: l.saldo >= 0 ? C.success : C.danger } }, money(l.saldo))),
+                                etiquetaCaja + `Ingresos ${money(Number(l.ingresos) || 0)} · Gastos ${money(Number(l.gastos) || 0)} · ${l.count || 0} mov. · ${l.userName || ""}`)),
+                        React.createElement("span", { className: "font-mono text-sm font-medium shrink-0", style: { color: (Number(l.saldo) || 0) >= 0 ? C.success : C.danger } }, money(Number(l.saldo) || 0))),
                     abierta && (React.createElement("div", { className: "px-5 pb-4 space-y-1.5" },
                         movs.length === 0 && React.createElement("p", { className: "text-xs", style: { color: C.textMute } }, "El detalle de estos movimientos ya no está disponible."),
                         movs.map((m) => (React.createElement("div", { key: m.id, className: "flex items-center justify-between gap-3 text-xs px-3 py-2 rounded-lg", style: { background: C.bg, border: `1px solid ${C.borderSoft}` } },
-                            React.createElement("span", { className: "truncate" }, `${m.date} · ${m.concept}`),
-                            React.createElement("span", { className: "font-mono shrink-0", style: { color: m.type === "ingreso" ? C.success : C.danger } }, `${m.type === "ingreso" ? "+" : "−"}${money(m.amount)}`)))),
-                        canEdit && i === 0 && React.createElement("div", { className: "pt-2 flex flex-wrap gap-2" },
+                            React.createElement("span", { className: "truncate" }, `${m.date} · ${m.concept}${m.box === "repuestos" ? " (Repuestos)" : " (Taller)"}`),
+                            React.createElement("span", { className: "font-mono shrink-0", style: { color: m.type === "ingreso" ? C.success : C.danger } }, `${m.type === "ingreso" ? "+" : "−"}${money(Number(m.amount) || 0)}`)))),
+                        canEdit && React.createElement("div", { className: "pt-2 flex flex-wrap gap-2" },
+                            nTaller > 0 && React.createElement(Button, {
+                                type: "button",
+                                variant: "soft",
+                                className: "text-xs",
+                                onClick: function (e) {
+                                    e.stopPropagation();
+                                    if (window.confirm("¿Restaurar la caja TALLER de esta liquidación?\n\n" + nTaller + " movimiento(s) volverán a los totales de Caja.\nLa caja de repuestos no se toca."))
+                                        onRestaurarCajaLiq && onRestaurarCajaLiq(l.id, "taller");
+                                },
+                            }, "Restaurar caja taller"),
+                            nRepuestos > 0 && React.createElement(Button, {
+                                type: "button",
+                                variant: "soft",
+                                className: "text-xs",
+                                onClick: function (e) {
+                                    e.stopPropagation();
+                                    if (window.confirm("¿Restaurar la caja REPUESTOS de esta liquidación?\n\n" + nRepuestos + " movimiento(s) volverán a los totales de Caja.\nLa caja taller no se toca."))
+                                        onRestaurarCajaLiq && onRestaurarCajaLiq(l.id, "repuestos");
+                                },
+                            }, "Restaurar caja repuestos"),
                             React.createElement(Button, {
                                 type: "button",
                                 variant: "ghost",
                                 className: "text-xs",
                                 onClick: function (e) {
                                     e.stopPropagation();
-                                    if (window.confirm("¿Deshacer esta liquidación? Sus movimientos volverán a contar en los totales de Caja."))
+                                    if (window.confirm("¿Deshacer toda esta liquidación?\nTodos sus movimientos volverán a los totales de Caja."))
                                         onDeshacerLiquidacion && onDeshacerLiquidacion(l.id);
                                 },
-                            }, "Deshacer liquidación"),
-                            React.createElement(Button, {
-                                type: "button",
-                                variant: "subtle",
-                                className: "text-xs",
-                                onClick: function (e) {
-                                    e.stopPropagation();
-                                    if (typeof onRestaurarRepuestosLiq === "function") {
-                                        if (window.confirm("¿Reabrir solo CAJA REPUESTOS de esta liquidación?\nLa parte de taller seguirá liquidada."))
-                                            onRestaurarRepuestosLiq(l.id);
-                                    }
-                                },
-                            }, "Restaurar repuestos")
+                            }, "Deshacer liquidación")
                         )
-                    )
-                )
-            ));
+                    ))
+                ));
             })))
-        ),
-        showLiquidar && (React.createElement(Modal, { title: "Liquidar caja", onClose: function () { setShowLiquidar(false); } },
+        )),
+        showLiquidar && (React.createElement(Modal, {
+            title: "Liquidar caja",
+            onClose: function () { setShowLiquidar(false); },
+            zIndex: 80,
+        },
             React.createElement("div", { className: "space-y-4" },
                 React.createElement("p", { className: "text-sm", style: { color: C.textSoft } },
-                    "Elige qué caja liquidar. Solo se cierran los movimientos de esa caja; el resto sigue abierto."),
-                React.createElement("div", { className: "flex flex-wrap gap-2" },
-                    [
-                        { key: "todas", label: "Ambas" },
-                        { key: "taller", label: "Solo taller" },
-                        { key: "repuestos", label: "Solo repuestos" },
-                    ].map(function (opt) {
-                        var active = liqBox === opt.key;
+                    "¿Qué caja quieres liquidar? La otra permanece abierta."),
+                (function () {
+                    function stats(which) {
+                        var list = cajaBase.filter(function (m) {
+                            if (which === "todas") return true;
+                            var mb = (m.box === "repuestos") ? "repuestos" : "taller";
+                            return mb === which;
+                        });
+                        var ing = 0, gas = 0;
+                        list.forEach(function (m) {
+                            var amt = Number(m.amount) || 0;
+                            if (m.type === "ingreso") ing += amt;
+                            else if (m.type === "gasto") gas += amt;
+                        });
+                        return { n: list.length, ing: ing, gas: gas, sal: ing - gas };
+                    }
+                    function row(label, st, which) {
                         return React.createElement("button", {
-                            key: opt.key,
                             type: "button",
-                            onClick: function () { setLiqBox(opt.key); },
-                            className: "px-3.5 py-2 rounded-xl text-xs font-semibold border transition-colors",
-                            style: {
-                                background: active ? (C.accentSoft || C.surfaceHi) : C.bg,
-                                color: active ? (C.accentText || C.accent) : C.textSoft,
-                                borderColor: active ? (C.accent || C.border) : (C.borderSoft || C.border),
+                            key: which,
+                            className: "w-full text-left rounded-2xl p-4 border transition-colors",
+                            style: { background: C.bg, borderColor: C.borderSoft || C.border, opacity: st.n === 0 ? 0.55 : 1 },
+                            onClick: function () {
+                                if (st.n === 0) {
+                                    window.alert("No hay movimientos pendientes en: " + label + ".");
+                                    return;
+                                }
+                                if (!window.confirm(
+                                    "¿Liquidar: " + label + "?\n\n" +
+                                    "Ingresos: " + money(st.ing) + "\n" +
+                                    "Gastos: " + money(st.gas) + "\n" +
+                                    "Saldo: " + money(st.sal) + "\n" +
+                                    st.n + " movimientos\n\n" +
+                                    (which === "todas" ? "Se liquidarán ambas cajas." : "La otra caja NO se toca.")
+                                )) return;
+                                if (onLiquidar) onLiquidar(which);
+                                setShowLiquidar(false);
                             },
-                        }, opt.label);
-                    })),
-                React.createElement("div", { className: "space-y-2" }, [
-                    { label: "Ingresos", value: money(liqIngresos), color: C.success },
-                    { label: "Gastos", value: money(liqGastos), color: C.danger },
-                    { label: "Saldo a liquidar", value: money(liqSaldo), color: C.accent },
-                ].map(function (r) {
-                    return React.createElement("div", { key: r.label, className: "flex items-center justify-between px-3.5 py-2.5 rounded-xl", style: { background: C.surfaceHi } },
-                        React.createElement("span", { className: "text-sm", style: { color: C.textSoft } }, r.label),
-                        React.createElement("span", { className: "font-mono text-sm font-medium", style: { color: r.color } }, r.value));
-                })),
-                React.createElement("div", { className: "text-xs", style: { color: C.textMute } },
-                    liqCaja.length + " movimiento" + (liqCaja.length === 1 ? "" : "s") + " de " +
-                    (liqBox === "taller" ? "caja taller" : liqBox === "repuestos" ? "caja repuestos" : "ambas cajas") +
-                    " se incluirán."),
-                React.createElement("div", { className: "flex gap-3 pt-2" },
-                    React.createElement(Button, { variant: "ghost", onClick: function () { setShowLiquidar(false); }, className: "flex-1" }, "Cancelar"),
-                    React.createElement(Button, {
-                        className: "flex-1",
-                        disabled: liqCaja.length === 0,
-                        onClick: function () {
-                            if (onLiquidar) onLiquidar(liqBox);
-                            setShowLiquidar(false);
-                            setLiqBox("todas");
                         },
-                    }, "Liquidar")
-                )
+                            React.createElement("div", { className: "text-sm font-semibold mb-1" }, label),
+                            React.createElement("div", { className: "text-xs", style: { color: C.textMute } },
+                                st.n + " mov. · Ingresos " + money(st.ing) + " · Saldo " + money(st.sal))
+                        );
+                    }
+                    return React.createElement("div", { className: "space-y-2" },
+                        row("Solo caja taller", stats("taller"), "taller"),
+                        row("Solo caja repuestos", stats("repuestos"), "repuestos"),
+                        row("Ambas cajas", stats("todas"), "todas")
+                    );
+                })(),
+                React.createElement(Button, {
+                    variant: "ghost",
+                    className: "w-full",
+                    onClick: function () { setShowLiquidar(false); },
+                }, "Cancelar")
             )
         )),
         showNew && (React.createElement(NewMovementModal, { onClose: () => setShowNew(false), onCreate: (mov) => { onAddMovement(mov); setShowNew(false); } })),
-        openOrder && (React.createElement(OrderDetail, { order: openOrder, client: findClient(openOrder.clientId), vehicle: findVehicle(openOrder.vehicleId), onClose: () => setOpenOrderId(null), onStatusChange: (status, options) => onChangeStatus && onChangeStatus(openOrder, status, options), onRegistrarAbono: (amount) => onRegistrarAbono && onRegistrarAbono(openOrder.id, amount), onRegistrarCobroFinal: onRegistrarCobroFinal ? function () { onRegistrarCobroFinal(openOrder.id); } : undefined })))));
+        openOrder && (React.createElement(OrderDetail, { order: openOrder, client: findClient(openOrder.clientId), vehicle: findVehicle(openOrder.vehicleId), onClose: () => setOpenOrderId(null), onStatusChange: (status, options) => onChangeStatus && onChangeStatus(openOrder, status, options), onRegistrarAbono: (amount) => onRegistrarAbono && onRegistrarAbono(openOrder.id, amount), onRegistrarCobroFinal: onRegistrarCobroFinal ? function () { onRegistrarCobroFinal(openOrder.id); } : undefined }))));
 }
 function NewMovementModal({ onClose, onCreate }) {
     const [type, setType] = useState("ingreso");
@@ -8252,76 +8277,53 @@ function App() {
         setLiquidaciones((prev) => [liq, ...(prev || [])]);
         logAudit("crear", "caja", "Liquidación (" + boxLabel + ")", "Ingresos " + money(ingresos) + " · Gastos " + money(gastos) + " · Saldo " + money(ingresos - gastos));
     };
-    const restaurarRepuestosDeLiquidacion = (liqId) => {
+    const restaurarCajaDeLiquidacion = (liqId, boxARestaurar) => {
+        // Devuelve a Caja SOLO los movimientos de una caja ("taller" o "repuestos") de una liquidación.
+        // La otra caja de esa liquidación sigue liquidada.
         try {
-            var list = liquidaciones || [];
-            var liq = null;
-            for (var i = 0; i < list.length; i++) {
-                if (list[i].id === liqId) { liq = list[i]; break; }
-            }
+            const liq = (liquidaciones || []).find((l) => l && l.id === liqId);
             if (!liq) {
                 window.alert("No se encontró la liquidación.");
                 return;
             }
-            var allMov = caja || [];
-            var keepIds = [];
-            var removed = 0;
-            var ids = liq.movIds || [];
-            for (var j = 0; j < ids.length; j++) {
-                var id = ids[j];
-                var m = null;
-                for (var k = 0; k < allMov.length; k++) {
-                    if (allMov[k].id === id) { m = allMov[k]; break; }
-                }
-                var esRep = false;
-                if (m) {
-                    if (m.box === "repuestos") esRep = true;
-                    else {
-                        var concept = String(m.concept || "").toLowerCase();
-                        if (concept.indexOf("repuesto") !== -1) esRep = true;
-                    }
-                }
-                if (esRep) removed++;
-                else keepIds.push(id);
-            }
-            if (removed <= 0) {
-                window.alert("No hay movimientos de repuestos en esta liquidación.\\n\\nUsa «Deshacer liquidación» y luego liquida solo taller.");
+            const ids = liq.movIds || [];
+            const porId = {};
+            (caja || []).forEach((m) => { if (m) porId[m.id] = m; });
+            const cajaDe = (m) => (m.box === "repuestos" ? "repuestos" : "taller");
+            const restaurar = ids.filter((id) => porId[id] && cajaDe(porId[id]) === boxARestaurar);
+            if (restaurar.length === 0) {
+                window.alert("Esta liquidación no tiene movimientos de la caja " + boxARestaurar + ".");
                 return;
             }
-            var ingresos = 0, gastos = 0;
-            for (var a = 0; a < allMov.length; a++) {
-                var mm = allMov[a];
-                if (keepIds.indexOf(mm.id) === -1) continue;
-                var amt = Number(mm.amount) || 0;
-                if (mm.type === "ingreso") ingresos += amt;
-                else if (mm.type === "gasto") gastos += amt;
+            const quedan = ids.filter((id) => restaurar.indexOf(id) === -1);
+            const quedanExistentes = quedan.filter((id) => !!porId[id]);
+            const nombre = boxARestaurar === "repuestos" ? "repuestos" : "taller";
+            if (quedanExistentes.length === 0) {
+                // No queda nada liquidado en esta liquidación: se elimina completa.
+                setLiquidaciones((prev) => (prev || []).filter((l) => l.id !== liqId));
             }
-            setLiquidaciones(function (prev) {
-                var out = [];
-                var arr = prev || [];
-                for (var b = 0; b < arr.length; b++) {
-                    if (arr[b].id !== liqId) {
-                        out.push(arr[b]);
-                    } else {
-                        out.push({
-                            id: arr[b].id,
-                            ts: arr[b].ts,
-                            fecha: arr[b].fecha,
-                            desde: arr[b].desde,
-                            hasta: arr[b].hasta,
-                            ingresos: ingresos,
-                            gastos: gastos,
-                            saldo: ingresos - gastos,
-                            count: keepIds.length,
-                            movIds: keepIds,
-                            box: "taller",
-                            userName: arr[b].userName || "",
-                        });
-                    }
-                }
-                return out;
-            });
-        } catch (err) {
+            else {
+                let ingresos = 0, gastos = 0;
+                quedanExistentes.forEach((id) => {
+                    const m = porId[id];
+                    const amt = Number(m.amount) || 0;
+                    if (m.type === "ingreso") ingresos += amt;
+                    else if (m.type === "gasto") gastos += amt;
+                });
+                const cajaQueQueda = boxARestaurar === "repuestos" ? "taller" : "repuestos";
+                setLiquidaciones((prev) => (prev || []).map((l) => l.id !== liqId ? l : {
+                    ...l,
+                    ingresos: ingresos,
+                    gastos: gastos,
+                    saldo: ingresos - gastos,
+                    count: quedanExistentes.length,
+                    movIds: quedan,
+                    box: cajaQueQueda,
+                }));
+            }
+            logAudit("editar", "caja", "Restauración de caja " + nombre, restaurar.length + " movimiento(s) volvieron a Caja desde la liquidación del " + (liq.fecha || ""));
+        }
+        catch (err) {
             console.error(err);
             window.alert("No se pudo restaurar. Usa «Deshacer liquidación».");
         }
@@ -8610,7 +8612,7 @@ function App() {
                     active === "inventario" && React.createElement(InventarioView, { parts: parts, setParts: setParts }),
                     active === "agenda" && React.createElement(AgendaView, { appointments: appointments, setAppointments: setAppointments }),
                     active === "mecanica" && React.createElement(MecanicaView, { entries: mecanicaEntries, setEntries: setMecanicaEntries, vehicles: vehicles, canEdit: canEditModule(currentRole, "mecanica"), logAudit: logAudit }),
-                    active === "caja" && (React.createElement(CajaView, { caja: caja, liquidaciones: liquidaciones, onLiquidar: liquidarCaja, onDeshacerLiquidacion: deshacerLiquidacion, onRestaurarRepuestosLiq: restaurarRepuestosDeLiquidacion, canEdit: canEditModule(currentRole, "caja"), onAddMovement: addCajaMovement, onRemoveMovement: removeCajaMovement, orders: orders, clients: clients, vehicles: vehicles, onChangeStatus: changeOrderStatus, onRegistrarAbono: registrarAbono, onRegistrarCobroFinal: registrarCobroFinal })),
+                    active === "caja" && (React.createElement(CajaView, { caja: caja, liquidaciones: liquidaciones, onLiquidar: liquidarCaja, onDeshacerLiquidacion: deshacerLiquidacion, onRestaurarCajaLiq: restaurarCajaDeLiquidacion, canEdit: canEditModule(currentRole, "caja"), onAddMovement: addCajaMovement, onRemoveMovement: removeCajaMovement, orders: orders, clients: clients, vehicles: vehicles, onChangeStatus: changeOrderStatus, onRegistrarAbono: registrarAbono, onRegistrarCobroFinal: registrarCobroFinal })),
                     active === "pagos" && (React.createElement(PagosProgramadosView, { items: pagosProgramados, onSave: savePagoProgramado, onDelete: deletePagoProgramado, onToggleActivo: togglePagoProgramadoActivo, readOnly: !canEditModule(currentRole, "pagos") })),
                     active === "solicitudes" && (React.createElement(SolicitudesView, { items: solicitudes, onMarkAtendida: markSolicitudAtendida, onDelete: deleteSolicitud, onCreateClient: createClientFromSolicitud })),
                     active === "avisos" && (React.createElement(AvisosBroadcastView, { history: avisosBroadcast, onSend: sendBroadcast, sending: broadcastSending, error: broadcastError, deviceCount: fcmTokens.length, settings: settings, setSettings: setSettings })),
