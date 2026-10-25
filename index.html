@@ -1101,11 +1101,15 @@ const emptyCheckin = () => ({
     notes: "",
     photos: [],
     receivedBy: "",
-    date: new Date().toISOString().slice(0, 10),
+    date: todayLocal(),
     time: new Date().toTimeString().slice(0, 5),
     completed: false,
 });
-const money = (n) => `S/ ${n.toFixed(2)}`;
+const todayLocal = () => {
+    const d = new Date();
+    return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+};
+const money = (n) => `S/ ${(Number(n) || 0).toFixed(2)}`;
 // Saludo según la hora del día, con un par de variantes por franja para que no suene siempre
 // igual (como hacen Notion, HubSpot, etc. con su "Good morning / afternoon / evening").
 const GREETINGS_BY_PERIOD = {
@@ -1645,7 +1649,7 @@ async function buildRequirementDoc(order, client, vehicle, requirement, settings
     doc.setFontSize(10);
     doc.setTextColor(60, 60, 60);
     doc.text(order.code, pageWidth - marginX, y + 6, { align: "right" });
-    doc.text(`Fecha: ${fmtDatePE(requirement.date || new Date().toISOString().slice(0, 10))}`, pageWidth - marginX, y + 11, { align: "right" });
+    doc.text(`Fecha: ${fmtDatePE(requirement.date || todayLocal())}`, pageWidth - marginX, y + 11, { align: "right" });
     y = Math.max(subY, y + 18) + 6;
     doc.setDrawColor(220, 220, 220);
     doc.line(marginX, y, pageWidth - marginX, y);
@@ -1770,7 +1774,7 @@ async function buildServiceReportDoc(order, client, vehicle, settings) {
     doc.setFontSize(10);
     doc.setTextColor(60, 60, 60);
     doc.text(order.code, pageWidth - marginX, y + 6, { align: "right" });
-    doc.text(`Fecha: ${fmtDatePE(new Date().toISOString().slice(0, 10))}`, pageWidth - marginX, y + 11, { align: "right" });
+    doc.text(`Fecha: ${fmtDatePE(todayLocal())}`, pageWidth - marginX, y + 11, { align: "right" });
     y = Math.max(subY, y + 18) + 6;
     const techSvc = resolveOrderTech(order, null);
     doc.setFont("helvetica", "bold");
@@ -2010,7 +2014,7 @@ async function buildOrderProgressDoc(order, client, vehicle, settings, mechanicN
     doc.text(order.code || "", pageWidth - marginX, y + 6, { align: "right" });
     doc.setFontSize(8.5);
     doc.setTextColor(110, 110, 120);
-    doc.text(`Generado: ${fmtDatePE(new Date().toISOString().slice(0, 10))} ${new Date().toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit" })}`, pageWidth - marginX, y + 11, { align: "right" });
+    doc.text(`Generado: ${fmtDatePE(todayLocal())} ${new Date().toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit" })}`, pageWidth - marginX, y + 11, { align: "right" });
     const headerTech = resolveOrderTech(order, mechanicName);
     if (headerTech && headerTech !== "Sin asignar") {
         doc.setFont("helvetica", "bold");
@@ -2331,7 +2335,7 @@ async function buildVehicleHistoryDoc(vehicle, client, allOrders, settings) {
     doc.setFont("helvetica", "normal");
     doc.setFontSize(10);
     doc.setTextColor(60, 60, 60);
-    doc.text(`Fecha: ${fmtDatePE(new Date().toISOString().slice(0, 10))}`, pageWidth - marginX, y + 6, { align: "right" });
+    doc.text(`Fecha: ${fmtDatePE(todayLocal())}`, pageWidth - marginX, y + 6, { align: "right" });
     y = Math.max(subY, y + 18) + 6;
     doc.setDrawColor(220, 220, 220);
     doc.line(marginX, y, pageWidth - marginX, y);
@@ -2636,6 +2640,31 @@ function Select(props) {
 }
 function TextArea(props) {
     return React.createElement("textarea", { ...props, className: `${inputClass} ${props.className || ""}`, style: { ...getInputStyle(), ...getInputRingStyle(), ...props.style, resize: "none" } });
+}
+class ErrorBoundary extends React.Component {
+    constructor(props) {
+        super(props);
+        this.state = { error: null };
+    }
+    static getDerivedStateFromError(error) {
+        return { error: error };
+    }
+    componentDidCatch(error, info) {
+        console.error("Error de pantalla:", error, info);
+    }
+    render() {
+        if (!this.state.error) return this.props.children;
+        const msg = String((this.state.error && (this.state.error.message || this.state.error)) || "Error desconocido");
+        return React.createElement("div", { style: { minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: "24px", background: "#0E0B09", color: "#F3EDE7", fontFamily: "system-ui, sans-serif" } },
+            React.createElement("div", { style: { maxWidth: "420px", width: "100%", textAlign: "center" } },
+                React.createElement("div", { style: { fontSize: "40px", marginBottom: "8px" } }, "⚠️"),
+                React.createElement("h2", { style: { fontSize: "20px", fontWeight: 700, marginBottom: "8px" } }, "Algo salió mal en esta pantalla"),
+                React.createElement("p", { style: { fontSize: "14px", opacity: 0.75, marginBottom: "16px" } }, "Tus datos están a salvo. Puedes volver a intentar o recargar la app."),
+                React.createElement("pre", { style: { fontSize: "11px", textAlign: "left", whiteSpace: "pre-wrap", wordBreak: "break-word", background: "rgba(255,255,255,0.06)", padding: "10px", borderRadius: "10px", marginBottom: "16px", maxHeight: "120px", overflow: "auto" } }, msg),
+                React.createElement("div", { style: { display: "flex", gap: "10px" } },
+                    React.createElement("button", { type: "button", onClick: () => this.setState({ error: null }), style: { flex: 1, padding: "12px", borderRadius: "12px", border: "1px solid rgba(255,255,255,0.2)", background: "transparent", color: "inherit", fontWeight: 600 } }, "Reintentar"),
+                    React.createElement("button", { type: "button", onClick: () => window.location.reload(), style: { flex: 1, padding: "12px", borderRadius: "12px", border: "none", background: "#FF6A1A", color: "#1A0D05", fontWeight: 700 } }, "Recargar"))));
+    }
 }
 function Modal({ title, onClose, children, wide, zIndex }) {
     const z = zIndex || 50;
@@ -3687,8 +3716,8 @@ function NewOrderModal({ clients, setClients, vehicles, setVehicles, code, onClo
             status: "recibido",
             description,
             tech,
-            entry: new Date().toISOString().slice(0, 10),
-            est: est || new Date().toISOString().slice(0, 10),
+            entry: todayLocal(),
+            est: est || todayLocal(),
             services: services,
             parts: [],
             pagos: [],
@@ -3966,10 +3995,9 @@ function ReceptionModal({ order, client, vehicle, onClose, onSave }) {
             return;
         setBusyPhotos(true);
         Promise.all(files.map((file) => new Promise((resolve) => {
-            const reader = new FileReader();
-            reader.onload = () => resolve({ id: "ph" + Date.now() + Math.random().toString(36).slice(2, 6), dataUrl: reader.result });
-            reader.readAsDataURL(file);
-        }))).then((newPhotos) => {
+            compressPhotoFile(file).then((dataUrl) => resolve({ id: "ph" + Date.now() + Math.random().toString(36).slice(2, 6), dataUrl: dataUrl })).catch(() => resolve(null));
+        }))).then((res) => {
+            const newPhotos = res.filter(Boolean);
             setData((d) => ({ ...d, photos: [...d.photos, ...newPhotos] }));
             setBusyPhotos(false);
         });
@@ -4080,7 +4108,7 @@ function RequirementModal({ order, requirement, parts, onClose, onSave }) {
     const submit = () => {
         if (items.length === 0)
             return;
-        onSave({ items, notes: notes.trim(), date: new Date().toISOString().slice(0, 10), updatedAt: new Date().toISOString() });
+        onSave({ items, notes: notes.trim(), date: todayLocal(), updatedAt: new Date().toISOString() });
     };
     return (React.createElement(Modal, { title: `Requerimiento de repuestos · ${order.code}`, onClose: onClose, wide: true },
         (parts && parts.length > 0) && (React.createElement("datalist", { id: "req-parts-catalog" }, parts.map((p) => React.createElement("option", { key: p.id, value: p.name })))),
@@ -4556,10 +4584,9 @@ function NewProformaModal({ clients, vehicles, code, onClose, onCreate }) {
             return;
         setBusyPhotos(true);
         Promise.all(files.map((file) => new Promise((resolve) => {
-            const reader = new FileReader();
-            reader.onload = () => resolve({ id: "ph" + Date.now() + Math.random().toString(36).slice(2, 6), dataUrl: reader.result });
-            reader.readAsDataURL(file);
-        }))).then((newPhotos) => {
+            compressPhotoFile(file).then((dataUrl) => resolve({ id: "ph" + Date.now() + Math.random().toString(36).slice(2, 6), dataUrl: dataUrl })).catch(() => resolve(null));
+        }))).then((res) => {
+            const newPhotos = res.filter(Boolean);
             setPhotos((prev) => [...prev, ...newPhotos]);
             setBusyPhotos(false);
         });
@@ -4630,7 +4657,7 @@ function NewProformaModal({ clients, vehicles, code, onClose, onCreate }) {
             id: "pf" + Date.now(),
             code,
             status: "pendiente",
-            date: new Date().toISOString().slice(0, 10),
+            date: todayLocal(),
             validDays: Number(validDays) || 7,
             incluyeIgv,
             items: validItems,
@@ -5734,7 +5761,7 @@ function NewMovementModal({ onClose, onCreate }) {
     const [type, setType] = useState("ingreso");
     const [concept, setConcept] = useState("");
     const [amount, setAmount] = useState("");
-    const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+    const [date, setDate] = useState(todayLocal());
     const [box, setBox] = useState("taller");
     const submit = () => {
         const amt = Number(amount);
@@ -6093,7 +6120,7 @@ function downloadBackupFile(tallerNombre) {
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    const stamp = new Date().toISOString().slice(0, 10);
+    const stamp = todayLocal();
     a.href = url;
     a.download = `respaldo-expert-taller-${stamp}.json`;
     document.body.appendChild(a);
@@ -6233,7 +6260,7 @@ function downloadAuditCsv(entries, tallerNombre) {
     const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    const stamp = new Date().toISOString().slice(0, 10);
+    const stamp = todayLocal();
     a.href = url;
     a.download = `auditoria-${(tallerNombre || "taller").toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${stamp}.csv`;
     document.body.appendChild(a);
@@ -7091,7 +7118,14 @@ function usePersistentState(key, initialValue) {
             window.localStorage.setItem(key, JSON.stringify(state));
         }
         catch (e) {
-            /* almacenamiento no disponible; los cambios no se guardarán entre sesiones */
+            /* almacenamiento no disponible o lleno: avisamos una sola vez para no perder datos sin darse cuenta */
+            if (!window.__expertQuotaWarned) {
+                window.__expertQuotaWarned = true;
+                try {
+                    window.alert("⚠️ No se pudo guardar en este dispositivo (almacenamiento lleno). Descarga una copia de seguridad en Ajustes y borra fotos pesadas para evitar perder datos.");
+                }
+                catch (e2) { }
+            }
         }
     }, [key, state]);
     return [state, setState];
@@ -7648,7 +7682,7 @@ const MOTIVATIONAL_MESSAGES = [
     { title: "Sigue el ritmo 🎯", body: "Mira qué hay para hoy. Un plan claro hace más liviano el trabajo." },
 ];
 function buildDailySummary({ orders = [], parts = [], appointments = [], proformas = [], caja = [] }) {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = todayLocal();
     const activos = orders.filter((o) => o.status !== "entregado");
     const listos = orders.filter((o) => o.status === "listo");
     const esperaRepuesto = orders.filter((o) => o.status === "espera_repuesto");
@@ -7684,13 +7718,13 @@ function pickMotivational() {
 function getDailyTipStats() {
     try {
         const raw = window.localStorage.getItem("expertTaller.dailyTips.stats");
-        const today = new Date().toISOString().slice(0, 10);
+        const today = todayLocal();
         if (!raw) return { date: today, count: 0 };
         const parsed = JSON.parse(raw);
         if (parsed.date !== today) return { date: today, count: 0 };
         return parsed;
     } catch (e) {
-        return { date: new Date().toISOString().slice(0, 10), count: 0 };
+        return { date: todayLocal(), count: 0 };
     }
 }
 function bumpDailyTipStats() {
@@ -8226,7 +8260,7 @@ function App() {
                 if (prev.some((m) => m.orderId === mov.orderId && m.source === "cobro_final" && (m.box || "taller") === box))
                     return prev;
             }
-            return [{ id: "m" + Date.now() + Math.random().toString(36).slice(2, 7), date: new Date().toISOString().slice(0, 10), ...mov }, ...prev];
+            return [{ id: "m" + Date.now() + Math.random().toString(36).slice(2, 7), date: todayLocal(), ...mov }, ...prev];
         });
         logAudit("crear", "caja", mov.concept || (mov.type === "ingreso" ? "Ingreso" : "Gasto"), `${mov.type === "ingreso" ? "Ingreso" : "Gasto"} · ${money(mov.amount)}`);
         // Los ingresos que ya vienen de un abono o de un cobro final de orden tienen su propio
@@ -8258,7 +8292,7 @@ function App() {
         const ingresos = pendientes.filter((m) => m.type === "ingreso").reduce((s, m) => s + m.amount, 0);
         const gastos = pendientes.filter((m) => m.type === "gasto").reduce((s, m) => s + m.amount, 0);
         const fechas = pendientes.map((m) => m.date).filter(Boolean).sort();
-        const hoy = new Date().toISOString().slice(0, 10);
+        const hoy = todayLocal();
         const boxLabel = which === "taller" ? "taller" : which === "repuestos" ? "repuestos" : "ambas";
         const liq = {
             id: "lq" + Date.now() + Math.random().toString(36).slice(2, 7),
@@ -8352,7 +8386,7 @@ function App() {
         }
         const pagoId = "pg" + Date.now();
         setOrders((prev) => prev.map((o) => o.id === orderId
-            ? { ...o, pagos: [...(o.pagos || []), { id: pagoId, amount, amountTaller, amountRepuestos, date: new Date().toISOString().slice(0, 10), source: "abono" }] }
+            ? { ...o, pagos: [...(o.pagos || []), { id: pagoId, amount, amountTaller, amountRepuestos, date: todayLocal(), source: "abono" }] }
             : o));
         const clientName = (client && client.name) || "Cliente";
         if (amountTaller > 0) {
@@ -8415,7 +8449,7 @@ function App() {
                     amount: saldo,
                     amountTaller: amountTaller,
                     amountRepuestos: amountRepuestos,
-                    date: new Date().toISOString().slice(0, 10),
+                    date: todayLocal(),
                     source: "cobro_final",
                 }]);
             } else if (!isCollectedStatus && options.revertCollect === true) {
@@ -8622,7 +8656,7 @@ function App() {
 
 <script>
   try {
-    ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(App));
+    ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(ErrorBoundary, null, React.createElement(App)));
     var bootEl = document.getElementById("boot-status");
     bootEl.classList.add("boot-hide");
     setTimeout(function () { bootEl.style.display = "none"; }, 400);
