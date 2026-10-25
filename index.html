@@ -5483,6 +5483,14 @@ function CajaView({ caja: cajaTodos, liquidaciones = [], onLiquidar, onDeshacerL
     const totalIngresos = caja.filter((m) => m.type === "ingreso").reduce((s, m) => s + m.amount, 0);
     const totalGastos = caja.filter((m) => m.type === "gasto").reduce((s, m) => s + m.amount, 0);
     const saldo = totalIngresos - totalGastos;
+    // Totales del modal de liquidación según caja elegida
+    const liqCaja = cajaBase.filter(function (m) {
+        if (liqBox === "todas") return true;
+        return (m.box || "taller") === liqBox;
+    });
+    const liqIngresos = liqCaja.filter(function (m) { return m.type === "ingreso"; }).reduce(function (s, m) { return s + m.amount; }, 0);
+    const liqGastos = liqCaja.filter(function (m) { return m.type === "gasto"; }).reduce(function (s, m) { return s + m.amount; }, 0);
+    const liqSaldo = liqIngresos - liqGastos;
     const filtered = caja.filter((m) => {
         const matchType = filter === "todas" || m.type === filter;
         const q = query.toLowerCase();
@@ -5606,7 +5614,9 @@ function CajaView({ caja: cajaTodos, liquidaciones = [], onLiquidar, onDeshacerL
                     React.createElement("div", { onClick: () => setOpenLiqId(abierta ? null : l.id), className: "flex flex-wrap items-center gap-x-3 gap-y-1 px-5 py-3.5 cursor-pointer hover:bg-white/5" },
                         React.createElement("div", { className: "min-w-0 flex-1 basis-40" },
                             React.createElement("div", { className: "text-sm font-medium" }, l.desde === l.hasta ? l.hasta : `${l.desde} → ${l.hasta}`),
-                            React.createElement("div", { className: "text-xs mt-0.5", style: { color: C.textMute } }, `Ingresos ${money(l.ingresos)} · Gastos ${money(l.gastos)} · ${l.count} mov. · ${l.userName || ""}`)),
+                            React.createElement("div", { className: "text-xs mt-0.5", style: { color: C.textMute } },
+                            (l.box === "taller" ? "Taller · " : l.box === "repuestos" ? "Repuestos · " : "Ambas · ") +
+                            `Ingresos ${money(l.ingresos)} · Gastos ${money(l.gastos)} · ${l.count} mov. · ${l.userName || ""}`)),
                         React.createElement("span", { className: "font-mono text-sm font-medium shrink-0", style: { color: l.saldo >= 0 ? C.success : C.danger } }, money(l.saldo))),
                     abierta && (React.createElement("div", { className: "px-5 pb-4 space-y-1.5" },
                         movs.length === 0 && React.createElement("p", { className: "text-xs", style: { color: C.textMute } }, "El detalle de estos movimientos ya no está disponible."),
@@ -5617,20 +5627,56 @@ function CajaView({ caja: cajaTodos, liquidaciones = [], onLiquidar, onDeshacerL
                             React.createElement(Button, { variant: "ghost", onClick: () => { if (window.confirm("¿Deshacer esta liquidación? Sus movimientos volverán a contar en los totales actuales de Caja."))
                                     onDeshacerLiquidacion && onDeshacerLiquidacion(l.id); } }, "Deshacer última liquidación")))))));
             }))))),
-        showLiquidar && (React.createElement(Modal, { title: "Liquidar caja", onClose: () => setShowLiquidar(false) },
+        showLiquidar && (React.createElement(Modal, { title: "Liquidar caja", onClose: function () { setShowLiquidar(false); } },
             React.createElement("div", { className: "space-y-4" },
-                React.createElement("p", { className: "text-sm", style: { color: C.textSoft } }, "Se cerrarán los totales actuales y la caja empezará de cero. Los movimientos no se borran: quedan guardados en el historial de liquidaciones."),
+                React.createElement("p", { className: "text-sm", style: { color: C.textSoft } },
+                    "Elige qué caja liquidar. Solo se cierran los movimientos de esa caja; el resto sigue abierto."),
+                React.createElement("div", { className: "flex flex-wrap gap-2" },
+                    [
+                        { key: "todas", label: "Ambas" },
+                        { key: "taller", label: "Solo taller" },
+                        { key: "repuestos", label: "Solo repuestos" },
+                    ].map(function (opt) {
+                        var active = liqBox === opt.key;
+                        return React.createElement("button", {
+                            key: opt.key,
+                            type: "button",
+                            onClick: function () { setLiqBox(opt.key); },
+                            className: "px-3.5 py-2 rounded-xl text-xs font-semibold border transition-colors",
+                            style: {
+                                background: active ? (C.accentSoft || C.surfaceHi) : C.bg,
+                                color: active ? (C.accentText || C.accent) : C.textSoft,
+                                borderColor: active ? (C.accent || C.border) : (C.borderSoft || C.border),
+                            },
+                        }, opt.label);
+                    })),
                 React.createElement("div", { className: "space-y-2" }, [
-                    { label: "Ingresos", value: money(totalIngresos), color: C.success },
-                    { label: "Gastos", value: money(totalGastos), color: C.danger },
-                    { label: "Saldo a liquidar", value: money(saldo), color: C.accent },
-                ].map((r) => (React.createElement("div", { key: r.label, className: "flex items-center justify-between px-3.5 py-2.5 rounded-xl", style: { background: C.surfaceHi } },
-                    React.createElement("span", { className: "text-sm", style: { color: C.textSoft } }, r.label),
-                    React.createElement("span", { className: "font-mono text-sm font-medium", style: { color: r.color } }, r.value))))),
-                React.createElement("div", { className: "text-xs", style: { color: C.textMute } }, `${caja.length} movimiento${caja.length === 1 ? "" : "s"} se incluirán en esta liquidación.`),
+                    { label: "Ingresos", value: money(liqIngresos), color: C.success },
+                    { label: "Gastos", value: money(liqGastos), color: C.danger },
+                    { label: "Saldo a liquidar", value: money(liqSaldo), color: C.accent },
+                ].map(function (r) {
+                    return React.createElement("div", { key: r.label, className: "flex items-center justify-between px-3.5 py-2.5 rounded-xl", style: { background: C.surfaceHi } },
+                        React.createElement("span", { className: "text-sm", style: { color: C.textSoft } }, r.label),
+                        React.createElement("span", { className: "font-mono text-sm font-medium", style: { color: r.color } }, r.value));
+                })),
+                React.createElement("div", { className: "text-xs", style: { color: C.textMute } },
+                    liqCaja.length + " movimiento" + (liqCaja.length === 1 ? "" : "s") + " de " +
+                    (liqBox === "taller" ? "caja taller" : liqBox === "repuestos" ? "caja repuestos" : "ambas cajas") +
+                    " se incluirán."),
                 React.createElement("div", { className: "flex gap-3 pt-2" },
-                    React.createElement(Button, { variant: "ghost", onClick: () => setShowLiquidar(false), className: "flex-1" }, "Cancelar"),
-                    React.createElement(Button, { onClick: () => { onLiquidar && onLiquidar(); setShowLiquidar(false); }, className: "flex-1" }, "Liquidar caja"))))),
+                    React.createElement(Button, { variant: "ghost", onClick: function () { setShowLiquidar(false); }, className: "flex-1" }, "Cancelar"),
+                    React.createElement(Button, {
+                        className: "flex-1",
+                        disabled: liqCaja.length === 0,
+                        onClick: function () {
+                            if (onLiquidar) onLiquidar(liqBox);
+                            setShowLiquidar(false);
+                            setLiqBox("todas");
+                        },
+                    }, "Liquidar")
+                )
+            )
+        )),
         showNew && (React.createElement(NewMovementModal, { onClose: () => setShowNew(false), onCreate: (mov) => { onAddMovement(mov); setShowNew(false); } })),
         openOrder && (React.createElement(OrderDetail, { order: openOrder, client: findClient(openOrder.clientId), vehicle: findVehicle(openOrder.vehicleId), onClose: () => setOpenOrderId(null), onStatusChange: (status, options) => onChangeStatus && onChangeStatus(openOrder, status, options), onRegistrarAbono: (amount) => onRegistrarAbono && onRegistrarAbono(openOrder.id, amount) }))));
 }
