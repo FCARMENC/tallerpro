@@ -5623,21 +5623,35 @@ function CajaView({ caja: cajaTodos, liquidaciones = [], onLiquidar, onDeshacerL
                         movs.map((m) => (React.createElement("div", { key: m.id, className: "flex items-center justify-between gap-3 text-xs px-3 py-2 rounded-lg", style: { background: C.bg, border: `1px solid ${C.borderSoft}` } },
                             React.createElement("span", { className: "truncate" }, `${m.date} · ${m.concept}`),
                             React.createElement("span", { className: "font-mono shrink-0", style: { color: m.type === "ingreso" ? C.success : C.danger } }, `${m.type === "ingreso" ? "+" : "−"}${money(m.amount)}`)))),
-                        canEdit && i === 0 && (React.createElement("div", { className: "pt-2" },
-                            React.createElement(Button, { variant: "ghost", onClick: () => { if (window.confirm("¿Deshacer esta liquidación? Sus movimientos volverán a contar en los totales actuales de Caja."))
-                                    onDeshacerLiquidacion && onDeshacerLiquidacion(l.id); } }, "Deshacer liquidación"),
-                                onRestaurarRepuestosLiq && React.createElement(Button, {
-                                    type: "button",
-                                    variant: "subtle",
-                                    className: "text-xs",
-                                    onClick: function (e) {
-                                        e.stopPropagation();
-                                        if (window.confirm("¿Reabrir solo los movimientos de CAJA REPUESTOS de esta liquidación?\n\nLa parte de taller seguirá liquidada."))
+                        canEdit && i === 0 && React.createElement("div", { className: "pt-2 flex flex-wrap gap-2" },
+                            React.createElement(Button, {
+                                type: "button",
+                                variant: "ghost",
+                                className: "text-xs",
+                                onClick: function (e) {
+                                    e.stopPropagation();
+                                    if (window.confirm("¿Deshacer esta liquidación? Sus movimientos volverán a contar en los totales de Caja."))
+                                        onDeshacerLiquidacion && onDeshacerLiquidacion(l.id);
+                                },
+                            }, "Deshacer liquidación"),
+                            React.createElement(Button, {
+                                type: "button",
+                                variant: "subtle",
+                                className: "text-xs",
+                                onClick: function (e) {
+                                    e.stopPropagation();
+                                    if (typeof onRestaurarRepuestosLiq === "function") {
+                                        if (window.confirm("¿Reabrir solo CAJA REPUESTOS de esta liquidación?\nLa parte de taller seguirá liquidada."))
                                             onRestaurarRepuestosLiq(l.id);
-                                    },
-                                }, "Restaurar repuestos")
-                            ))))));
-            }))))),
+                                    }
+                                },
+                            }, "Restaurar repuestos")
+                        )
+                    )
+                )
+            ));
+            })))
+        ),
         showLiquidar && (React.createElement(Modal, { title: "Liquidar caja", onClose: function () { setShowLiquidar(false); } },
             React.createElement("div", { className: "space-y-4" },
                 React.createElement("p", { className: "text-sm", style: { color: C.textSoft } },
@@ -5689,7 +5703,7 @@ function CajaView({ caja: cajaTodos, liquidaciones = [], onLiquidar, onDeshacerL
             )
         )),
         showNew && (React.createElement(NewMovementModal, { onClose: () => setShowNew(false), onCreate: (mov) => { onAddMovement(mov); setShowNew(false); } })),
-        openOrder && (React.createElement(OrderDetail, { order: openOrder, client: findClient(openOrder.clientId), vehicle: findVehicle(openOrder.vehicleId), onClose: () => setOpenOrderId(null), onStatusChange: (status, options) => onChangeStatus && onChangeStatus(openOrder, status, options), onRegistrarAbono: (amount) => onRegistrarAbono && onRegistrarAbono(openOrder.id, amount) }))));
+        openOrder && (React.createElement(OrderDetail, { order: openOrder, client: findClient(openOrder.clientId), vehicle: findVehicle(openOrder.vehicleId), onClose: () => setOpenOrderId(null), onStatusChange: (status, options) => onChangeStatus && onChangeStatus(openOrder, status, options), onRegistrarAbono: (amount) => onRegistrarAbono && onRegistrarAbono(openOrder.id, amount), onRegistrarCobroFinal: onRegistrarCobroFinal ? function () { onRegistrarCobroFinal(openOrder.id); } : undefined })))));
 }
 function NewMovementModal({ onClose, onCreate }) {
     const [type, setType] = useState("ingreso");
@@ -8239,33 +8253,78 @@ function App() {
         logAudit("crear", "caja", "Liquidación (" + boxLabel + ")", "Ingresos " + money(ingresos) + " · Gastos " + money(gastos) + " · Saldo " + money(ingresos - gastos));
     };
     const restaurarRepuestosDeLiquidacion = (liqId) => {
-        const liq = (liquidaciones || []).find((l) => l.id === liqId);
-        if (!liq) return;
-        const keepIds = (liq.movIds || []).filter((id) => {
-            const m = (caja || []).find((x) => x.id === id);
-            if (!m) return true;
-            return m.box !== "repuestos";
-        });
-        const removed = (liq.movIds || []).length - keepIds.length;
-        if (removed <= 0) {
-            window.alert("Esta liquidación no tiene movimientos de caja repuestos para restaurar.");
-            return;
-        }
-        const movs = (caja || []).filter((m) => keepIds.includes(m.id));
-        const ingresos = movs.filter((m) => m.type === "ingreso").reduce((s, m) => s + m.amount, 0);
-        const gastos = movs.filter((m) => m.type === "gasto").reduce((s, m) => s + m.amount, 0);
-        setLiquidaciones((prev) => (prev || []).map((l) => {
-            if (l.id !== liqId) return l;
-            return Object.assign({}, l, {
-                movIds: keepIds,
-                box: "taller",
-                ingresos: ingresos,
-                gastos: gastos,
-                saldo: ingresos - gastos,
-                count: keepIds.length,
+        try {
+            var list = liquidaciones || [];
+            var liq = null;
+            for (var i = 0; i < list.length; i++) {
+                if (list[i].id === liqId) { liq = list[i]; break; }
+            }
+            if (!liq) {
+                window.alert("No se encontró la liquidación.");
+                return;
+            }
+            var allMov = caja || [];
+            var keepIds = [];
+            var removed = 0;
+            var ids = liq.movIds || [];
+            for (var j = 0; j < ids.length; j++) {
+                var id = ids[j];
+                var m = null;
+                for (var k = 0; k < allMov.length; k++) {
+                    if (allMov[k].id === id) { m = allMov[k]; break; }
+                }
+                var esRep = false;
+                if (m) {
+                    if (m.box === "repuestos") esRep = true;
+                    else {
+                        var concept = String(m.concept || "").toLowerCase();
+                        if (concept.indexOf("repuesto") !== -1) esRep = true;
+                    }
+                }
+                if (esRep) removed++;
+                else keepIds.push(id);
+            }
+            if (removed <= 0) {
+                window.alert("No hay movimientos de repuestos en esta liquidación.\\n\\nUsa «Deshacer liquidación» y luego liquida solo taller.");
+                return;
+            }
+            var ingresos = 0, gastos = 0;
+            for (var a = 0; a < allMov.length; a++) {
+                var mm = allMov[a];
+                if (keepIds.indexOf(mm.id) === -1) continue;
+                var amt = Number(mm.amount) || 0;
+                if (mm.type === "ingreso") ingresos += amt;
+                else if (mm.type === "gasto") gastos += amt;
+            }
+            setLiquidaciones(function (prev) {
+                var out = [];
+                var arr = prev || [];
+                for (var b = 0; b < arr.length; b++) {
+                    if (arr[b].id !== liqId) {
+                        out.push(arr[b]);
+                    } else {
+                        out.push({
+                            id: arr[b].id,
+                            ts: arr[b].ts,
+                            fecha: arr[b].fecha,
+                            desde: arr[b].desde,
+                            hasta: arr[b].hasta,
+                            ingresos: ingresos,
+                            gastos: gastos,
+                            saldo: ingresos - gastos,
+                            count: keepIds.length,
+                            movIds: keepIds,
+                            box: "taller",
+                            userName: arr[b].userName || "",
+                        });
+                    }
+                }
+                return out;
             });
-        }));
-        logAudit("editar", "caja", "Restaurar caja repuestos", "Se reabrieron " + removed + " movimientos de repuestos");
+        } catch (err) {
+            console.error(err);
+            window.alert("No se pudo restaurar. Usa «Deshacer liquidación».");
+        }
     };
     const deshacerLiquidacion = (id) => {
         const liq = (liquidaciones || []).find((l) => l.id === id);
