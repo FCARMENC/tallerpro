@@ -5457,7 +5457,7 @@ function MecanicaView({ entries, setEntries, vehicles, canEdit, logAudit }) {
                 removeEntry(openEntry.id); } }))));
 }
 /* ---------------------------------- CAJA ---------------------------------- */
-function CajaView({ caja: cajaTodos, liquidaciones = [], onLiquidar, onDeshacerLiquidacion, canEdit = true, onAddMovement, onRemoveMovement, orders = [], clients = [], vehicles = [], onChangeStatus, onRegistrarAbono, onRegistrarCobroFinal }) {
+function CajaView({ caja: cajaTodos, liquidaciones = [], onLiquidar, onDeshacerLiquidacion, onRestaurarRepuestosLiq, canEdit = true, onAddMovement, onRemoveMovement, orders = [], clients = [], vehicles = [], onChangeStatus, onRegistrarAbono, onRegistrarCobroFinal }) {
     const [showLiquidar, setShowLiquidar] = useState(false);
     const [showHistorial, setShowHistorial] = useState(false);
     const [openLiqId, setOpenLiqId] = useState(null);
@@ -5625,7 +5625,18 @@ function CajaView({ caja: cajaTodos, liquidaciones = [], onLiquidar, onDeshacerL
                             React.createElement("span", { className: "font-mono shrink-0", style: { color: m.type === "ingreso" ? C.success : C.danger } }, `${m.type === "ingreso" ? "+" : "−"}${money(m.amount)}`)))),
                         canEdit && i === 0 && (React.createElement("div", { className: "pt-2" },
                             React.createElement(Button, { variant: "ghost", onClick: () => { if (window.confirm("¿Deshacer esta liquidación? Sus movimientos volverán a contar en los totales actuales de Caja."))
-                                    onDeshacerLiquidacion && onDeshacerLiquidacion(l.id); } }, "Deshacer última liquidación")))))));
+                                    onDeshacerLiquidacion && onDeshacerLiquidacion(l.id); } }, "Deshacer liquidación"),
+                                onRestaurarRepuestosLiq && React.createElement(Button, {
+                                    type: "button",
+                                    variant: "subtle",
+                                    className: "text-xs",
+                                    onClick: function (e) {
+                                        e.stopPropagation();
+                                        if (window.confirm("¿Reabrir solo los movimientos de CAJA REPUESTOS de esta liquidación?\n\nLa parte de taller seguirá liquidada."))
+                                            onRestaurarRepuestosLiq(l.id);
+                                    },
+                                }, "Restaurar repuestos")
+                            ))))));
             }))))),
         showLiquidar && (React.createElement(Modal, { title: "Liquidar caja", onClose: function () { setShowLiquidar(false); } },
             React.createElement("div", { className: "space-y-4" },
@@ -8192,31 +8203,69 @@ function App() {
         if (mov)
             logAudit("eliminar", "caja", mov.concept || (mov.type === "ingreso" ? "Ingreso" : "Gasto"), `${mov.type === "ingreso" ? "Ingreso" : "Gasto"} · ${money(mov.amount)}`);
     };
-    const liquidarCaja = () => {
+    const liquidarCaja = (box) => {
+        // box: "todas" | "taller" | "repuestos" — SOLO esa caja se cierra
+        const which = box || "todas";
         const cerrados = new Set();
         (liquidaciones || []).forEach((l) => (l.movIds || []).forEach((id) => cerrados.add(id)));
-        const pendientes = caja.filter((m) => !cerrados.has(m.id));
+        const pendientes = caja.filter((m) => {
+            if (cerrados.has(m.id)) return false;
+            if (which === "todas") return true;
+            const mb = (m.box === "repuestos") ? "repuestos" : "taller";
+            return mb === which;
+        });
         if (pendientes.length === 0)
             return;
         const ingresos = pendientes.filter((m) => m.type === "ingreso").reduce((s, m) => s + m.amount, 0);
         const gastos = pendientes.filter((m) => m.type === "gasto").reduce((s, m) => s + m.amount, 0);
         const fechas = pendientes.map((m) => m.date).filter(Boolean).sort();
         const hoy = new Date().toISOString().slice(0, 10);
+        const boxLabel = which === "taller" ? "taller" : which === "repuestos" ? "repuestos" : "ambas";
         const liq = {
             id: "lq" + Date.now() + Math.random().toString(36).slice(2, 7),
             ts: Date.now(),
             fecha: hoy,
             desde: fechas[0] || hoy,
             hasta: hoy,
-            ingresos,
-            gastos,
+            ingresos: ingresos,
+            gastos: gastos,
             saldo: ingresos - gastos,
             count: pendientes.length,
             movIds: pendientes.map((m) => m.id),
+            box: which,
             userName: (currentUser && currentUser.name) || "Sistema",
         };
         setLiquidaciones((prev) => [liq, ...(prev || [])]);
-        logAudit("crear", "caja", "Liquidación de caja", `Ingresos ${money(ingresos)} · Gastos ${money(gastos)} · Saldo ${money(ingresos - gastos)}`);
+        logAudit("crear", "caja", "Liquidación (" + boxLabel + ")", "Ingresos " + money(ingresos) + " · Gastos " + money(gastos) + " · Saldo " + money(ingresos - gastos));
+    };
+    const restaurarRepuestosDeLiquidacion = (liqId) => {
+        const liq = (liquidaciones || []).find((l) => l.id === liqId);
+        if (!liq) return;
+        const keepIds = (liq.movIds || []).filter((id) => {
+            const m = (caja || []).find((x) => x.id === id);
+            if (!m) return true;
+            return m.box !== "repuestos";
+        });
+        const removed = (liq.movIds || []).length - keepIds.length;
+        if (removed <= 0) {
+            window.alert("Esta liquidación no tiene movimientos de caja repuestos para restaurar.");
+            return;
+        }
+        const movs = (caja || []).filter((m) => keepIds.includes(m.id));
+        const ingresos = movs.filter((m) => m.type === "ingreso").reduce((s, m) => s + m.amount, 0);
+        const gastos = movs.filter((m) => m.type === "gasto").reduce((s, m) => s + m.amount, 0);
+        setLiquidaciones((prev) => (prev || []).map((l) => {
+            if (l.id !== liqId) return l;
+            return Object.assign({}, l, {
+                movIds: keepIds,
+                box: "taller",
+                ingresos: ingresos,
+                gastos: gastos,
+                saldo: ingresos - gastos,
+                count: keepIds.length,
+            });
+        }));
+        logAudit("editar", "caja", "Restaurar caja repuestos", "Se reabrieron " + removed + " movimientos de repuestos");
     };
     const deshacerLiquidacion = (id) => {
         const liq = (liquidaciones || []).find((l) => l.id === id);
@@ -8502,7 +8551,7 @@ function App() {
                     active === "inventario" && React.createElement(InventarioView, { parts: parts, setParts: setParts }),
                     active === "agenda" && React.createElement(AgendaView, { appointments: appointments, setAppointments: setAppointments }),
                     active === "mecanica" && React.createElement(MecanicaView, { entries: mecanicaEntries, setEntries: setMecanicaEntries, vehicles: vehicles, canEdit: canEditModule(currentRole, "mecanica"), logAudit: logAudit }),
-                    active === "caja" && (React.createElement(CajaView, { caja: caja, liquidaciones: liquidaciones, onLiquidar: liquidarCaja, onDeshacerLiquidacion: deshacerLiquidacion, canEdit: canEditModule(currentRole, "caja"), onAddMovement: addCajaMovement, onRemoveMovement: removeCajaMovement, orders: orders, clients: clients, vehicles: vehicles, onChangeStatus: changeOrderStatus, onRegistrarAbono: registrarAbono, onRegistrarCobroFinal: registrarCobroFinal })),
+                    active === "caja" && (React.createElement(CajaView, { caja: caja, liquidaciones: liquidaciones, onLiquidar: liquidarCaja, onDeshacerLiquidacion: deshacerLiquidacion, onRestaurarRepuestosLiq: restaurarRepuestosDeLiquidacion, canEdit: canEditModule(currentRole, "caja"), onAddMovement: addCajaMovement, onRemoveMovement: removeCajaMovement, orders: orders, clients: clients, vehicles: vehicles, onChangeStatus: changeOrderStatus, onRegistrarAbono: registrarAbono, onRegistrarCobroFinal: registrarCobroFinal })),
                     active === "pagos" && (React.createElement(PagosProgramadosView, { items: pagosProgramados, onSave: savePagoProgramado, onDelete: deletePagoProgramado, onToggleActivo: togglePagoProgramadoActivo, readOnly: !canEditModule(currentRole, "pagos") })),
                     active === "solicitudes" && (React.createElement(SolicitudesView, { items: solicitudes, onMarkAtendida: markSolicitudAtendida, onDelete: deleteSolicitud, onCreateClient: createClientFromSolicitud })),
                     active === "avisos" && (React.createElement(AvisosBroadcastView, { history: avisosBroadcast, onSend: sendBroadcast, sending: broadcastSending, error: broadcastError, deviceCount: fcmTokens.length, settings: settings, setSettings: setSettings })),
