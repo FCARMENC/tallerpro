@@ -251,14 +251,15 @@ const { useState, useMemo, useEffect, useRef } = React;
  *   1. En Firebase: Configuracion del proyecto > Cloud Messaging > "Certificados push web" > genera un
  *      par de claves. Copia esa clave en VAPID_KEY abajo.
  *   2. Despliega la carpeta /vercel-push (que te entrego aparte) en vercel.com. Copia la URL que te
- *      da Vercel en NOTIFY_ENDPOINT, y el secreto que elijas en NOTIFY_SECRET (debe ser el MISMO valor
- *      que configures como variable de entorno NOTIFY_SECRET en Vercel).
+ *      da Vercel en NOTIFY_ENDPOINT. Los avisos ya no usan secretos en el navegador.
  */
 const VAPID_KEY = "BN3WVEXl0psD6pcuAZNqQQ2K5ZBWqKl5PVVyAhcAcdWIL38d7VIrmoEiHOap64xCqG2Gu2vTZ_kr5SCkWhSqNZw";
 const NOTIFY_ENDPOINT = "https://pushtaller.vercel.app/api/notify";
 let __fcmOnMessageBound = false;
 
-const NOTIFY_SECRET = "taller-expert-2026-x7kQ9mPzR4";
+// Los avisos ya no usan un secreto en el navegador: el servidor verifica la sesión del taller
+// (cuenta con correo y contraseña) o revisa el documento de Firestore antes de enviar.
+const NOTIFY_BASE = NOTIFY_ENDPOINT.replace(/\/api\/notify$/, "");
 const FIREBASE_CONFIG = {
   apiKey: "AIzaSyAsYsXARi9G1NXGI3RXmoe19yYuzSVaoKY",
   authDomain: "taller-fc741.firebaseapp.com",
@@ -2473,20 +2474,30 @@ async function shareVehicleHistoryWhatsApp(vehicle, client, allOrders, settings)
 // equipo), el sistema queda marcado con la respuesta, fecha y hora. Para que la respuesta hecha
 // desde el celular del cliente se refleje en el equipo del taller (dos dispositivos distintos)
 // hace falta configurar FIREBASE_CONFIG arriba y alojar el archivo en una URL pública.
-const proformaApprovalLink = (pf) => `${window.location.origin}${window.location.pathname}#aprobar-${pf.id}`;
+const proformaApprovalLink = (pf) => `${window.location.origin}${window.location.pathname}#aprobar-${pf.pubToken || pf.id}`;
 // Llama a la funcion gratuita en Vercel (fuera de Firebase) para que envie el push real al celular
 // del taller (funciona incluso con Expert cerrado). title/body ya vienen armados desde donde se
 // llama, para que la funcion de Vercel no tenga que leerlos de Firestore (evita mostrar datos
 // desactualizados si la escritura de la aprobacion todavia no llego). Si no se configuro
 // NOTIFY_ENDPOINT todavia, simplemente no hace nada (no rompe el flujo normal por Firestore).
+async function staffAuthHeaders() {
+    const h = { "Content-Type": "application/json" };
+    try {
+        const u = window.firebase && window.firebase.auth && window.firebase.auth().currentUser;
+        if (u && !u.isAnonymous)
+            h["Authorization"] = "Bearer " + (await u.getIdToken());
+    }
+    catch (e) { /* sin sesión: el servidor rechazará el aviso */ }
+    return h;
+}
 function triggerPushNotification(proformaId, payload) {
     if (!NOTIFY_ENDPOINT)
         return;
-    fetch(NOTIFY_ENDPOINT, {
+    staffAuthHeaders().then((headers) => fetch(NOTIFY_ENDPOINT, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ proformaId: proformaId, secret: NOTIFY_SECRET, ...payload }),
-    }).catch((e) => console.error("No se pudo avisar por push", e));
+        headers: headers,
+        body: JSON.stringify({ proformaId: proformaId, ...payload }),
+    })).catch((e) => console.error("No se pudo avisar por push", e));
 }
 /** Prueba local (este dispositivo) + envío real al servidor (todos los tokens). */
 async function testPushNotification() {
@@ -2506,10 +2517,9 @@ async function testPushNotification() {
     try {
         const res = await fetch(NOTIFY_ENDPOINT, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: await staffAuthHeaders(),
             body: JSON.stringify({
                 proformaId: null,
-                secret: NOTIFY_SECRET,
                 title: title,
                 body: body + " (vía servidor)",
             }),
@@ -6511,6 +6521,7 @@ function AjustesView({ settings, setSettings, cloudStatus, cloudError, cloudProj
                     React.createElement(CloudOff, { size: 16 }),
                     " No se pudo conectar a Firebase: ",
                     cloudError)),
+                cloudStatus === "needs-login" && (React.createElement("div", { className: "text-sm px-3 py-2.5 rounded-lg", style: { color: C.warning } }, "Sin sesión del taller: los datos se guardan solo en este dispositivo. Recarga la app para iniciar sesión.")),
                 cloudStatus === "offline" && (React.createElement(React.Fragment, null,
                     React.createElement("div", { className: "flex items-center gap-2 text-sm", style: { color: C.textMute } },
                         React.createElement(CloudOff, { size: 16 }),
@@ -7016,12 +7027,10 @@ function ClientApprovalPage({ pf, client, vehicle, settings, onApprove, onReject
     const confirmApproval = () => {
         const who = name || (client === null || client === void 0 ? void 0 : client.name) || "Cliente";
         onApprove(who);
-        triggerPushNotification(pf.id, { title: `Presupuesto ${pf.code} aprobado`, body: `${who} aprobó ${money(proformaTotal(pf))}` });
     };
     const confirmRejection = () => {
         const who = name || (client === null || client === void 0 ? void 0 : client.name) || "Cliente";
         onReject(who, reason);
-        triggerPushNotification(pf.id, { title: `Presupuesto ${pf.code} rechazado`, body: `${who} rechazó el presupuesto${reason ? ": " + reason : ""}` });
     };
     return (React.createElement("div", { style: { background: `radial-gradient(1200px 600px at 15% -10%, ${C.accentSoft} 0%, transparent 55%), ${C.bg}`, color: C.text, minHeight: "100vh", fontFamily: "'Geist', system-ui, sans-serif" }, className: "p-5 sm:p-8" },
         React.createElement("style", null, getFonts()),
@@ -7136,6 +7145,7 @@ function useFirebase() {
     const [status, setStatus] = useState(FIREBASE_CONFIG ? "connecting" : "offline");
     const [errorMsg, setErrorMsg] = useState("");
     const [projectId, setProjectId] = useState("");
+    const [staffEmail, setStaffEmail] = useState("");
     useEffect(() => {
         if (!FIREBASE_CONFIG) {
             setStatus("offline");
@@ -7146,24 +7156,33 @@ function useFirebase() {
             setErrorMsg("La librería de Firebase no cargó. Revisa tu conexión a internet.");
             return;
         }
+        let unsub = null;
         try {
-            const app = window.firebase.apps && window.firebase.apps.length ? window.firebase.apps[0] : window.firebase.initializeApp(FIREBASE_CONFIG);
+            if (!(window.firebase.apps && window.firebase.apps.length))
+                window.firebase.initializeApp(FIREBASE_CONFIG);
             const firestore = window.firebase.firestore();
             firestore.enablePersistence({ synchronizeTabs: true }).catch((e) => {
                 // "failed-precondition" pasa si hay otra pestaña abierta sin synchronizeTabs, y
-                // "unimplemented" si el navegador no soporta esto (ej. modo incógnito en algunos
-                // casos). En ambos casos la app sigue funcionando, solo sin caché offline de Firestore.
+                // "unimplemented" si el navegador no soporta esto. La app sigue funcionando, solo
+                // sin caché offline de Firestore.
                 console.warn("No se pudo activar la caché offline de Firestore:", e && e.code);
             });
-            window.firebase
-                .auth()
-                .signInAnonymously()
-                .then(() => {
-                setDb(firestore);
-                setProjectId(FIREBASE_CONFIG.projectId || "");
-                setStatus("connected");
-            })
-                .catch((e) => {
+            // Solo el equipo (cuenta del taller con correo y contraseña) accede a los datos. Una
+            // sesión anónima (la de los clientes) nunca abre la base del taller.
+            unsub = window.firebase.auth().onAuthStateChanged((user) => {
+                if (user && !user.isAnonymous) {
+                    setStaffEmail(user.email || "");
+                    setDb(firestore);
+                    setProjectId(FIREBASE_CONFIG.projectId || "");
+                    setErrorMsg("");
+                    setStatus("connected");
+                }
+                else {
+                    setStaffEmail("");
+                    setDb(null);
+                    setStatus("needs-login");
+                }
+            }, (e) => {
                 setStatus("error");
                 setErrorMsg((e && e.message) || "No se pudo autenticar contra Firebase.");
             });
@@ -7172,8 +7191,11 @@ function useFirebase() {
             setStatus("error");
             setErrorMsg((e && e.message) || "No se pudo inicializar Firebase.");
         }
+        return () => { if (unsub) unsub(); };
     }, []);
-    return { db, status, errorMsg, projectId };
+    const signIn = (email, password) => window.firebase.auth().signInWithEmailAndPassword(email, password);
+    const signOut = () => window.firebase.auth().signOut();
+    return { db, status, errorMsg, projectId, staffEmail, signIn, signOut };
 }
 // Guarda cada "tabla" (clientes, órdenes, proformas, etc.) como un documento en la colección
 // "tallerData" de Firestore, y mantiene una copia en localStorage como respaldo/caché local.
@@ -7588,7 +7610,7 @@ function NotificationsBell({ proformas, clients, avisosBroadcast, onEnablePush, 
                         if (r && r.ok)
                             alert("Prueba enviada. Deberías ver 1–2 avisos (local y/o servidor). Si no llega el del servidor, revisa Vercel / tokens.");
                         else
-                            alert("Prueba local lista. Servidor: " + ((r && r.error) || "falló") + ". Revisa NOTIFY_SECRET y que haya tokens.");
+                            alert("Prueba local lista. Servidor: " + ((r && r.error) || "falló") + ". Revisa que hayas iniciado sesión con la cuenta del taller y que haya dispositivos registrados.");
                     }, className: "text-left text-[10px] px-1 py-0.5 font-semibold", style: { color: C.accentText } }, "Probar aviso ahora")),
                     permission === "granted" && onResetPush && (React.createElement("button", { type: "button", onClick: handleReset, disabled: resetState === "working", className: "text-left text-[10px] px-1 py-0.5 underline", style: { color: resetState === "done" ? C.success : resetState === "error" ? C.danger : C.textMute } }, resetState === "working" ? "Reiniciando…" : resetState === "done" ? "Registro reiniciado ✓" : resetState === "error" ? "Error al reiniciar" : "Reiniciar registro de este dispositivo"))))))));
 }
@@ -7797,6 +7819,154 @@ function scheduleNextDailyTip(getSnapshot, enabledRef) {
 }
 
 /* ---------------------------------- APP ---------------------------------- */
+/* ---------------------------------- LOGIN DEL TALLER Y ENLACE PRIVADO DE PROFORMA ---------------------------------- */
+function makePubToken() {
+    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
+    let out = "";
+    try {
+        const arr = new Uint32Array(20);
+        window.crypto.getRandomValues(arr);
+        for (let i = 0; i < arr.length; i++)
+            out += chars[arr[i] % chars.length];
+    }
+    catch (e) {
+        for (let i = 0; i < 20; i++)
+            out += chars[Math.floor(Math.random() * chars.length)];
+    }
+    return out;
+}
+function friendlyAuthError(e) {
+    const code = (e && e.code) || "";
+    if (code === "auth/invalid-credential" || code === "auth/wrong-password" || code === "auth/user-not-found" || code === "auth/invalid-login-credentials")
+        return "Correo o contraseña incorrectos.";
+    if (code === "auth/invalid-email")
+        return "El correo no tiene un formato válido.";
+    if (code === "auth/too-many-requests")
+        return "Demasiados intentos. Espera unos minutos e inténtalo de nuevo.";
+    if (code === "auth/network-request-failed")
+        return "Sin conexión. Revisa tu internet e inténtalo de nuevo.";
+    if (code === "auth/operation-not-allowed")
+        return "Falta activar «Correo y contraseña» en Firebase (Authentication → Método de acceso).";
+    return (e && e.message) || "No se pudo iniciar sesión.";
+}
+function StaffLoginScreen({ onSignIn, onSkip }) {
+    const [email, setEmail] = useState("");
+    const [password, setPassword] = useState("");
+    const [busy, setBusy] = useState(false);
+    const [err, setErr] = useState("");
+    const submit = () => {
+        if (!email.trim() || !password) {
+            setErr("Escribe el correo y la contraseña del taller.");
+            return;
+        }
+        setBusy(true);
+        setErr("");
+        Promise.resolve()
+            .then(() => onSignIn(email.trim(), password))
+            .catch((ex) => { setErr(friendlyAuthError(ex)); setBusy(false); });
+    };
+    const onKey = (e) => { if (e.key === "Enter")
+        submit(); };
+    return (React.createElement("div", { style: { background: C.bg, color: C.text, minHeight: "100vh" }, className: "flex items-center justify-center p-6" },
+        React.createElement("style", null, getFonts()),
+        React.createElement(Card, { className: "p-6 w-full max-w-sm space-y-4" },
+            React.createElement("div", { className: "text-center space-y-1" },
+                React.createElement("div", { style: { fontFamily: "'Geist', system-ui, sans-serif" }, className: "text-xl font-semibold" }, "Cuenta del taller"),
+                React.createElement("p", { className: "text-xs", style: { color: C.textMute } }, "Inicia sesión una sola vez en este dispositivo para sincronizar los datos del taller.")),
+            React.createElement(Field, { label: "Correo" },
+                React.createElement(Input, { type: "email", value: email, onChange: (e) => setEmail(e.target.value), onKeyDown: onKey, autoComplete: "username", placeholder: "taller@correo.com" })),
+            React.createElement(Field, { label: "Contraseña" },
+                React.createElement(Input, { type: "password", value: password, onChange: (e) => setPassword(e.target.value), onKeyDown: onKey, autoComplete: "current-password" })),
+            err && React.createElement("p", { className: "text-xs", style: { color: C.danger } }, err),
+            React.createElement(Button, { onClick: submit, disabled: busy, className: "w-full" }, busy ? "Entrando…" : "Entrar"),
+            React.createElement("button", { type: "button", onClick: onSkip, className: "w-full text-xs underline", style: { color: C.textMute } }, "Entrar sin sincronizar (solo este dispositivo)"))));
+}
+// Página pública del cliente: lee SOLO su presupuesto (documento pub_<token>), sin descargar
+// nada más del taller, y registra su respuesta en ese mismo documento.
+function ClientApprovalApp({ token }) {
+    const [state, setState] = useState({ status: "loading", data: null });
+    const refDoc = useRef(null);
+    useEffect(() => {
+        let unsub = null;
+        let cancelled = false;
+        const fail = () => { if (!cancelled)
+            setState({ status: "missing", data: null }); };
+        try {
+            if (!window.firebase || !window.firebase.initializeApp)
+                throw new Error("sin firebase");
+            if (!(window.firebase.apps && window.firebase.apps.length))
+                window.firebase.initializeApp(FIREBASE_CONFIG);
+            const auth = window.firebase.auth();
+            const start = () => {
+                if (cancelled)
+                    return;
+                const ref = window.firebase.firestore().collection("tallerData").doc("pub_" + token);
+                refDoc.current = ref;
+                unsub = ref.onSnapshot((snap) => {
+                    if (cancelled)
+                        return;
+                    setState(snap.exists ? { status: "ready", data: snap.data() } : { status: "missing", data: null });
+                }, fail);
+            };
+            (auth.currentUser ? Promise.resolve() : auth.signInAnonymously()).then(start).catch(fail);
+        }
+        catch (e) {
+            fail();
+        }
+        return () => { cancelled = true; if (unsub)
+            unsub(); };
+    }, [token]);
+    const notifyDecision = () => {
+        try {
+            fetch(NOTIFY_BASE + "/api/notify-proforma", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ token: token }),
+            }).catch(() => { });
+        }
+        catch (e) { }
+    };
+    const decide = (approval) => {
+        const ref = refDoc.current;
+        if (!ref)
+            return;
+        ref.update({ clientApproval: approval }).then(notifyDecision).catch(() => {
+            window.alert("No se pudo registrar tu respuesta. Revisa tu conexión e inténtalo de nuevo.");
+        });
+    };
+    if (state.status === "loading") {
+        return (React.createElement("div", { style: { background: C.bg, color: C.text, minHeight: "100vh" }, className: "flex items-center justify-center p-6" },
+            React.createElement("style", null, getFonts()),
+            React.createElement(Card, { className: "p-8 max-w-sm text-center" },
+                React.createElement("div", { className: "w-8 h-8 rounded-full animate-spin mx-auto mb-3", style: { border: `3px solid ${C.borderSoft}`, borderTopColor: C.accent } }),
+                React.createElement("p", { style: { color: C.textMute } }, "Cargando el presupuesto…"))));
+    }
+    const v = (state.data && state.data.value) || null;
+    const ca = (state.data && state.data.clientApproval) || null;
+    const pf = v && v.pf ? { ...v.pf, id: v.pfId || token, clientApproval: ca, status: ca ? (ca.approved ? "aprobada" : "rechazada") : v.pf.status } : null;
+    return (React.createElement(ClientApprovalPage, {
+        pf: pf,
+        client: v ? v.client : null,
+        vehicle: v ? v.vehicle : null,
+        settings: { tallerNombre: (v && v.tallerNombre) || "" },
+        onApprove: (name) => decide({ approved: true, approvedAt: new Date().toISOString(), approvedBy: String(name || "Cliente").slice(0, 80), method: "cliente_web" }),
+        onReject: (name, reason) => decide({ approved: false, rejectedAt: new Date().toISOString(), rejectedBy: String(name || "Cliente").slice(0, 80), reason: String(reason || "").slice(0, 300), method: "cliente_web" }),
+    }));
+}
+function Root() {
+    const [hash, setHash] = useState(() => window.location.hash);
+    useEffect(() => {
+        const h = () => setHash(window.location.hash);
+        window.addEventListener("hashchange", h);
+        return () => window.removeEventListener("hashchange", h);
+    }, []);
+    if (hash && hash.indexOf("#aprobar-") === 0) {
+        const m = hash.match(/^#aprobar-([A-Za-z0-9]{16,32})$/);
+        // Enlaces antiguos (con el id interno) ya no abren nada: se pide reenviar el enlace.
+        return m ? React.createElement(ClientApprovalApp, { key: m[1], token: m[1] }) : React.createElement(ClientApprovalPage, { pf: null });
+    }
+    return React.createElement(App);
+}
 function App() {
     var _a;
     // Tema visual (claro / oscuro / autom\u00E1tico seg\u00FAn el sistema). Vive solo en este
@@ -7849,7 +8019,8 @@ function App() {
         window.addEventListener("hashchange", onHashChange);
         return () => window.removeEventListener("hashchange", onHashChange);
     }, []);
-    const { db, status: cloudStatus, errorMsg: cloudError, projectId: cloudProjectId } = useFirebase();
+    const { db, status: cloudStatus, errorMsg: cloudError, projectId: cloudProjectId, signIn: staffSignIn } = useFirebase();
+    const [cloudSkipLogin, setCloudSkipLogin] = useState(false);
     const [clients, setClients, clientsLoading] = useCloudSync("expertTaller.clients", initialClients, db);
     const [vehicles, setVehicles, vehiclesLoading] = useCloudSync("expertTaller.vehicles", initialVehicles, db);
     const [parts, setParts] = useCloudSync("expertTaller.parts", initialParts, db);
@@ -7951,8 +8122,8 @@ function App() {
         try {
             const res = await fetch(NOTIFY_ENDPOINT, {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ proformaId: null, secret: NOTIFY_SECRET, title: "\uD83D\uDCE2 Aviso del taller", body: trimmed }),
+                headers: await staffAuthHeaders(),
+                body: JSON.stringify({ proformaId: null, title: "\uD83D\uDCE2 Aviso del taller", body: trimmed }),
             });
             if (!res.ok) {
                 const data = await res.json().catch(() => ({}));
@@ -8545,21 +8716,124 @@ function App() {
         }
         prevApprovalsRef.current = current;
     }, [proformas, clients, hashRoute]);
-    const approvalMatch = hashRoute && hashRoute.match(/^#aprobar-(.+)$/);
-    if (approvalMatch) {
-        if (proformasLoading || clientsLoading || vehiclesLoading) {
-            return (React.createElement("div", { style: { background: C.bg, color: C.text, minHeight: "100vh" }, className: "flex items-center justify-center p-6" },
-                React.createElement("style", null, getFonts()),
-                React.createElement(Card, { className: "p-8 max-w-sm text-center" },
-                    React.createElement("div", { className: "w-8 h-8 rounded-full animate-spin mx-auto mb-3", style: { border: `3px solid ${C.borderSoft}`, borderTopColor: C.accent } }),
-                    React.createElement("p", { style: { color: C.textMute } }, "Cargando el presupuesto\u2026"))));
+    // ---- Publicación del presupuesto para el cliente (copia mínima con enlace privado) ----
+    const setProformasRef = useRef(setProformas);
+    setProformasRef.current = setProformas;
+    const pubSigRef = useRef({});
+    const pubSeenApprovalRef = useRef({});
+    const pubClearedRef = useRef({});
+    useEffect(() => {
+        if (!db || proformasLoading)
+            return;
+        const seenTokens = {};
+        const needsToken = proformas.some((p) => {
+            if (!p.pubToken || seenTokens[p.pubToken])
+                return true;
+            seenTokens[p.pubToken] = true;
+            return false;
+        });
+        if (needsToken) {
+            const used = {};
+            setProformasRef.current((prev) => prev.map((p) => {
+                if (p.pubToken && !used[p.pubToken]) {
+                    used[p.pubToken] = true;
+                    return p;
+                }
+                const t = makePubToken();
+                used[t] = true;
+                return { ...p, pubToken: t };
+            }));
+            return;
         }
-        const approvalPf = proformas.find((p) => p.id === approvalMatch[1]);
-        return (React.createElement(ClientApprovalPage, { pf: approvalPf, client: approvalPf ? resolveProformaClient(approvalPf, clients) : null, vehicle: approvalPf ? resolveProformaVehicle(approvalPf, vehicles) : null, settings: settings, onApprove: (name) => setProformas((prev) => prev.map((p) => p.id === approvalPf.id
-                ? { ...p, status: "aprobada", clientApproval: { approved: true, approvedAt: new Date().toISOString(), approvedBy: name, method: "cliente_web" } }
-                : p)), onReject: (name, reason) => setProformas((prev) => prev.map((p) => p.id === approvalPf.id
-                ? { ...p, status: "rechazada", clientApproval: { approved: false, rejectedAt: new Date().toISOString(), rejectedBy: name, reason: reason || "", method: "cliente_web" } }
-                : p)) }));
+        const now = Date.now();
+        proformas.forEach((pf) => {
+            const ageDays = (now - new Date((pf.date || "") + "T00:00:00").getTime()) / 86400000;
+            if (ageDays > 120)
+                return;
+            const docRef = db.collection("tallerData").doc("pub_" + pf.pubToken);
+            const hasLocalApproval = !!(pf.clientApproval && pf.clientApproval.method === "cliente_web");
+            if (hasLocalApproval) {
+                pubSeenApprovalRef.current[pf.pubToken] = true;
+            }
+            else if (pubSeenApprovalRef.current[pf.pubToken]) {
+                // El taller reabrió la proforma: se borra también la respuesta guardada en la copia pública.
+                pubSeenApprovalRef.current[pf.pubToken] = false;
+                pubClearedRef.current[pf.pubToken] = Date.now();
+                docRef.update({ clientApproval: window.firebase.firestore.FieldValue.delete() }).catch(() => { });
+            }
+            const client = resolveProformaClient(pf, clients);
+            const vehicle = resolveProformaVehicle(pf, vehicles);
+            const value = {
+                pfId: pf.id,
+                tallerNombre: (settings && settings.tallerNombre) || "",
+                pf: {
+                    code: pf.code || "",
+                    date: pf.date || "",
+                    validDays: pf.validDays || 7,
+                    incluyeIgv: !!pf.incluyeIgv,
+                    notes: pf.notes || "",
+                    status: pf.status || "pendiente",
+                    items: (pf.items || []).map((it, idx) => ({ id: it.id || ("i" + idx), description: String(it.description || ""), qty: Number(it.qty) || 0, price: Number(it.price) || 0 })),
+                },
+                client: { name: (client && client.name) || "" },
+                vehicle: vehicle ? { brand: vehicle.brand || "", model: vehicle.model || "", year: vehicle.year || "", plate: vehicle.plate || "" } : null,
+            };
+            const sig = JSON.stringify(value);
+            if (pubSigRef.current[pf.pubToken] === sig)
+                return;
+            pubSigRef.current[pf.pubToken] = sig;
+            docRef.set({ value: value, updatedAt: Date.now() }, { mergeFields: ["value", "updatedAt"] }).catch((e) => {
+                pubSigRef.current[pf.pubToken] = null;
+                console.warn("No se pudo publicar la proforma", e && e.code);
+            });
+        });
+    }, [proformas, clients, vehicles, settings, db, proformasLoading]);
+    // Respuestas de clientes: llegan en la copia pública y se pasan a la proforma del taller.
+    useEffect(() => {
+        if (!db)
+            return;
+        let unsub = null;
+        try {
+            const FP = window.firebase.firestore.FieldPath;
+            unsub = db.collection("tallerData")
+                .where(FP.documentId(), ">=", "pub_")
+                .where(FP.documentId(), "<=", "pub_\uf8ff")
+                .onSnapshot((snap) => {
+                snap.forEach((doc) => {
+                    const d = doc.data();
+                    const ca = d && d.clientApproval;
+                    if (!ca)
+                        return;
+                    const token = doc.id.slice(4);
+                    const stamp = ca.approved ? ca.approvedAt : ca.rejectedAt;
+                    const clearedAt = pubClearedRef.current[token] || 0;
+                    if (stamp && Date.parse(stamp) <= clearedAt)
+                        return;
+                    setProformasRef.current((prev) => {
+                        let changed = false;
+                        const next = prev.map((p) => {
+                            if (p.pubToken !== token)
+                                return p;
+                            const cur = p.clientApproval;
+                            const curStamp = cur ? (cur.approved ? cur.approvedAt : cur.rejectedAt) : null;
+                            if (curStamp === stamp)
+                                return p;
+                            changed = true;
+                            return { ...p, status: ca.approved ? "aprobada" : "rechazada", clientApproval: ca };
+                        });
+                        return changed ? next : prev;
+                    });
+                });
+            }, (e) => console.warn("Respuestas de clientes:", e && e.code));
+        }
+        catch (e) {
+            console.warn(e);
+        }
+        return () => { if (unsub)
+            unsub(); };
+    }, [db]);
+    if (cloudStatus === "needs-login" && !cloudSkipLogin) {
+        return React.createElement(StaffLoginScreen, { onSignIn: staffSignIn, onSkip: () => setCloudSkipLogin(true) });
     }
     if (users.length === 0) {
         return React.createElement(SetupWizard, { onCreateAdmin: createAdmin });
@@ -8656,7 +8930,7 @@ function App() {
 
 <script>
   try {
-    ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(ErrorBoundary, null, React.createElement(App)));
+    ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(ErrorBoundary, null, React.createElement(Root)));
     var bootEl = document.getElementById("boot-status");
     bootEl.classList.add("boot-hide");
     setTimeout(function () { bootEl.style.display = "none"; }, 400);
