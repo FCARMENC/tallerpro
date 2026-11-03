@@ -5494,7 +5494,7 @@ function MecanicaView({ entries, setEntries, vehicles, canEdit, logAudit }) {
                 removeEntry(openEntry.id); } }))));
 }
 /* ---------------------------------- CAJA ---------------------------------- */
-function CajaView({ caja: cajaTodos, liquidaciones = [], onLiquidar, onDeshacerLiquidacion, onRestaurarCajaLiq, canEdit = true, onAddMovement, onRemoveMovement, orders = [], clients = [], vehicles = [], onChangeStatus, onRegistrarAbono, onRegistrarCobroFinal }) {
+function CajaView({ caja: cajaTodos, liquidaciones = [], onLiquidar, onDeshacerLiquidacion, onRestaurarCajaLiq, canEdit = true, onAddMovement, onRemoveMovement, onUpdateMovement, orders = [], clients = [], vehicles = [], onChangeStatus, onRegistrarAbono, onRegistrarCobroFinal }) {
     const [showLiquidar, setShowLiquidar] = useState(false);
     const [liqBox, setLiqBox] = useState("todas"); // todas | taller | repuestos
     const [showHistorial, setShowHistorial] = useState(false);
@@ -5512,7 +5512,18 @@ function CajaView({ caja: cajaTodos, liquidaciones = [], onLiquidar, onDeshacerL
     const liqOrdenadas = [...liquidaciones].sort((a, b) => (b.ts || 0) - (a.ts || 0));
     const [filter, setFilter] = useState("todas");
     const [query, setQuery] = useState("");
-    const [showNew, setShowNew] = useState(false);
+    const [newType, setNewType] = useState(null); // null | "ingreso" | "gasto"
+    const [editingMov, setEditingMov] = useState(null);
+    const [toast, setToast] = useState(null);
+    const toastTimer = useRef(null);
+    useEffect(() => () => { if (toastTimer.current)
+        clearTimeout(toastTimer.current); }, []);
+    const showToast = (text, undoId) => {
+        setToast({ text: text, undoId: undoId || null });
+        if (toastTimer.current)
+            clearTimeout(toastTimer.current);
+        toastTimer.current = setTimeout(() => setToast(null), 7000);
+    };
     const [openOrderId, setOpenOrderId] = useState(null);
     const findClient = (id) => clients.find((c) => c.id === id);
     const findVehicle = (id) => vehicles.find((v) => v.id === id);
@@ -5548,10 +5559,8 @@ function CajaView({ caja: cajaTodos, liquidaciones = [], onLiquidar, onDeshacerL
                     React.createElement(Wallet, { size: 16 }),
                     " Liquidar",
                     React.createElement("span", { className: "hidden sm:inline" }, " caja"))),
-                React.createElement(Button, { onClick: () => setShowNew(true), className: "!px-3.5" },
-                    React.createElement(Plus, { size: 16 }),
-                    " Nuevo",
-                    React.createElement("span", { className: "hidden sm:inline" }, " movimiento")))),
+                React.createElement("button", { type: "button", onClick: () => setNewType("ingreso"), className: "px-3.5 py-2 rounded-xl text-sm font-semibold", style: { background: C.successSoft, color: C.success, border: `1px solid ${C.success}66` } }, "\uFF0B Ingreso"),
+                React.createElement("button", { type: "button", onClick: () => setNewType("gasto"), className: "px-3.5 py-2 rounded-xl text-sm font-semibold", style: { background: C.dangerSoft, color: C.danger, border: `1px solid ${C.danger}66` } }, "\u2212 Gasto"))),
         React.createElement("div", { className: "flex gap-2 flex-wrap" },
             [["todas", "Todas"], ["taller", "Caja taller"], ["repuestos", "Caja repuestos"]].map(function (pair) {
                 const id = pair[0], label = pair[1];
@@ -5612,9 +5621,11 @@ function CajaView({ caja: cajaTodos, liquidaciones = [], onLiquidar, onDeshacerL
             { key: "gasto", label: "Gastos" },
         ].map((f) => (React.createElement("button", { key: f.key, onClick: () => setFilter(f.key), className: "px-3.5 py-1.5 rounded-full text-xs font-medium whitespace-nowrap", style: { background: filter === f.key ? C.accentSoft : C.surfaceHi, color: filter === f.key ? C.accentText : C.textSoft } }, f.label)))),
         React.createElement(Card, { className: "overflow-hidden" }, filtered.length === 0 ? (React.createElement("p", { className: "p-10 text-center text-sm", style: { color: C.textMute } }, "No hay movimientos que coincidan.")) : (filtered.map((m, i) => (React.createElement("div", { key: m.id, onClick: () => { if (m.orderId)
-                setOpenOrderId(m.orderId); }, className: "row-hover flex flex-wrap sm:flex-nowrap items-center gap-x-3 gap-y-2 px-5 py-4", style: {
+                setOpenOrderId(m.orderId);
+            else if (canEdit && onUpdateMovement && m.source === "manual")
+                setEditingMov(m); }, className: "row-hover flex flex-wrap sm:flex-nowrap items-center gap-x-3 gap-y-2 px-5 py-4", style: {
                 borderBottom: i < filtered.length - 1 ? `1px solid ${C.borderSoft}` : "none",
-                cursor: m.orderId ? "pointer" : "default",
+                cursor: (m.orderId || (canEdit && onUpdateMovement && m.source === "manual")) ? "pointer" : "default",
             } },
             React.createElement("div", { className: "w-9 h-9 rounded-lg flex items-center justify-center shrink-0", style: { background: m.type === "ingreso" ? C.successSoft : C.dangerSoft } }, m.type === "ingreso" ? React.createElement(TrendingUp, { size: 15, style: { color: C.success } }) : React.createElement(TrendingDown, { size: 15, style: { color: C.danger } })),
             React.createElement("div", { className: "min-w-0 flex-1 basis-40" },
@@ -5627,6 +5638,13 @@ function CajaView({ caja: cajaTodos, liquidaciones = [], onLiquidar, onDeshacerL
             React.createElement("span", { className: "font-mono text-sm font-medium shrink-0 ml-auto sm:ml-0", style: { color: m.type === "ingreso" ? C.success : C.danger } },
                 m.type === "ingreso" ? "+" : "−",
                 money(m.amount)),
+            canEdit && onUpdateMovement && m.source === "manual" && (React.createElement("button", {
+                type: "button",
+                title: "Editar movimiento",
+                onClick: function (e) { e.stopPropagation(); setEditingMov(m); },
+                className: "w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-colors",
+                style: { color: C.textSoft, background: C.surfaceHi },
+            }, React.createElement(Pencil, { size: 14 }))),
             canEdit && onRemoveMovement && (React.createElement("button", {
                 type: "button",
                 title: "Eliminar movimiento",
@@ -5764,39 +5782,195 @@ function CajaView({ caja: cajaTodos, liquidaciones = [], onLiquidar, onDeshacerL
                 }, "Cancelar")
             )
         )),
-        showNew && (React.createElement(NewMovementModal, { onClose: () => setShowNew(false), onCreate: (mov) => { onAddMovement(mov); setShowNew(false); } })),
+        (newType || editingMov) && (React.createElement(NewMovementModal, {
+            key: editingMov ? "edit-" + editingMov.id : "new-" + newType,
+            initialType: newType,
+            initialBox: boxFilter,
+            editing: editingMov,
+            suggestions: buildConceptSuggestions(cajaTodos),
+            onClose: () => { setNewType(null); setEditingMov(null); },
+            onCreate: (mov, another) => {
+                onAddMovement(mov);
+                if (!another) {
+                    setNewType(null);
+                    showToast((mov.type === "ingreso" ? "Ingreso " : "Gasto ") + money(mov.amount) + " guardado en " + (mov.box === "repuestos" ? "Caja repuestos" : "Caja taller"), onRemoveMovement ? mov.id : null);
+                }
+            },
+            onUpdate: (id, fields) => {
+                onUpdateMovement && onUpdateMovement(id, fields);
+                setEditingMov(null);
+                showToast("Movimiento actualizado");
+            },
+        })),
+        toast && ReactDOM.createPortal(React.createElement("div", { className: "fixed left-1/2 -translate-x-1/2 flex items-center gap-3 px-4 py-3 rounded-2xl text-sm", style: { bottom: "88px", zIndex: 120, background: C.raised, color: C.text, border: `1px solid ${C.border}`, boxShadow: C.shadowLg, maxWidth: "92vw" } },
+            React.createElement("span", null, toast.text),
+            toast.undoId && React.createElement("button", { type: "button", className: "font-semibold underline shrink-0", style: { color: C.accent }, onClick: () => { onRemoveMovement && onRemoveMovement(toast.undoId); setToast(null); } }, "Deshacer")), document.body),
         openOrder && (React.createElement(OrderDetail, { order: openOrder, client: findClient(openOrder.clientId), vehicle: findVehicle(openOrder.vehicleId), onClose: () => setOpenOrderId(null), onStatusChange: (status, options) => onChangeStatus && onChangeStatus(openOrder, status, options), onRegistrarAbono: (amount) => onRegistrarAbono && onRegistrarAbono(openOrder.id, amount), onRegistrarCobroFinal: onRegistrarCobroFinal ? function () { onRegistrarCobroFinal(openOrder.id); } : undefined }))));
 }
-function NewMovementModal({ onClose, onCreate }) {
-    const [type, setType] = useState("ingreso");
-    const [concept, setConcept] = useState("");
-    const [amount, setAmount] = useState("");
-    const [date, setDate] = useState(todayLocal());
-    const [box, setBox] = useState("taller");
-    const submit = () => {
-        const amt = Number(amount);
-        if (!concept || !amt || amt <= 0)
-            return;
-        onCreate({ type, concept, amount: amt, date, source: "manual", box: box || "taller", orderId: null });
+const BOX_COLORS = { taller: "#EA580C", repuestos: "#2563EB" };
+function parseMoneyInput(v) {
+    const n = Number(String(v == null ? "" : v).replace(",", ".").replace(/[^0-9.]/g, ""));
+    return isFinite(n) ? Math.round(n * 100) / 100 : 0;
+}
+// Conceptos rápidos: primero los que tú más usas (según tus movimientos manuales), luego unos básicos.
+function buildConceptSuggestions(movs) {
+    const defaults = {
+        ingreso: ["Venta de repuesto", "Servicio", "Mano de obra"],
+        gasto: ["Almuerzo", "Pasaje", "Luz", "Agua", "Internet", "Herramientas", "Limpieza"],
     };
-    return (React.createElement(Modal, { title: "Nuevo movimiento", onClose: onClose },
+    const out = {};
+    ["ingreso", "gasto"].forEach((t) => {
+        const count = {};
+        const label = {};
+        (movs || []).forEach((m) => {
+            if (!m || m.type !== t || m.source !== "manual")
+                return;
+            const c = String(m.concept || "").trim();
+            if (!c || c.length > 40)
+                return;
+            const k = c.toLowerCase();
+            count[k] = (count[k] || 0) + 1;
+            if (!label[k])
+                label[k] = c;
+        });
+        const learned = Object.keys(count).sort((x, y) => count[y] - count[x]).slice(0, 6).map((k) => label[k]);
+        const have = {};
+        learned.forEach((x) => { have[x.toLowerCase()] = true; });
+        const list = learned.slice();
+        defaults[t].forEach((d) => { if (list.length < 8 && !have[d.toLowerCase()])
+            list.push(d); });
+        out[t] = list;
+    });
+    return out;
+}
+function NewMovementModal({ onClose, onCreate, onUpdate, initialType, initialBox, editing, suggestions }) {
+    const isEdit = !!editing;
+    const lockedBox = !isEdit && (initialBox === "taller" || initialBox === "repuestos");
+    const [type, setType] = useState(isEdit ? editing.type : (initialType || "ingreso"));
+    const [box, setBox] = useState(() => {
+        if (isEdit)
+            return editing.box === "repuestos" ? "repuestos" : "taller";
+        if (lockedBox)
+            return initialBox;
+        let last = null;
+        try {
+            last = window.localStorage.getItem("expertTaller.lastMovBox");
+        }
+        catch (e) { }
+        return last === "repuestos" ? "repuestos" : "taller";
+    });
+    const [changeBox, setChangeBox] = useState(false);
+    const [concept, setConcept] = useState(isEdit ? (editing.concept || "") : "");
+    const [amount, setAmount] = useState(isEdit ? String(editing.amount) : "");
+    const [date, setDate] = useState(isEdit ? (editing.date || todayLocal()) : todayLocal());
+    const [showDate, setShowDate] = useState(false);
+    const [savedMsg, setSavedMsg] = useState("");
+    const amountRef = useRef(null);
+    const conceptRef = useRef(null);
+    const amt = parseMoneyInput(amount);
+    const missing = [];
+    if (!(amt > 0) || amt > 10000000)
+        missing.push("el monto");
+    if (!concept.trim())
+        missing.push("el concepto");
+    const valid = missing.length === 0;
+    const tone = type === "ingreso" ? C.success : C.danger;
+    const toneSoft = type === "ingreso" ? C.successSoft : C.dangerSoft;
+    const showBoxPicker = isEdit || !lockedBox || changeBox;
+    const chips = ((suggestions && suggestions[type]) || []);
+    const save = (another) => {
+        if (!valid)
+            return;
+        try {
+            window.localStorage.setItem("expertTaller.lastMovBox", box);
+        }
+        catch (e) { }
+        const fields = { type: type, concept: concept.trim().slice(0, 80), amount: amt, date: date || todayLocal(), box: box };
+        if (isEdit) {
+            onUpdate && onUpdate(editing.id, fields);
+            return;
+        }
+        const mov = { id: "m" + Date.now() + Math.random().toString(36).slice(2, 7), ...fields, source: "manual", orderId: null };
+        onCreate(mov, !!another);
+        if (another) {
+            setSavedMsg((type === "ingreso" ? "Ingreso " : "Gasto ") + money(amt) + " guardado en " + (box === "repuestos" ? "Caja repuestos" : "Caja taller") + ". Puedes agregar otro.");
+            setConcept("");
+            setAmount("");
+            if (amountRef.current)
+                amountRef.current.focus();
+        }
+    };
+    const boxButton = (id, label) => {
+        const color = BOX_COLORS[id];
+        const on = box === id;
+        return React.createElement("button", {
+            key: id,
+            type: "button",
+            onClick: () => { setBox(id); setSavedMsg(""); },
+            className: "flex-1 py-3 rounded-xl text-sm font-semibold transition-colors",
+            style: { background: on ? color + "26" : C.surfaceHi, color: on ? color : C.textSoft, border: on ? `2px solid ${color}` : `1px solid ${C.border}` },
+        }, (on ? "\u2713 " : "") + label);
+    };
+    return (React.createElement(Modal, { title: isEdit ? "Editar movimiento" : (type === "ingreso" ? "Nuevo ingreso" : "Nuevo gasto"), onClose: onClose },
         React.createElement("div", { className: "space-y-4" },
-            React.createElement("div", { className: "flex gap-2" },
-                React.createElement("button", { onClick: () => setType("ingreso"), className: "flex-1 py-2.5 rounded-xl text-sm font-medium transition-colors", style: { background: type === "ingreso" ? C.successSoft : C.surfaceHi, color: type === "ingreso" ? C.success : C.textSoft } }, "Ingreso"),
-                React.createElement("button", { onClick: () => setType("gasto"), className: "flex-1 py-2.5 rounded-xl text-sm font-medium transition-colors", style: { background: type === "gasto" ? C.dangerSoft : C.surfaceHi, color: type === "gasto" ? C.danger : C.textSoft } }, "Gasto")),
-            React.createElement("div", { className: "flex gap-2" },
-                React.createElement("button", { type: "button", onClick: () => setBox("taller"), className: "flex-1 py-2 rounded-xl text-xs font-medium", style: { background: box === "taller" ? C.accentSoft || C.surfaceHi : C.surfaceHi, color: box === "taller" ? C.accent : C.textSoft, border: box === "taller" ? `1px solid ${C.accent}` : `1px solid ${C.border}` } }, "Caja taller"),
-                React.createElement("button", { type: "button", onClick: () => setBox("repuestos"), className: "flex-1 py-2 rounded-xl text-xs font-medium", style: { background: box === "repuestos" ? C.accentSoft || C.surfaceHi : C.surfaceHi, color: box === "repuestos" ? C.accent : C.textSoft, border: box === "repuestos" ? `1px solid ${C.accent}` : `1px solid ${C.border}` } }, "Caja repuestos")),
+            savedMsg && React.createElement("div", { className: "text-xs px-3 py-2 rounded-xl", style: { background: C.successSoft, color: C.success } }, "\u2714 " + savedMsg),
+            React.createElement("div", { className: "flex items-center justify-between gap-3 px-4 py-3 rounded-2xl", style: { background: toneSoft, border: `1px solid ${tone}55` } },
+                React.createElement("div", { className: "text-sm font-semibold", style: { color: tone } }, type === "ingreso" ? "\uFF0B Ingreso \u00B7 dinero que entra" : "\u2212 Gasto \u00B7 dinero que sale"),
+                React.createElement("button", { type: "button", onClick: () => { setType(type === "ingreso" ? "gasto" : "ingreso"); setSavedMsg(""); }, className: "text-xs underline shrink-0", style: { color: C.textMute } }, type === "ingreso" ? "Cambiar a gasto" : "Cambiar a ingreso")),
+            showBoxPicker
+                ? React.createElement("div", null,
+                    React.createElement("div", { className: "text-xs mb-1.5", style: { color: C.textMute } }, "\u00BFEn qu\u00E9 caja?"),
+                    React.createElement("div", { className: "flex gap-2" }, boxButton("taller", "Taller"), boxButton("repuestos", "Repuestos")))
+                : React.createElement("div", { className: "flex items-center justify-between gap-3 text-xs", style: { color: C.textMute } },
+                    React.createElement("span", null, "Caja: ",
+                        React.createElement("strong", { style: { color: BOX_COLORS[box] } }, box === "repuestos" ? "Repuestos" : "Taller")),
+                    React.createElement("button", { type: "button", onClick: () => setChangeBox(true), className: "underline" }, "cambiar")),
+            React.createElement(Field, { label: "Monto (S/)" },
+                React.createElement(Input, {
+                    ref: amountRef,
+                    type: "text",
+                    inputMode: "decimal",
+                    autoFocus: !isEdit,
+                    value: amount,
+                    placeholder: "0.00",
+                    className: "text-2xl font-mono",
+                    onChange: (e) => { setAmount(e.target.value); setSavedMsg(""); },
+                    onKeyDown: (e) => { if (e.key === "Enter") {
+                        if (!concept.trim() && conceptRef.current)
+                            conceptRef.current.focus();
+                        else
+                            save(false);
+                    } },
+                })),
             React.createElement(Field, { label: "Concepto" },
-                React.createElement(Input, { value: concept, onChange: (e) => setConcept(e.target.value), placeholder: "Ej: Pago de luz, venta de repuesto suelto" })),
-            React.createElement("div", { className: "grid grid-cols-2 gap-4" },
-                React.createElement(Field, { label: "Monto (S/)" },
-                    React.createElement(Input, { type: "number", value: amount, onChange: (e) => setAmount(e.target.value), placeholder: "0.00" })),
-                React.createElement(Field, { label: "Fecha" },
-                    React.createElement(Input, { type: "date", value: date, onChange: (e) => setDate(e.target.value) }))),
-            React.createElement("div", { className: "flex gap-3 pt-2" },
-                React.createElement(Button, { variant: "ghost", onClick: onClose, className: "flex-1" }, "Cancelar"),
-                React.createElement(Button, { onClick: submit, className: "flex-1" }, "Guardar movimiento")))));
+                React.createElement(Input, {
+                    ref: conceptRef,
+                    value: concept,
+                    placeholder: type === "ingreso" ? "Ej: Venta de repuesto suelto" : "Ej: Pago de luz",
+                    onChange: (e) => { setConcept(e.target.value); setSavedMsg(""); },
+                    onKeyDown: (e) => { if (e.key === "Enter")
+                        save(false); },
+                }),
+                chips.length > 0 && React.createElement("div", { className: "flex flex-wrap gap-1.5 mt-2" }, chips.map((c) => {
+                    const on = concept.trim().toLowerCase() === c.toLowerCase();
+                    return React.createElement("button", {
+                        key: c,
+                        type: "button",
+                        onClick: () => { setConcept(c); setSavedMsg(""); if (!amount && amountRef.current)
+                            amountRef.current.focus(); },
+                        className: "px-2.5 py-1 rounded-full text-xs font-medium",
+                        style: { background: on ? toneSoft : C.surfaceHi, color: on ? tone : C.textSoft, border: `1px solid ${on ? tone + "66" : C.border}` },
+                    }, c);
+                }))),
+            (showDate || (date && date !== todayLocal()))
+                ? React.createElement(Field, { label: "Fecha" }, React.createElement(Input, { type: "date", value: date, onChange: (e) => setDate(e.target.value) }))
+                : React.createElement("button", { type: "button", onClick: () => setShowDate(true), className: "text-xs underline", style: { color: C.textMute } }, "Fecha: hoy \u00B7 cambiar"),
+            !valid && React.createElement("p", { className: "text-xs", style: { color: C.textMute } }, "Falta " + missing.join(" y ")),
+            React.createElement("div", { className: "space-y-2 pt-1" },
+                React.createElement(Button, { onClick: () => save(false), disabled: !valid, className: "w-full" }, isEdit ? "Guardar cambios" : (type === "ingreso" ? "Guardar ingreso" : "Guardar gasto")),
+                React.createElement("div", { className: "flex gap-2" },
+                    !isEdit && React.createElement(Button, { variant: "soft", onClick: () => save(true), disabled: !valid, className: "flex-1" }, "Guardar y agregar otro"),
+                    React.createElement(Button, { variant: "ghost", onClick: onClose, className: isEdit ? "w-full" : "flex-1" }, "Cancelar"))))));
 }
 /* ---------------------------------- USUARIOS Y ROLES (Ajustes) ---------------------------------- */
 function UserFormModal({ user, roles, users, onSave, onClose }) {
@@ -8447,6 +8621,26 @@ function App() {
         if (mov)
             logAudit("eliminar", "caja", mov.concept || (mov.type === "ingreso" ? "Ingreso" : "Gasto"), `${mov.type === "ingreso" ? "Ingreso" : "Gasto"} · ${money(mov.amount)}`);
     };
+    const updateCajaMovement = (id, patch) => {
+        const before = (caja || []).find((m) => m.id === id);
+        if (!before || before.source !== "manual")
+            return;
+        if ((liquidaciones || []).some((l) => (l.movIds || []).indexOf(id) !== -1)) {
+            window.alert("Este movimiento ya está liquidado y no se puede editar.");
+            return;
+        }
+        const fields = {
+            type: patch.type === "gasto" ? "gasto" : "ingreso",
+            concept: String(patch.concept || "").trim().slice(0, 80),
+            amount: Math.round((Number(patch.amount) || 0) * 100) / 100,
+            date: patch.date || before.date,
+            box: patch.box === "repuestos" ? "repuestos" : "taller",
+        };
+        if (!fields.concept || !(fields.amount > 0))
+            return;
+        setCaja((prev) => prev.map((m) => (m.id === id && m.source === "manual" ? { ...m, ...fields } : m)));
+        logAudit("editar", "caja", fields.concept, `${before.type === "ingreso" ? "Ingreso" : "Gasto"} ${money(before.amount)} → ${fields.type === "ingreso" ? "Ingreso" : "Gasto"} ${money(fields.amount)}`);
+    };
     const liquidarCaja = (box) => {
         // box: "todas" | "taller" | "repuestos" — SOLO esa caja se cierra
         const which = box || "todas";
@@ -8920,7 +9114,7 @@ function App() {
                     active === "inventario" && React.createElement(InventarioView, { parts: parts, setParts: setParts }),
                     active === "agenda" && React.createElement(AgendaView, { appointments: appointments, setAppointments: setAppointments }),
                     active === "mecanica" && React.createElement(MecanicaView, { entries: mecanicaEntries, setEntries: setMecanicaEntries, vehicles: vehicles, canEdit: canEditModule(currentRole, "mecanica"), logAudit: logAudit }),
-                    active === "caja" && (React.createElement(CajaView, { caja: caja, liquidaciones: liquidaciones, onLiquidar: liquidarCaja, onDeshacerLiquidacion: deshacerLiquidacion, onRestaurarCajaLiq: restaurarCajaDeLiquidacion, canEdit: canEditModule(currentRole, "caja"), onAddMovement: addCajaMovement, onRemoveMovement: removeCajaMovement, orders: orders, clients: clients, vehicles: vehicles, onChangeStatus: changeOrderStatus, onRegistrarAbono: registrarAbono, onRegistrarCobroFinal: registrarCobroFinal })),
+                    active === "caja" && (React.createElement(CajaView, { caja: caja, liquidaciones: liquidaciones, onLiquidar: liquidarCaja, onDeshacerLiquidacion: deshacerLiquidacion, onRestaurarCajaLiq: restaurarCajaDeLiquidacion, canEdit: canEditModule(currentRole, "caja"), onAddMovement: addCajaMovement, onRemoveMovement: removeCajaMovement, onUpdateMovement: updateCajaMovement, orders: orders, clients: clients, vehicles: vehicles, onChangeStatus: changeOrderStatus, onRegistrarAbono: registrarAbono, onRegistrarCobroFinal: registrarCobroFinal })),
                     active === "pagos" && (React.createElement(PagosProgramadosView, { items: pagosProgramados, onSave: savePagoProgramado, onDelete: deletePagoProgramado, onToggleActivo: togglePagoProgramadoActivo, readOnly: !canEditModule(currentRole, "pagos") })),
                     active === "solicitudes" && (React.createElement(SolicitudesView, { items: solicitudes, onMarkAtendida: markSolicitudAtendida, onDelete: deleteSolicitud, onCreateClient: createClientFromSolicitud })),
                     active === "avisos" && (React.createElement(AvisosBroadcastView, { history: avisosBroadcast, onSend: sendBroadcast, sending: broadcastSending, error: broadcastError, deviceCount: fcmTokens.length, settings: settings, setSettings: setSettings })),
