@@ -570,6 +570,9 @@ html{ scrollbar-color: ${C.surfaceHi} transparent; }
 :focus-visible{ outline: 2px solid ${C.accent}; outline-offset: 2px; border-radius: 6px; }
 
 html{ -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
+body{ font-size: 14px; line-height: 1.5; }
+button{ font-family: inherit; }
+button:active{ transform: scale(0.98); }
 h1{ letter-spacing: -0.03em !important; font-weight: 600; }
 h2,h3,h4{ letter-spacing: -0.02em !important; font-weight: 600; }
 [style*="'Geist',"]{ font-weight: 600; letter-spacing: -0.02em; }
@@ -607,6 +610,16 @@ button.kpi-cell:hover{ background: ${C.surfaceHi}; }
 .auth-fade-up{ animation: authFadeUp 0.6s cubic-bezier(0.16,1,0.3,1) both; }
 .auth-scale-in{ animation: authScaleIn 0.45s cubic-bezier(0.16,1,0.3,1) both; }
 .pin-pop{ animation: pinPop 0.28s cubic-bezier(0.34,1.56,0.64,1) both; }
+@keyframes pinNext{ 0%,100%{ box-shadow: 0 0 0 0 rgba(255,106,26,0.0); border-color: rgba(255,106,26,0.35);} 50%{ box-shadow: 0 0 0 6px rgba(255,106,26,0.14); border-color: rgba(255,106,26,0.9);} }
+@keyframes pinOk{ 0%{ transform: scale(1); } 50%{ transform: scale(1.35); } 100%{ transform: scale(1); } }
+.pin-next{ animation: pinNext 1.6s ease-in-out infinite; }
+.pin-ok{ animation: pinOk 0.4s cubic-bezier(0.34,1.56,0.64,1) both; }
+.pin-key{ transition: transform 0.12s ease, box-shadow 0.15s ease, background 0.15s ease; }
+@keyframes boxPick{ 0%{ transform: scale(0.94); } 60%{ transform: scale(1.03); } 100%{ transform: scale(1); } }
+.box-pick-on{ animation: boxPick 0.35s cubic-bezier(0.34,1.56,0.64,1) both; }
+.box-pick:not(.box-pick-on):active{ transform: scale(0.97); }
+button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible{ outline: 2px solid rgba(255,106,26,0.7); outline-offset: 2px; }
+.pin-key:active{ box-shadow: 0 0 0 4px rgba(255,106,26,0.22), inset 0 0 0 1px rgba(255,106,26,0.5); background: rgba(255,106,26,0.12) !important; }
 .auth-orb{ animation: authOrb 12s ease-in-out infinite; }
 .auth-stagger > *:nth-child(1){ animation-delay: 0.05s; }
 .auth-stagger > *:nth-child(2){ animation-delay: 0.1s; }
@@ -2564,17 +2577,18 @@ function KpiStrip({ items, className = "" }) {
     return (React.createElement("div", { className: `grid grid-cols-2 ${sm} ${lg} gap-3 ${className}` }, items.map((k, i) => {
             const Icon = k.icon;
             const Tag = k.onClick ? "button" : "div";
-            return (React.createElement(Tag, { key: k.label, onClick: k.onClick, className: `relative block w-full p-4 sm:p-5 rounded-2xl text-left transition-all duration-200 ${k.onClick ? "card-hover cursor-pointer" : ""}`, style: {
-                    background: C.surface,
-                    border: `1px solid ${C.border}`,
-                    boxShadow: C.shadow,
+            const orphan = n === 3 && i === 2 ? "col-span-2 sm:col-span-1" : "";
+            return (React.createElement(Tag, { key: k.label, onClick: k.onClick, className: `relative block w-full p-4 sm:p-5 rounded-2xl text-left transition-all duration-200 ${orphan} ${k.onClick ? "card-hover cursor-pointer" : ""}`, style: {
+                    background: k.hero ? `linear-gradient(135deg, ${C.accent}26 0%, ${C.surface} 70%)` : C.surface,
+                    border: k.hero ? `1px solid ${C.accent}88` : `1px solid ${C.border}`,
+                    boxShadow: k.hero ? `0 0 0 3px ${C.accent}1A, ${C.shadow}` : C.shadow,
                 } },
                 React.createElement("div", { className: "flex items-center justify-between gap-2 mb-3" },
-                    React.createElement("span", { className: "text-[12px] font-medium", style: { color: C.textMute } }, k.label),
+                    React.createElement("span", { className: "text-[12px] font-medium", style: { color: C.textSoft } }, k.label),
                     Icon && React.createElement("div", { className: "w-8 h-8 rounded-xl flex items-center justify-center", style: { background: k.soft || C.surfaceHi } },
                         React.createElement(Icon, { size: 16, style: { color: k.color } }))),
-                React.createElement("div", { style: { fontFamily: "'Geist', system-ui, sans-serif", letterSpacing: "-0.03em" }, className: "text-[26px] sm:text-[28px] font-semibold leading-none" }, k.value),
-                k.hint && React.createElement("div", { className: "text-[11px] mt-1.5", style: { color: C.textMute } }, k.hint)));
+                React.createElement("div", { style: { fontFamily: "'Geist', system-ui, sans-serif", letterSpacing: "-0.03em", fontVariantNumeric: "tabular-nums" }, className: (k.hero ? "text-[30px] sm:text-[34px]" : "text-[26px] sm:text-[28px]") + " font-semibold leading-none" }, k.value),
+                k.hint && React.createElement("div", { className: "flex items-center gap-1.5 text-[11px] mt-2", style: { color: C.textMute } }, React.createElement("span", { className: "w-1 h-1 rounded-full shrink-0", style: { background: k.color } }), React.createElement("span", { className: "truncate" }, k.hint))));
         })));
 }
 
@@ -2632,7 +2646,7 @@ function Button({ children, onClick, variant = "primary", className = "", type =
 }
 function Field({ label, children }) {
     return (React.createElement("label", { className: "flex flex-col gap-1.5 text-sm" },
-        React.createElement("span", { className: "text-[12px] font-medium tracking-wide", style: { color: C.textMute } }, label),
+        React.createElement("span", { className: "text-[13px] font-medium", style: { color: C.textSoft } }, label),
         children));
 }
 const getInputStyle = () => ({
@@ -2708,10 +2722,10 @@ function Ticket({ order, client, vehicle, onOpen }) {
                 React.createElement("span", { className: "text-[11px] font-mono tracking-wider shrink-0", style: { color: C.textMute } }, order.code),
                 React.createElement(Badge, { color: st.color, soft: st.soft }, st.label)),
             React.createElement("div", { className: "min-w-0" },
-                React.createElement("div", { style: { fontFamily: "'Geist', system-ui, sans-serif" }, className: "text-[15px] font-semibold truncate" }, vehicle ? `${vehicle.brand} ${vehicle.model}` : "—"),
-                React.createElement("div", { className: "text-[12px] mt-0.5 truncate", style: { color: C.textSoft } }, client === null || client === void 0 ? void 0 : client.name)),
+                React.createElement("div", { style: { fontFamily: "'Geist', system-ui, sans-serif" }, className: "text-[15px] font-semibold leading-snug break-words" }, vehicle ? `${vehicle.brand} ${vehicle.model}${vehicle.year ? " " + vehicle.year : ""}` : "—"),
+                React.createElement("div", { className: "text-[12px] mt-0.5 break-words", style: { color: C.textSoft } }, client === null || client === void 0 ? void 0 : client.name)),
             React.createElement("div", { className: "flex flex-wrap items-center justify-between gap-2 pt-0.5" },
-                React.createElement("div", { className: "font-mono text-[12px] font-semibold px-2.5 py-1 rounded-lg tracking-wider max-w-full truncate", style: { background: C.surfaceHi, color: C.text, border: `1px solid ${C.borderSoft}` } }, (vehicle && vehicle.plate) || "S/P"),
+                React.createElement("div", { className: "font-mono text-[12px] font-semibold px-2.5 py-1 rounded-lg tracking-wider max-w-full break-all", style: { background: C.surfaceHi, color: C.text, border: `1px solid ${C.borderSoft}` } }, (vehicle && vehicle.plate) || "S/P"),
                 React.createElement("div", { className: "flex items-center gap-1.5 shrink-0 ml-auto" },
                     ((_a = order.checkin) === null || _a === void 0 ? void 0 : _a.completed) && React.createElement("span", { title: "Recepción digital registrada", style: { color: C.info } },
                         React.createElement(Camera, { size: 13 })),
@@ -2889,7 +2903,7 @@ function Dashboard({ orders, clients, vehicles, parts, appointments, goTo, setti
             React.createElement("div", { className: "space-y-6" },
                 React.createElement(Card, { className: "p-5" },
                     React.createElement("div", { className: "flex items-center justify-between mb-3" },
-                        React.createElement("h2", { style: { fontFamily: "'Geist', system-ui, sans-serif" }, className: "text-base" }, "Para hoy"),
+                        React.createElement("h2", { style: { fontFamily: "'Geist', system-ui, sans-serif" }, className: "text-[15px] font-semibold tracking-tight" }, "Para hoy"),
                         paraHoy.length > 0 && React.createElement("span", { className: "text-xs font-mono", style: { color: C.textMute } }, paraHoy.length)),
                     paraHoy.length === 0
                         ? React.createElement("p", { className: "text-sm", style: { color: C.textMute } }, "Todo al d\u00EDa: no hay acciones pendientes.")
@@ -3317,370 +3331,357 @@ function OrderDetail({ order, client, vehicle, parts, onClose, onStatusChange, o
             )
         );
     }
-    return (React.createElement(React.Fragment, null,
-        React.createElement(Modal, { title: order.code, onClose: onClose, wide: true },
-        React.createElement("div", { className: "flex items-start justify-between gap-3 mb-5" },
-            React.createElement("div", { className: "min-w-0 flex-1" },
-                React.createElement("div", { style: { fontFamily: "'Geist', system-ui, sans-serif" }, className: "text-xl truncate" }, vehicle === null || vehicle === void 0 ? void 0 :
-                    vehicle.brand,
-                    " ", vehicle === null || vehicle === void 0 ? void 0 :
-                    vehicle.model,
-                    " \u00B7 ", vehicle === null || vehicle === void 0 ? void 0 :
-                    vehicle.year),
-                React.createElement("div", { className: "text-sm mt-1 font-mono tracking-widest truncate", style: { color: C.textSoft } }, vehicle === null || vehicle === void 0 ? void 0 : vehicle.plate)),
-            React.createElement("div", { className: "flex items-center gap-2 shrink-0" },
-                React.createElement("button", {
-                    type: "button",
-                    onClick: function (e) {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        setShowEditOrder(true);
-                    },
-                    className: "w-9 h-9 rounded-xl flex items-center justify-center",
-                    style: { background: C.accentSoft, color: C.accentText },
-                    title: "Editar orden",
-                }, React.createElement(Pencil, { size: 16 })),
-                onDelete && React.createElement("button", {
-                    type: "button",
-                    onClick: function () {
-                        if (window.confirm("¿Eliminar esta orden de trabajo? Esta acción no se puede deshacer."))
-                            onDelete();
-                    },
-                    className: "w-9 h-9 rounded-xl flex items-center justify-center",
-                    style: { background: C.dangerSoft || "rgba(239,68,68,0.15)", color: C.danger },
-                    title: "Eliminar orden",
-                }, React.createElement(Trash2, { size: 16 })),
-                React.createElement(Badge, { color: st.color, soft: st.soft }, st.label))),
-        React.createElement("div", { className: "grid sm:grid-cols-2 gap-4 mb-6" },
-            React.createElement(Card, { className: "p-4" },
-                React.createElement("div", { className: "text-xs uppercase tracking-wide mb-2", style: { color: C.textMute } }, "Cliente"),
-                React.createElement("div", { className: "text-sm font-medium" }, client === null || client === void 0 ? void 0 : client.name),
-                React.createElement("div", { className: "text-xs mt-1 flex items-center gap-1.5", style: { color: C.textMute } },
-                    React.createElement(Phone, { size: 12 }), client === null || client === void 0 ? void 0 :
-                    client.phone)),
-            React.createElement(Card, { className: "p-4" },
-                React.createElement("div", { className: "text-xs uppercase tracking-wide mb-2", style: { color: C.textMute } }, "T\u00E9cnico asignado"),
-                onUpdateOrder ? React.createElement(Select, {
-                    value: techDraft || "",
-                    onChange: (e) => {
-                        const v = e.target.value;
-                        setTechDraft(v);
-                        onUpdateOrder({ tech: v });
-                    },
-                },
-                    React.createElement("option", { value: "" }, "Sin asignar"),
-                    getTechs(settings).filter((t) => t && t !== "Sin asignar").map((t) => React.createElement("option", { key: t, value: t }, t)),
-                    // si el técnico guardado no está en la lista, igual lo mostramos
-                    (techDraft && getTechs(settings).indexOf(techDraft) === -1 && techDraft !== "Sin asignar")
-                        ? React.createElement("option", { key: "custom-tech", value: techDraft }, techDraft)
-                        : null
-                )
-                    : React.createElement("div", { className: "text-sm font-medium" }, techDraft || resolveOrderTech(order, null)),
-                React.createElement("div", { className: "text-xs mt-1", style: { color: C.textMute } },
-                    "Ingreso ",
-                    order.entry,
-                    " \u00B7 Estimado ",
-                    order.est))),
-        React.createElement("div", { className: "mb-6" },
-            React.createElement("div", { className: "flex items-center justify-between mb-2" },
-                React.createElement("div", { className: "text-xs uppercase tracking-wide", style: { color: C.textMute } }, "Descripci\u00F3n del problema"),
-                onUpdateOrder && React.createElement("button", { type: "button", onClick: () => { setEditingDesc(true); setDescDraft(order.description || ""); }, className: "text-xs font-medium", style: { color: C.accentText } }, "Editar")),
-            editingDesc ? (React.createElement("div", { className: "space-y-2" },
-                React.createElement("textarea", { className: "w-full rounded-xl px-3 py-2 text-sm", style: { background: C.bg, border: `1px solid ${C.border}`, color: C.text, minHeight: "72px" }, value: descDraft, onChange: (e) => setDescDraft(e.target.value) }),
-                React.createElement("div", { className: "flex gap-2" },
-                    React.createElement(Button, { type: "button", className: "text-xs", onClick: () => { onUpdateOrder({ description: descDraft }); setEditingDesc(false); } }, "Guardar"),
-                    React.createElement(Button, { type: "button", variant: "ghost", className: "text-xs", onClick: () => setEditingDesc(false) }, "Cancelar")))) : (React.createElement("p", { className: "text-sm", style: { color: C.textSoft } }, order.description || "—")),
-        React.createElement(Card, { className: "p-4 mb-6 space-y-3" },
-            React.createElement("div", { className: "flex items-center justify-between gap-2" },
-                React.createElement("div", { className: "text-sm font-semibold" }, "Trabajos y precios"),
-                onSaveServices && React.createElement("span", { className: "text-[10px] uppercase tracking-wide px-2 py-0.5 rounded-full", style: { background: C.accentSoft, color: C.accentText } }, "Editable")),
-            (order.services || []).length === 0 && React.createElement("p", { className: "text-xs", style: { color: C.textMute } }, "Aún no hay trabajos. Agrega uno o varios; el total se suma solo."),
-            (order.services || []).map((s, i) => React.createElement("div", { key: "s" + i, className: "rounded-xl p-3 space-y-2", style: { background: C.bg, border: `1px solid ${C.borderSoft}` } },
-                editingServiceIdx === i
-                    ? React.createElement("div", { className: "space-y-2" },
-                        React.createElement(Input, { autoFocus: true, value: editingServiceName, onChange: (e) => setEditingServiceName(e.target.value), placeholder: "Nombre del trabajo" }),
-                        React.createElement("div", { className: "flex gap-2" },
-                            React.createElement(Input, { type: "number", min: "0", step: "0.01", value: editingServiceValue, onChange: (e) => setEditingServiceValue(e.target.value), placeholder: "Precio", className: "flex-1" }),
-                            React.createElement(Button, { type: "button", onClick: confirmEditService, className: "text-xs shrink-0" }, "Guardar"),
-                            React.createElement(Button, { type: "button", variant: "ghost", onClick: cancelEditService, className: "text-xs shrink-0" }, "Cancelar")))
-                    : React.createElement("div", { className: "flex items-center justify-between gap-2" },
-                        React.createElement("div", { className: "min-w-0" },
-                            React.createElement("div", { className: "text-sm font-medium truncate" }, s.name || "Trabajo"),
-                            React.createElement("div", { className: "text-sm font-mono mt-0.5", style: { color: C.accentText } }, money(s.price))),
-                        onSaveServices && React.createElement("div", { className: "flex gap-1 shrink-0" },
-                            React.createElement(Button, { type: "button", variant: "subtle", className: "text-xs px-2 py-1", onClick: () => startEditService(i) }, "Editar"),
-                            React.createElement(Button, { type: "button", variant: "ghost", className: "text-xs px-2 py-1", onClick: () => removeService(i), style: { color: C.danger } }, "Quitar")))),
-            ),
-        React.createElement(Card, { className: "p-4 mb-6 space-y-3" },
-            React.createElement("div", { className: "flex items-center justify-between gap-2" },
-                React.createElement("div", { className: "text-sm font-semibold" }, "Repuestos"),
-                React.createElement("span", { className: "text-sm font-mono font-semibold", style: { color: C.accentText } }, money(orderPartsTotal(order)))),
-            (!(order.parts || []).length) && React.createElement("p", { className: "text-xs", style: { color: C.textMute } },
-                "Aún no hay repuestos. Agrégalos aquí o con el lápiz de editar."),
-            (order.parts || []).map(function (p, i) {
-                var qty = Math.max(1, Number(p.qty) || 1);
-                var unit = Number(p.price) || 0;
-                var lineTotal = unit * qty;
-                return React.createElement("div", {
-                    key: "part-" + i + "-" + (p.id || p.name || i),
-                    className: "rounded-xl p-3",
-                    style: { background: C.bg, border: "1px solid " + (C.borderSoft || C.border) },
-                },
-                    React.createElement("div", { className: "flex items-center justify-between gap-2" },
-                        React.createElement("div", { className: "min-w-0" },
-                            React.createElement("div", { className: "text-sm font-medium truncate" }, p.name || "Repuesto"),
-                            React.createElement("div", { className: "text-xs mt-0.5", style: { color: C.textMute } }, qty + " × " + money(unit))),
-                        React.createElement("div", { className: "flex items-center gap-2 shrink-0" },
-                            React.createElement("div", { className: "text-sm font-mono", style: { color: C.accentText } }, money(lineTotal)),
-                            onUpdateOrder && React.createElement(Button, {
-                                type: "button",
-                                variant: "ghost",
-                                className: "text-xs px-2 py-1",
-                                style: { color: C.danger },
-                                onClick: function () { removePartLine(i); },
-                            }, "Quitar")
-                        )
-                    )
-                );
-            }),
-            showAddPart
-                ? React.createElement("div", { className: "rounded-xl p-3 space-y-2", style: { background: C.bg, border: "1px solid " + (C.borderSoft || C.border) } },
-                    React.createElement(Input, { placeholder: "Nombre del repuesto", value: newPartName, onChange: function (e) { setNewPartName(e.target.value); } }),
-                    React.createElement("div", { className: "flex gap-2" },
-                        React.createElement(Input, { type: "number", min: "1", placeholder: "Cant.", value: newPartQty, onChange: function (e) { setNewPartQty(e.target.value); }, className: "w-20" }),
-                        React.createElement(Input, { type: "number", min: "0", step: "0.01", placeholder: "Precio unit.", value: newPartPrice, onChange: function (e) { setNewPartPrice(e.target.value); }, className: "flex-1" })),
-                    React.createElement("div", { className: "flex gap-2" },
-                        React.createElement(Button, { type: "button", className: "text-xs flex-1", onClick: addNewPart }, "Guardar repuesto"),
-                        React.createElement(Button, { type: "button", variant: "ghost", className: "text-xs", onClick: function () { setShowAddPart(false); setNewPartName(""); setNewPartPrice(""); } }, "Cancelar")))
-                : (onUpdateOrder && React.createElement(Button, { type: "button", variant: "subtle", className: "text-xs w-full", onClick: function () { setShowAddPart(true); } }, "+ Agregar repuesto")),
-            React.createElement("div", { className: "space-y-1.5 pt-2", style: { borderTop: "1px solid " + (C.borderSoft || C.border) } },
-                React.createElement("div", { className: "flex justify-between text-xs", style: { color: C.textMute } },
-                    React.createElement("span", null, "Mano de obra / trabajos"),
-                    React.createElement("span", { className: "font-mono" }, money(orderServicesTotal(order)))),
-                React.createElement("div", { className: "flex justify-between text-xs", style: { color: C.textMute } },
-                    React.createElement("span", null, "Repuestos (" + ((order.parts || []).length) + ")"),
-                    React.createElement("span", { className: "font-mono" }, money(orderPartsTotal(order)))),
-                React.createElement("div", { className: "flex justify-between text-sm font-semibold" },
-                    React.createElement("span", null, "Total orden"),
-                    React.createElement("span", { className: "font-mono", style: { color: C.accentText } }, money(orderTotal(order))))),
-            abonado > 0 && React.createElement("div", { className: "flex justify-between text-sm" },
-                React.createElement("span", { style: { color: C.textSoft } }, "Abonado"),
-                React.createElement("span", { className: "font-mono", style: { color: C.success } }, money(abonado))),
-            saldo > 0
-                ? React.createElement("div", { className: "flex justify-between text-sm font-semibold" },
-                    React.createElement("span", { style: { color: C.warning } }, "Saldo pendiente"),
-                    React.createElement("span", { className: "font-mono", style: { color: C.warning } }, money(saldo)))
-                : (total > 0 && React.createElement("div", { className: "flex items-center gap-1.5 text-sm font-semibold", style: { color: C.success } },
-                    React.createElement(CheckCircle2, { size: 14 }),
-                    " Cobrado en su totalidad"))
-        ),
+    const el = React.createElement;
+    const services = order.services || [];
+    const partsList = order.parts || [];
+    const catalog = parts || [];
+    const reqItems = (requirement && requirement.items) || [];
+    const pct = total > 0 ? Math.min(100, Math.round((abonado / total) * 100)) : 0;
+    const canEditWork = !!(onSaveServices || onUpdateOrder);
+    const addOpen = !!(showAddService || showAddPart);
+    const addKind = showAddPart ? "rep" : "mo";
+    const borderSoft = C.borderSoft || C.border;
+    const sectionLabel = (t, right) => el("div", { className: "flex items-center justify-between gap-2 mb-3" },
+        el("div", { className: "text-[11px] uppercase tracking-wider font-semibold", style: { color: C.textMute } }, t),
+        right || null);
+    const errBox = (msg) => el("div", { className: "text-xs px-3 py-2 rounded-lg", style: { background: C.dangerSoft, color: C.danger } }, msg);
+    const mkStat = (label, value, color) => el("div", { className: "rounded-2xl p-3 min-w-0 flex items-center justify-between gap-2 sm:block", style: { background: C.bg, border: "1px solid " + borderSoft } },
+        el("div", { className: "text-[11px] uppercase tracking-wider font-semibold shrink-0", style: { color: C.textMute } }, label),
+        el("div", { className: "text-base sm:text-lg font-bold font-mono sm:mt-1 text-right sm:text-left whitespace-nowrap min-w-0", style: { color: color || C.text, fontVariantNumeric: "tabular-nums" } }, money(value)));
+    const openAdd = (k) => {
+        if (k === "rep") { setShowAddService(false); setShowAddPart(true); }
+        else { setShowAddPart(false); setShowAddService(true); }
+    };
+    const closeAdd = () => {
+        setShowAddService(false); setShowAddPart(false);
+        setNewServiceName(""); setNewServicePrice("");
+        setNewPartId(""); setNewPartName(""); setNewPartQty("1"); setNewPartPrice("");
+    };
+    const pickCatalog = (id) => {
+        const p = catalog.find((x) => x.id === id);
+        setNewPartId(id || "");
+        setNewPartName(p ? (p.name || "") : "");
+        setNewPartPrice(p && p.price != null ? String(p.price) : "");
+    };
+    const rowList = [].concat(
+        services.map((s, i) => ({ kind: "mo", idx: i, name: s.name || "Trabajo", qty: 1, unit: Number(s.price) || 0, total: Number(s.price) || 0 })),
+        partsList.map((p, i) => {
+            const q = Math.max(1, Number(p.qty) || 1);
+            const u = Number(p.price) || 0;
+            return { kind: "rep", idx: i, name: p.name || "Repuesto", qty: q, unit: u, total: u * q };
+        })
+    );
+    const renderRow = (r) => {
+        if (r.kind === "mo" && editingServiceIdx === r.idx) {
+            return el("div", { key: "mo-edit-" + r.idx, className: "rounded-xl p-3 my-2 space-y-2", style: { background: C.bg, border: "1px solid " + borderSoft } },
+                el(Input, { autoFocus: true, value: editingServiceName, onChange: (e) => setEditingServiceName(e.target.value), placeholder: "Nombre del trabajo" }),
+                el("div", { className: "flex gap-2" },
+                    el(Input, { type: "number", min: "0", step: "0.01", value: editingServiceValue, onChange: (e) => setEditingServiceValue(e.target.value), placeholder: "Precio", className: "flex-1" }),
+                    el(Button, { onClick: confirmEditService, className: "text-xs shrink-0" }, "Guardar"),
+                    el(Button, { variant: "ghost", onClick: cancelEditService, className: "text-xs shrink-0" }, "Cancelar")));
+        }
+        const isMo = r.kind === "mo";
+        return el("div", { key: r.kind + "-" + r.idx, className: "flex items-center justify-between gap-3 py-2.5", style: { borderTop: "1px solid " + borderSoft } },
+            el("div", { className: "min-w-0 flex-1" },
+                el("div", { className: "flex items-center gap-2 min-w-0" },
+                    el("span", {
+                        className: "text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-md shrink-0",
+                        style: isMo ? { background: C.accentSoft, color: C.accentText } : { background: C.surfaceHi, color: C.textSoft, border: "1px solid " + borderSoft },
+                    }, isMo ? "M.O." : "Repuesto"),
+                    el("span", { className: "text-sm font-medium truncate" }, r.name)),
+                r.qty > 1 && el("div", { className: "text-xs mt-0.5 font-mono", style: { color: C.textMute } }, r.qty + " × " + money(r.unit))),
+            el("div", { className: "flex items-center gap-1.5 shrink-0" },
+                el("div", { className: "text-sm font-mono font-semibold mr-1", style: { color: C.text } }, money(r.total)),
+                isMo && onSaveServices && el(Button, { variant: "ghost", className: "text-xs px-2 py-1", onClick: () => startEditService(r.idx) }, "Editar"),
+                (isMo ? onSaveServices : onUpdateOrder) && el(Button, {
+                    variant: "danger",
+                    className: "text-xs px-2 py-1",
+                    onClick: () => (isMo ? removeService(r.idx) : removePartLine(r.idx)),
+                }, "Quitar")));
+    };
 
-        total > 0 && (React.createElement("div", { className: "mb-6" },
-            React.createElement("div", { className: "text-xs uppercase tracking-wide mb-2", style: { color: C.textMute } }, "Adelanto del cliente"),
-            React.createElement("div", { className: "rounded-2xl p-3 mb-3 space-y-2", style: { background: C.bgSoft || C.bg, border: `1px solid ${C.borderSoft || C.border}` } },
-                React.createElement("div", { className: "flex justify-between text-sm" },
-                    React.createElement("span", { style: { color: C.textMute } }, "Total orden"),
-                    React.createElement("span", { className: "font-semibold" }, "S/ " + total.toFixed(2))),
-                React.createElement("div", { className: "flex justify-between text-sm" },
-                    React.createElement("span", { style: { color: C.textMute } }, "Abonado"),
-                    React.createElement("span", { className: "font-semibold", style: { color: "#16A34A" } }, "S/ " + abonado.toFixed(2))),
-                React.createElement("div", { className: "flex justify-between text-sm pt-1", style: { borderTop: `1px solid ${C.borderSoft || C.border}` } },
-                    React.createElement("span", { className: "font-medium" }, "Saldo"),
-                    React.createElement("span", { className: "font-bold", style: { color: saldo > 0 ? "#DC2626" : "#16A34A" } }, "S/ " + saldo.toFixed(2))),
-                (order.pagos && order.pagos.length > 0) && React.createElement("div", { className: "pt-2 space-y-1.5" },
-                    React.createElement("div", { className: "text-xs font-medium", style: { color: C.textMute } }, "Historial de abonos"),
-                    order.pagos.map(function (p, i) {
-                        const when = p.at || p.date || p.createdAt || "";
-                        const label = when ? String(when).slice(0, 16).replace("T", " ") : ("Abono " + (i + 1));
-                        return React.createElement("div", { key: p.id || i, className: "flex justify-between text-xs rounded-lg px-2 py-1.5", style: { background: C.bg || "#fff" } },
-                            React.createElement("span", { style: { color: C.textMute } }, label),
-                            React.createElement("span", { className: "font-semibold" }, "S/ " + (Number(p.amount) || 0).toFixed(2)));
-                    })
-                ),
-                saldo <= 0 && React.createElement("div", { className: "text-xs font-medium pt-1", style: { color: "#16A34A" } }, "Orden pagada al día")
-            ),
-            saldo > 0 && (showAbonoForm ? (React.createElement("div", { className: "flex flex-col sm:flex-row gap-2" },
-                React.createElement(Input, { type: "number", autoFocus: true, value: abonoAmount, onChange: (e) => setAbonoAmount(e.target.value), placeholder: `Máx. ${saldo.toFixed(2)}`, max: saldo, min: "0" }),
-                React.createElement("div", { className: "flex gap-2" },
-                    React.createElement(Button, { onClick: submitAbono, className: "flex-1 sm:flex-none" }, "Registrar"),
-                    React.createElement(Button, { variant: "ghost", onClick: () => { setShowAbonoForm(false); setAbonoAmount(""); }, className: "flex-1 sm:flex-none" }, "Cancelar")))) : (React.createElement(Button, { variant: "subtle", onClick: () => setShowAbonoForm(true) }, "+ Registrar abono")))
-        )),
-        React.createElement("div", { className: "mb-6" },
-            React.createElement("div", { className: "text-xs uppercase tracking-wide mb-2", style: { color: C.textMute } }, "Recepci\u00F3n del veh\u00EDculo"),
-            !ck || !ck.completed ? (React.createElement(Card, { className: "p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3" },
-                React.createElement("div", { className: "text-sm", style: { color: C.textSoft } }, "Registra el estado del veh\u00EDculo (rayones, combustible, objetos de valor) con fotos como respaldo legal."),
-                React.createElement(Button, { variant: "subtle", onClick: () => setShowReception(true), className: "shrink-0" },
-                    React.createElement(Camera, { size: 16 }),
-                    " Registrar recepci\u00F3n digital"))) : (React.createElement(Card, { className: "p-4 space-y-3" },
-                React.createElement("div", { className: "flex items-center justify-between gap-3" },
-                    React.createElement("div", { className: "flex items-center gap-2 text-sm font-medium", style: { color: C.success } },
-                        React.createElement(ShieldCheck, { size: 16 }),
-                        " Recepci\u00F3n registrada"),
-                    React.createElement("span", { className: "text-xs", style: { color: C.textMute } },
-                        fmtDatePE(ck.date),
-                        " ",
-                        ck.time || "")),
-                React.createElement("div", { className: "grid sm:grid-cols-2 gap-3 text-xs", style: { color: C.textSoft } },
-                    React.createElement("div", null,
-                        "Combustible: ",
-                        React.createElement("span", { className: "font-medium", style: { color: C.text } }, ck.fuelLevel)),
-                    React.createElement("div", null,
-                        "Entregado por: ",
-                        React.createElement("span", { className: "font-medium", style: { color: C.text } }, ck.receivedBy || "-"))),
-                flaggedItems.length > 0 && (React.createElement("div", { className: "text-xs space-y-1" },
-                    React.createElement("div", { style: { color: C.warning } }, "Observaciones registradas:"),
+    const iconBtn = (title, icon, onClick, danger) => el("button", {
+        type: "button",
+        title: title,
+        "aria-label": title,
+        onClick: onClick,
+        className: "w-9 h-9 rounded-xl flex items-center justify-center transition-all hover:brightness-110",
+        style: danger
+            ? { background: C.dangerSoft || "rgba(239,68,68,0.12)", color: C.danger, border: "1px solid " + (C.danger || "#EF4444") + "33" }
+            : { background: C.surfaceHi || C.bg, color: C.textSoft, border: "1px solid " + borderSoft },
+    }, el(icon, { size: 16 }));
+    const headerEl = el("div", { className: "mb-4 pb-4", style: { borderBottom: "1px solid " + borderSoft } },
+        el("div", { className: "flex items-center justify-between gap-3 mb-2" },
+            el("div", { className: "flex items-center gap-2 flex-wrap min-w-0" },
+                el(Badge, { color: st.color, soft: st.soft }, st.label)),
+            el("div", { className: "flex items-center gap-2 shrink-0" },
+                el(Button, { variant: "subtle", className: "text-xs px-3 py-1.5", onClick: function (e) { e.preventDefault(); e.stopPropagation(); setShowEditOrder(true); } },
+                    el(Pencil, { size: 14 }), " Editar"),
+                onDelete && iconBtn("Eliminar orden", Trash2, function () {
+                    if (window.confirm("¿Eliminar esta orden de trabajo? Esta acción no se puede deshacer."))
+                        onDelete();
+                }, true))),
+        el("div", { style: { fontFamily: "'Geist', system-ui, sans-serif" }, className: "text-xl sm:text-2xl font-semibold leading-snug break-words" },
+            [vehicle && vehicle.brand, vehicle && vehicle.model, vehicle && vehicle.year].filter(Boolean).join(" ") || "Vehículo sin datos"),
+        el("div", { className: "mt-2" },
+            el("span", { className: "inline-block text-sm font-mono font-semibold tracking-widest px-2.5 py-1 rounded-lg", style: { background: C.bg, border: "1px solid " + borderSoft, color: C.text } }, (vehicle && vehicle.plate) || "Sin placa")));
+    const infoGrid = el("div", { className: "grid sm:grid-cols-2 gap-4 mb-4" },
+        el(Card, { className: "p-4" },
+            el("div", { className: "text-[11px] uppercase tracking-wider font-semibold mb-2", style: { color: C.textMute } }, "Cliente"),
+            el("div", { className: "text-sm font-medium" }, client && client.name),
+            el("div", { className: "text-xs mt-1 flex items-center gap-1.5", style: { color: C.textMute } }, el(Phone, { size: 12 }), client && client.phone)),
+        el(Card, { className: "p-4" },
+            el("div", { className: "text-[11px] uppercase tracking-wider font-semibold mb-2", style: { color: C.textMute } }, "Técnico asignado"),
+            onUpdateOrder
+                ? el(Select, {
+                    value: techDraft || "",
+                    onChange: (e) => { const v = e.target.value; setTechDraft(v); onUpdateOrder({ tech: v }); },
+                },
+                    el("option", { value: "" }, "Sin asignar"),
+                    getTechs(settings).filter((t) => t && t !== "Sin asignar").map((t) => el("option", { key: t, value: t }, t)),
+                    (techDraft && getTechs(settings).indexOf(techDraft) === -1 && techDraft !== "Sin asignar")
+                        ? el("option", { key: "custom-tech", value: techDraft }, techDraft)
+                        : null)
+                : el("div", { className: "text-sm font-medium" }, techDraft || resolveOrderTech(order, null)),
+            el("div", { className: "text-xs mt-1", style: { color: C.textMute } }, "Ingreso " + order.entry + " · Estimado " + order.est)));
+
+    const descCard = el(Card, { className: "p-4 mb-5" },
+        sectionLabel("Descripción del problema",
+            onUpdateOrder && !editingDesc && el("button", { type: "button", onClick: () => { setEditingDesc(true); setDescDraft(order.description || ""); }, className: "text-xs font-semibold", style: { color: C.accentText } }, "Editar")),
+        editingDesc
+            ? el("div", { className: "space-y-2" },
+                el("textarea", { className: "w-full rounded-xl px-3 py-2 text-sm", style: { background: C.bg, border: "1px solid " + C.border, color: C.text, minHeight: "72px" }, value: descDraft, onChange: (e) => setDescDraft(e.target.value) }),
+                el("div", { className: "flex gap-2" },
+                    el(Button, { className: "text-xs", onClick: () => { onUpdateOrder({ description: descDraft }); setEditingDesc(false); } }, "Guardar"),
+                    el(Button, { variant: "ghost", className: "text-xs", onClick: () => setEditingDesc(false) }, "Cancelar")))
+            : el("p", { className: "text-sm", style: { color: C.textSoft } }, order.description || "—"));
+
+    const pctBar = el("div", { className: "mt-3" },
+        el("div", { className: "h-1.5 rounded-full overflow-hidden", style: { background: borderSoft } },
+            el("div", { className: "h-full rounded-full", style: { width: pct + "%", background: C.success || "#16A34A", transition: "width .3s" } })),
+        el("div", { className: "text-[11px] mt-1.5 text-right", style: { color: C.textMute } }, pct + "% cobrado"));
+    const statsStrip = el(Card, { className: "p-4 mb-5" },
+        el("div", { className: "grid grid-cols-1 sm:grid-cols-3 gap-2" },
+            mkStat("Total", total),
+            mkStat("Abonado", abonado, C.success),
+            mkStat("Saldo", saldo, saldo > 0 ? C.warning : C.success)),
+        pctBar);
+
+    const addPanel = addOpen && el("div", { className: "rounded-xl p-3 mt-3 space-y-3", style: { background: C.bg, border: "1px solid " + borderSoft } },
+        el("div", { className: "flex gap-1 p-1 rounded-xl", style: { background: C.surfaceHi || C.bgSoft || C.bg } },
+            ["mo", "rep"].map((k) => el("button", {
+                key: k,
+                type: "button",
+                onClick: () => openAdd(k),
+                className: "flex-1 text-xs font-semibold py-1.5 rounded-lg transition-all",
+                style: addKind === k ? { background: C.accent, color: "#1A0D05" } : { background: "transparent", color: C.textSoft },
+            }, k === "mo" ? "Mano de obra" : "Repuesto"))),
+        addKind === "mo"
+            ? el("div", { className: "space-y-2" },
+                el(Input, { placeholder: "Descripción (ej. Cambio de aceite)", value: newServiceName, onChange: (e) => setNewServiceName(e.target.value) }),
+                el("div", { className: "flex gap-2" },
+                    el(Input, { type: "number", min: "0", step: "0.01", placeholder: "Precio", value: newServicePrice, onChange: (e) => setNewServicePrice(e.target.value), className: "flex-1" }),
+                    el(Button, { onClick: addNewService, className: "shrink-0" }, "Agregar")))
+            : el("div", { className: "space-y-2" },
+                catalog.length > 0 && el(Select, { value: newPartId || "", onChange: (e) => pickCatalog(e.target.value) },
+                    el("option", { value: "" }, "Elegir del inventario (opcional)"),
+                    catalog.map((p) => el("option", { key: p.id, value: p.id }, p.name + (p.price != null ? " · " + money(p.price) : "")))),
+                el(Input, { placeholder: "Nombre del repuesto", value: newPartName, onChange: (e) => setNewPartName(e.target.value) }),
+                el("div", { className: "flex gap-2" },
+                    el(Input, { type: "number", min: "1", placeholder: "Cant.", value: newPartQty, onChange: (e) => setNewPartQty(e.target.value), className: "w-20 shrink-0" }),
+                    el(Input, { type: "number", min: "0", step: "0.01", placeholder: "Precio unit.", value: newPartPrice, onChange: (e) => setNewPartPrice(e.target.value), className: "flex-1" })),
+                el(Button, { onClick: addNewPart, className: "w-full" }, "Agregar repuesto")),
+        el("button", { type: "button", onClick: closeAdd, className: "text-xs w-full py-1", style: { color: C.textMute } }, "Cancelar"));
+
+    const workCard = el(Card, { className: "p-4 mb-5" },
+        sectionLabel("Trabajo de la orden",
+            canEditWork && !addOpen && el(Button, { variant: "soft", className: "text-xs px-3 py-1.5", onClick: () => openAdd("mo") }, "+ Agregar trabajo")),
+        rowList.length === 0 && el("p", { className: "text-sm py-2", style: { color: C.textMute } },
+            "Aún no hay trabajos ni repuestos. Agrega mano de obra o repuestos para armar el total."),
+        rowList.map(renderRow),
+        addPanel,
+        el("div", { className: "mt-3 pt-3 space-y-1.5", style: { borderTop: "1px solid " + borderSoft } },
+            el("div", { className: "flex justify-between text-xs", style: { color: C.textMute } },
+                el("span", null, "Mano de obra (" + services.length + ")"),
+                el("span", { className: "font-mono" }, money(orderServicesTotal(order)))),
+            el("div", { className: "flex justify-between text-xs", style: { color: C.textMute } },
+                el("span", null, "Repuestos (" + partsList.length + ")"),
+                el("span", { className: "font-mono" }, money(orderPartsTotal(order)))),
+            el("div", { className: "flex justify-between text-sm font-semibold pt-1" },
+                el("span", null, "Total orden"),
+                el("span", { className: "font-mono", style: { color: C.accentText } }, money(total)))));
+
+    const pagosCard = total > 0 && el(Card, { className: "p-4 space-y-3" },
+        sectionLabel("Pagos",
+            saldo <= 0 && el("span", { className: "text-[11px] font-semibold", style: { color: C.success } }, "Al día")),
+        (order.pagos || []).length > 0
+            ? el("div", { className: "space-y-1.5" }, order.pagos.map(function (p, i) {
+                const when = p.at || p.date || p.createdAt || "";
+                const label = when ? String(when).slice(0, 16).replace("T", " ") : ("Abono " + (i + 1));
+                return el("div", { key: p.id || i, className: "flex justify-between text-xs rounded-lg px-3 py-2", style: { background: C.bg } },
+                    el("span", { style: { color: C.textMute } }, label),
+                    el("span", { className: "font-semibold font-mono" }, money(Number(p.amount) || 0)));
+            }))
+            : el("p", { className: "text-xs", style: { color: C.textMute } }, "Sin abonos registrados."),
+        saldo > 0 && (showAbonoForm
+            ? el("div", { className: "space-y-2" },
+                el(Input, { type: "number", autoFocus: true, value: abonoAmount, onChange: (e) => setAbonoAmount(e.target.value), placeholder: "Máx. " + saldo.toFixed(2), max: saldo, min: "0" }),
+                el("div", { className: "flex gap-2" },
+                    el(Button, { onClick: submitAbono, className: "flex-1" }, "Registrar"),
+                    el(Button, { variant: "ghost", onClick: () => { setShowAbonoForm(false); setAbonoAmount(""); }, className: "flex-1" }, "Cancelar")))
+            : el(Button, { variant: "subtle", className: "w-full", onClick: () => setShowAbonoForm(true) }, "+ Registrar abono")));
+
+    const recepcionCard = el(Card, { className: "p-4 space-y-3" },
+        sectionLabel("Recepción del vehículo"),
+        (!ck || !ck.completed)
+            ? el(React.Fragment, null,
+                el("p", { className: "text-xs", style: { color: C.textMute } }, "Estado, rayones y objetos de valor, con fotos."),
+                el(Button, { variant: "subtle", className: "w-full", onClick: () => setShowReception(true) }, el(Camera, { size: 16 }), " Registrar recepción digital"))
+            : el(React.Fragment, null,
+                el("div", { className: "flex items-center justify-between gap-3" },
+                    el("div", { className: "flex items-center gap-2 text-sm font-medium", style: { color: C.success } }, el(ShieldCheck, { size: 16 }), " Registrada"),
+                    el("span", { className: "text-xs", style: { color: C.textMute } }, fmtDatePE(ck.date) + " " + (ck.time || ""))),
+                el("div", { className: "grid grid-cols-2 gap-2 text-xs", style: { color: C.textSoft } },
+                    el("div", null, "Combustible: ", el("span", { className: "font-medium", style: { color: C.text } }, ck.fuelLevel)),
+                    el("div", null, "Entregado por: ", el("span", { className: "font-medium", style: { color: C.text } }, ck.receivedBy || "-"))),
+                flaggedItems.length > 0 && el("div", { className: "text-xs space-y-1" },
+                    el("div", { style: { color: C.warning } }, "Observaciones:"),
                     flaggedItems.map((it) => {
                         const def = CHECKIN_ITEMS.find((d) => d.key === it.key);
-                        return (React.createElement("div", { key: it.key, style: { color: C.textSoft } },
-                            "\u2022 ", def === null || def === void 0 ? void 0 :
-                            def.label,
-                            it.note ? ` — ${it.note}` : ""));
-                    }))),
-                ck.photos.length > 0 && (React.createElement("div", null,
-                    React.createElement("div", { className: "text-xs mb-1.5", style: { color: C.textMute } },
-                        "Fotos (",
-                        ck.photos.length,
-                        ")"),
-                    React.createElement("div", { className: "grid grid-cols-4 sm:grid-cols-6 gap-2" }, ck.photos.map((p) => (React.createElement("img", { key: p.id, src: p.dataUrl, className: "w-full h-14 object-cover rounded-lg", style: { border: `1px solid ${C.border}` } })))))),
-                pdfError && (React.createElement("div", { className: "text-xs px-3 py-2 rounded-lg", style: { background: C.dangerSoft, color: C.danger } }, pdfError)),
-                React.createElement("div", { className: "flex gap-2 pt-1" },
-                    React.createElement(Button, { variant: "subtle", onClick: handleDownloadReception, className: "flex-1" },
-                        React.createElement(Download, { size: 14 }),
-                        " Descargar acta PDF"),
-                    React.createElement(Button, { variant: "ghost", onClick: () => setShowReception(true), className: "flex-1" }, "Editar"))))),
-        React.createElement("div", { className: "mb-6" },
-            React.createElement("div", { className: "text-xs uppercase tracking-wide mb-2", style: { color: C.textMute } }, "Requerimiento de repuestos"),
-            !requirement || !(requirement.items || []).length ? (React.createElement(Card, { className: "p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3" },
-                React.createElement("div", { className: "text-sm", style: { color: C.textSoft } }, "\u00BFNecesitas que el cliente consiga alg\u00FAn repuesto? Arma la lista y env\u00EDasela por WhatsApp en PDF."),
-                React.createElement(Button, { variant: "subtle", onClick: () => setShowRequirement(true), className: "shrink-0" },
-                    React.createElement(Wrench, { size: 16 }),
-                    " Nuevo requerimiento"))) : (React.createElement(Card, { className: "p-4 space-y-3" },
-                React.createElement("div", { className: "flex items-center justify-between gap-3" },
-                    React.createElement("div", { className: "flex items-center gap-2 text-sm font-medium" },
-                        React.createElement(Wrench, { size: 16, style: { color: C.accentText } }),
-                        " Repuestos solicitados"),
-                    React.createElement("span", { className: "text-xs", style: { color: C.textMute } }, fmtDatePE(requirement.date))),
-                React.createElement("div", { className: "space-y-1.5" }, requirement.items.map((it) => (React.createElement("div", { key: it.id, className: "flex justify-between text-sm py-1", style: { borderBottom: `1px solid ${C.borderSoft}` } },
-                    React.createElement("span", null, it.name, it.note ? React.createElement("span", { className: "text-xs", style: { color: C.textMute } }, ` — ${it.note}`) : null),
-                    React.createElement("span", { className: "font-mono shrink-0 ml-2" }, `× ${it.qty}`))))),
-                requirement.notes && (React.createElement("p", { className: "text-xs", style: { color: C.textSoft } }, requirement.notes)),
-                reqError && (React.createElement("div", { className: "text-xs px-3 py-2 rounded-lg", style: { background: C.dangerSoft, color: C.danger } }, reqError)),
-                React.createElement("div", { className: "flex flex-wrap gap-2 pt-1" },
-                    React.createElement(Button, { variant: "whatsapp", onClick: handleShareRequirement, disabled: reqBusy, className: "flex-1" },
-                        React.createElement(MessageCircle, { size: 14 }),
-                        " ", reqBusy ? "Enviando…" : "Enviar por WhatsApp"),
-                    React.createElement(Button, { variant: "subtle", onClick: handleDownloadRequirement, className: "flex-1" },
-                        React.createElement(Download, { size: 14 }),
-                        " Descargar PDF"),
-                    React.createElement(Button, { variant: "ghost", onClick: () => setShowRequirement(true), className: "flex-1" }, "Editar")),
-                React.createElement("button", { onClick: () => { if (window.confirm("¿Eliminar este requerimiento de repuestos?"))
-                        onSaveRequirement(null); }, className: "text-xs flex items-center gap-1.5 pt-1", style: { color: C.danger } },
-                    React.createElement(Trash2, { size: 12 }),
-                    " Eliminar requerimiento")))),
-        React.createElement("div", { className: "mb-6" },
-            React.createElement("div", { className: "flex items-center justify-between mb-2" },
-                React.createElement("div", { className: "text-xs uppercase tracking-wide", style: { color: C.textMute } }, "Hallazgos del servicio"),
-                findings.length > 0 && React.createElement("button", { onClick: () => setShowFindings(true), className: "text-xs font-medium", style: { color: C.accentText } }, "Editar")),
-            findings.length === 0
-                ? React.createElement(Card, { className: "p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3" },
-                    React.createElement("div", { className: "text-sm", style: { color: C.textSoft } }, "\u00BFEncontraste algo en el camino (cables rotos, pernos malogrados, etc.)? Reg\u00EDstralo con fotos para respaldarlo."),
-                    React.createElement(Button, { variant: "subtle", onClick: () => setShowFindings(true), className: "shrink-0" },
-                        React.createElement(AlertTriangle, { size: 16 }),
-                        " Agregar hallazgo"))
-                : React.createElement(Card, { className: "p-4 space-y-3" },
-                    React.createElement("div", { className: "space-y-2" }, findings.map((f) => React.createElement("div", { key: f.id, className: "rounded-xl px-3 py-2.5", style: { background: C.bg, border: `1px solid ${C.borderSoft}` } },
-                        React.createElement("div", { className: "text-sm font-medium" }, f.title),
-                        f.note && React.createElement("div", { className: "text-xs mt-0.5", style: { color: C.textMute } }, f.note),
-                        (f.photos || []).length > 0 && React.createElement("div", { className: "grid grid-cols-4 sm:grid-cols-6 gap-1.5 mt-2" }, f.photos.map((p) => React.createElement("img", { key: p.id, src: p.dataUrl, className: "w-full h-14 object-cover rounded-lg", style: { border: `1px solid ${C.borderSoft}` } }))))))),
-            reportError && React.createElement("div", { className: "text-xs px-3 py-2 rounded-lg mt-3", style: { background: C.dangerSoft, color: C.danger } }, reportError),
-            React.createElement("div", { className: "flex flex-wrap gap-2 pt-3" },
-                React.createElement(Button, { variant: "whatsapp", onClick: handleShareReport, disabled: reportBusy, className: "flex-1" },
-                    React.createElement(MessageCircle, { size: 14 }),
-                    " ", reportBusy ? "Enviando…" : "Enviar reporte por WhatsApp"),
-                React.createElement(Button, { variant: "subtle", onClick: handleDownloadReport, className: "flex-1" },
-                    React.createElement(Download, { size: 14 }),
-                    " Descargar reporte PDF"))),
-        order.status !== "entregado" && React.createElement(Card, { className: "p-4 space-y-2" },
-            React.createElement("div", { className: "text-sm font-semibold" }, "Informe de avance al cliente"),
-            React.createElement("p", { className: "text-xs", style: { color: C.textMute } }, "PDF profesional con el estado actual del vehículo, hallazgos, trabajo registrado y pagos. Ideal mientras está en reparación."),
-            progressError && React.createElement("div", { className: "text-xs px-2.5 py-2 rounded-lg", style: { background: C.dangerSoft, color: C.danger } }, progressError),
-            React.createElement("div", { className: "flex flex-wrap gap-2 pt-1" },
-                React.createElement(Button, { variant: "whatsapp", onClick: handleShareProgress, disabled: progressBusy, className: "flex-1" },
-                    React.createElement(MessageCircle, { size: 14 }),
-                    " ", progressBusy ? "Enviando…" : "Enviar avance por WhatsApp"),
-                React.createElement(Button, { variant: "subtle", onClick: handleDownloadProgress, className: "flex-1" },
-                    React.createElement(Download, { size: 14 }),
-                    " Descargar avance PDF"))),
-        React.createElement("div", null,
-            React.createElement("div", { className: "text-xs uppercase tracking-wide mb-3", style: { color: C.textMute } }, "Estado de la orden"),
-            React.createElement("div", { className: "grid grid-cols-2 sm:grid-cols-3 gap-2" }, getStatus().map(function (s) {
-                var active = order.status === s.key;
-                return React.createElement("button", {
-                    key: s.key,
-                    type: "button",
-                    onClick: function (e) {
-                        if (e) { e.preventDefault(); e.stopPropagation(); }
-                        if (s.key === order.status) return;
-                        if (s.key === "listo" || s.key === "entregado") {
-                            setPendingStatus(s.key);
-                        } else {
-                            onStatusChange(s.key, { skipCollect: true });
-                        }
-                    },
-                    className: "text-left rounded-2xl px-3 py-3 transition-all border",
-                    style: {
-                        background: active ? s.soft : C.bg,
-                        borderColor: active ? s.color : (C.borderSoft || C.border),
-                        boxShadow: active ? "0 0 0 1px " + s.color + "33" : "none",
-                    },
+                        return el("div", { key: it.key, style: { color: C.textSoft } }, "• " + (def ? def.label : it.key) + (it.note ? " — " + it.note : ""));
+                    })),
+                (ck.photos || []).length > 0 && el("div", { className: "grid grid-cols-4 gap-2" },
+                    ck.photos.map((p) => el("img", { key: p.id, src: p.dataUrl, className: "w-full h-14 object-cover rounded-lg", style: { border: "1px solid " + C.border } }))),
+                pdfError && errBox(pdfError),
+                el("div", { className: "grid grid-cols-2 gap-2" },
+                    el(Button, { variant: "subtle", onClick: handleDownloadReception, className: "text-xs" }, el(Download, { size: 14 }), " Acta PDF"),
+                    el(Button, { variant: "ghost", onClick: () => setShowReception(true), className: "text-xs" }, "Editar"))));
+
+    const requirementCard = el(Card, { className: "p-4 space-y-3" },
+        sectionLabel("Requerimiento de repuestos",
+            reqItems.length > 0 && requirement.date && el("span", { className: "text-xs", style: { color: C.textMute } }, fmtDatePE(requirement.date))),
+        reqItems.length === 0
+            ? el(React.Fragment, null,
+                el("p", { className: "text-xs", style: { color: C.textMute } }, "Lista de repuestos que el cliente debe conseguir."),
+                el(Button, { variant: "subtle", className: "w-full", onClick: () => setShowRequirement(true) }, el(Wrench, { size: 16 }), " Nuevo requerimiento"))
+            : el(React.Fragment, null,
+                el("div", null, reqItems.map((it) => el("div", { key: it.id, className: "flex justify-between text-sm py-1.5", style: { borderBottom: "1px solid " + borderSoft } },
+                    el("span", null, it.name, it.note ? el("span", { className: "text-xs", style: { color: C.textMute } }, " — " + it.note) : null),
+                    el("span", { className: "font-mono shrink-0 ml-2" }, "× " + it.qty)))),
+                requirement.notes && el("p", { className: "text-xs", style: { color: C.textSoft } }, requirement.notes),
+                reqError && errBox(reqError),
+                el("div", { className: "grid grid-cols-2 gap-2" },
+                    el(Button, { variant: "whatsapp", onClick: handleShareRequirement, disabled: reqBusy, className: "text-xs" }, el(MessageCircle, { size: 14 }), " " + (reqBusy ? "Enviando…" : "WhatsApp")),
+                    el(Button, { variant: "subtle", onClick: handleDownloadRequirement, className: "text-xs" }, el(Download, { size: 14 }), " PDF"),
+                    el(Button, { variant: "ghost", onClick: () => setShowRequirement(true), className: "text-xs" }, "Editar"),
+                    el(Button, { variant: "danger", className: "text-xs", onClick: () => { if (window.confirm("¿Eliminar este requerimiento de repuestos?")) onSaveRequirement(null); } }, "Eliminar"))));
+
+    const findingsCard = el(Card, { className: "p-4 space-y-3" },
+        sectionLabel("Hallazgos del servicio",
+            findings.length > 0 && el("button", { type: "button", onClick: () => setShowFindings(true), className: "text-xs font-semibold", style: { color: C.accentText } }, "Editar")),
+        findings.length === 0
+            ? el(React.Fragment, null,
+                el("p", { className: "text-xs", style: { color: C.textMute } }, "Problemas encontrados durante el servicio, con fotos."),
+                el(Button, { variant: "subtle", className: "w-full", onClick: () => setShowFindings(true) }, el(AlertTriangle, { size: 16 }), " Agregar hallazgo"))
+            : el("div", { className: "space-y-2" }, findings.map((f) => el("div", { key: f.id, className: "rounded-xl px-3 py-2.5", style: { background: C.bg, border: "1px solid " + borderSoft } },
+                el("div", { className: "text-sm font-medium" }, f.title),
+                f.note && el("div", { className: "text-xs mt-0.5", style: { color: C.textMute } }, f.note),
+                (f.photos || []).length > 0 && el("div", { className: "grid grid-cols-4 gap-1.5 mt-2" },
+                    f.photos.map((p) => el("img", { key: p.id, src: p.dataUrl, className: "w-full h-14 object-cover rounded-lg", style: { border: "1px solid " + borderSoft } })))))));
+
+    const docsCard = el(Card, { className: "p-4 md:col-span-2" },
+        sectionLabel("Documentos y envíos"),
+        el("div", { className: "grid grid-cols-1 md:grid-cols-2 gap-4 mt-3" },
+            el("div", { className: "space-y-2" },
+                el("div", null,
+                    el("div", { className: "text-sm font-medium" }, "Reporte de servicio"),
+                    el("div", { className: "text-xs", style: { color: C.textMute } }, "Fotos, hallazgos y trabajo realizado.")),
+                reportError && errBox(reportError),
+                el("div", { className: "grid grid-cols-2 gap-2" },
+                    el(Button, { variant: "whatsapp", onClick: handleShareReport, disabled: reportBusy, className: "text-xs" }, el(MessageCircle, { size: 14 }), " " + (reportBusy ? "Enviando…" : "WhatsApp")),
+                    el(Button, { variant: "subtle", onClick: handleDownloadReport, className: "text-xs" }, el(Download, { size: 14 }), " PDF"))),
+            order.status !== "entregado" && el("div", { className: "space-y-2 md:pl-4 md:border-l", style: { borderColor: borderSoft } },
+                el("div", null,
+                    el("div", { className: "text-sm font-medium" }, "Informe de avance"),
+                    el("div", { className: "text-xs", style: { color: C.textMute } }, "Estado, hallazgos, trabajo y pagos. Ideal en reparación.")),
+                progressError && errBox(progressError),
+                el("div", { className: "grid grid-cols-2 gap-2" },
+                    el(Button, { variant: "whatsapp", onClick: handleShareProgress, disabled: progressBusy, className: "text-xs" }, el(MessageCircle, { size: 14 }), " " + (progressBusy ? "Enviando…" : "WhatsApp")),
+                    el(Button, { variant: "subtle", onClick: handleDownloadProgress, className: "text-xs" }, el(Download, { size: 14 }), " PDF")))));
+
+    const statusSection = el(Card, { className: "p-4 mb-5 space-y-3" },
+        sectionLabel("Estado de la orden"),
+        el("div", { className: "grid grid-cols-2 sm:grid-cols-3 gap-2" }, getStatus().map(function (s) {
+            const active = order.status === s.key;
+            return el("button", {
+                key: s.key,
+                type: "button",
+                onClick: function (e) {
+                    if (e) { e.preventDefault(); e.stopPropagation(); }
+                    if (s.key === order.status) return;
+                    if (s.key === "listo" || s.key === "entregado") setPendingStatus(s.key);
+                    else onStatusChange(s.key, { skipCollect: true });
                 },
-                    React.createElement("div", { className: "flex items-center gap-2" },
-                        React.createElement("span", { className: "w-2.5 h-2.5 rounded-full shrink-0", style: { background: active ? s.color : C.border } }),
-                        React.createElement("span", { className: "text-xs font-semibold leading-tight", style: { color: active ? s.color : C.textSoft } }, s.label)),
-                    active && React.createElement("div", { className: "text-[10px] mt-1.5 font-medium", style: { color: s.color } }, "Estado actual"));
-            })),
-            (order.status === "listo" || order.status === "entregado") && total > 0 && saldo > 0 && React.createElement("div", { className: "mt-3 space-y-2" },
-            React.createElement("div", {
+                className: "text-left rounded-2xl px-3 py-3 transition-all border",
+                style: {
+                    background: active ? s.soft : C.bg,
+                    borderColor: active ? s.color : borderSoft,
+                    boxShadow: active ? "0 0 0 1px " + s.color + "33" : "none",
+                },
+            },
+                el("div", { className: "flex items-center gap-2" },
+                    el("span", { className: "w-2.5 h-2.5 rounded-full shrink-0", style: { background: active ? s.color : C.border } }),
+                    el("span", { className: "text-xs font-semibold leading-tight", style: { color: active ? s.color : C.textSoft } }, s.label)),
+                active && el("div", { className: "text-[10px] mt-1.5 font-medium", style: { color: s.color } }, "Estado actual"));
+        })),
+        (order.status === "listo" || order.status === "entregado") && total > 0 && saldo > 0 && el("div", { className: "space-y-2" },
+            el("div", {
                 className: "rounded-2xl p-3",
                 style: { background: C.warningSoft || "rgba(245,158,11,0.15)", border: "1px solid " + (C.warning || "#F59E0B") },
             },
-                React.createElement("div", { className: "text-sm font-semibold", style: { color: C.warning } },
+                el("div", { className: "text-sm font-semibold", style: { color: C.warning } },
                     (order.status === "listo" ? "Lista para entrega" : "Entregada") + " · saldo pendiente: " + money(saldo)),
-                React.createElement("p", { className: "text-xs mt-1", style: { color: C.textSoft } },
-                    "El cliente aún no pagó. Cuando pague, pulsa el botón de abajo para registrar el cobro en caja.")
-            ),
-            React.createElement("button", {
+                el("p", { className: "text-xs mt-1", style: { color: C.textSoft } },
+                    "El cliente aún no pagó. Cuando pague, pulsa el botón de abajo para registrar el cobro en caja.")),
+            el("button", {
                 type: "button",
                 className: "w-full rounded-2xl px-4 py-3.5 text-sm font-bold",
-                style: {
-                    background: C.accent || "#22C55E",
-                    color: "#1A0D05",
-                    border: "none",
-                    boxShadow: "0 4px 14px rgba(0,0,0,0.25)",
-                },
+                style: { background: C.accent || "#22C55E", color: "#1A0D05", border: "none", boxShadow: "0 4px 14px rgba(0,0,0,0.25)" },
                 onClick: function () {
                     if (!window.confirm("¿Registrar cobro de " + money(saldo) + " en caja?\n\nSe reparte entre taller y repuestos según la orden."))
                         return;
-                    if (typeof onRegistrarCobroFinal === "function") {
-                        onRegistrarCobroFinal();
-                    } else if (typeof onStatusChange === "function") {
-                        onStatusChange(order.status, { collect: true });
-                    } else {
-                        window.alert("No se pudo registrar el cobro. Recarga la app e inténtalo de nuevo.");
-                    }
+                    if (typeof onRegistrarCobroFinal === "function") onRegistrarCobroFinal();
+                    else if (typeof onStatusChange === "function") onStatusChange(order.status, { collect: true });
+                    else window.alert("No se pudo registrar el cobro. Recarga la app e inténtalo de nuevo.");
                 },
-            }, "Cliente ya pagó — registrar en caja")
-        ),
-        showReception && (React.createElement(ReceptionModal, { order: order, client: client, vehicle: vehicle, onClose: () => setShowReception(false), onSave: (checkin) => { onSaveCheckin(checkin); setShowReception(false); } })),
-        showRequirement && (React.createElement(RequirementModal, { order: order, requirement: requirement, parts: parts, onClose: () => setShowRequirement(false), onSave: (req) => { onSaveRequirement(req); setShowRequirement(false); } })),
-        showFindings && (React.createElement(FindingsModal, { order: order, findings: findings, onClose: () => setShowFindings(false), onSave: (items) => { onSaveFindings && onSaveFindings(items); setShowFindings(false); } })),
-        pendingServices && (React.createElement(ConfirmPinModal, { title: "Confirmar precio", description: "Por seguridad, ingresa tu PIN para modificar el precio de esta orden.", currentUser: currentUser, onCancel: () => setPendingServices(null), onConfirmed: async () => { onSaveServices && onSaveServices(pendingServices); setPendingServices(null); } })),
-        
-        onDelete && (React.createElement("div", { className: "mt-6 pt-4", style: { borderTop: `1px solid ${C.borderSoft}` } },
-            React.createElement("button", { onClick: () => { if (window.confirm("¿Eliminar esta orden de trabajo? Esta acción no se puede deshacer."))
-                    onDelete(); }, className: "text-xs flex items-center gap-1.5", style: { color: C.danger } },
-                React.createElement(Trash2, { size: 13 }),
-                " Eliminar orden")))))))));
+            }, "Cliente ya pagó — registrar en caja")));
+
+    const deleteFooter = onDelete && el("div", { className: "mt-4 pt-4", style: { borderTop: "1px solid " + borderSoft } },
+        el("button", {
+            type: "button",
+            onClick: () => { if (window.confirm("¿Eliminar esta orden de trabajo? Esta acción no se puede deshacer.")) onDelete(); },
+            className: "text-xs flex items-center gap-1.5", style: { color: C.danger },
+        }, el(Trash2, { size: 13 }), " Eliminar orden"));
+
+    return el(React.Fragment, null,
+        el(Modal, { title: order.code, onClose: onClose, wide: true },
+            headerEl,
+            infoGrid,
+            descCard,
+            statsStrip,
+            workCard,
+            el("div", { className: "grid grid-cols-1 md:grid-cols-2 gap-3 items-start mb-4" },
+                pagosCard,
+                recepcionCard,
+                requirementCard,
+                findingsCard,
+                docsCard),
+            statusSection,
+            showReception && el(ReceptionModal, { order: order, client: client, vehicle: vehicle, onClose: () => setShowReception(false), onSave: (checkin) => { onSaveCheckin(checkin); setShowReception(false); } }),
+            showRequirement && el(RequirementModal, { order: order, requirement: requirement, parts: parts, onClose: () => setShowRequirement(false), onSave: (req) => { onSaveRequirement(req); setShowRequirement(false); } }),
+            showFindings && el(FindingsModal, { order: order, findings: findings, onClose: () => setShowFindings(false), onSave: (items) => { onSaveFindings && onSaveFindings(items); setShowFindings(false); } }),
+            pendingServices && el(ConfirmPinModal, { title: "Confirmar precio", description: "Por seguridad, ingresa tu PIN para modificar el precio de esta orden.", currentUser: currentUser, onCancel: () => setPendingServices(null), onConfirmed: async () => { onSaveServices && onSaveServices(pendingServices); setPendingServices(null); } }),
+            deleteFooter));
 }
 function NewOrderModal({ clients, setClients, vehicles, setVehicles, code, onClose, onCreate, techs }) {
     var _a;
@@ -4296,8 +4297,8 @@ function ProformaCard({ pf, client, vehicle, onOpen }) {
                 React.createElement("div", { className: "flex items-center gap-2", style: { color: C.textMute } },
                     React.createElement(FileText, { size: 13 }),
                     React.createElement("span", { className: "text-[11px] font-mono tracking-widest" }, pf.code)),
-                React.createElement("div", { style: { fontFamily: "'Geist', system-ui, sans-serif" }, className: "text-lg mt-1 tracking-wide truncate" }, vehicle && (vehicle.brand || vehicle.model) ? `${vehicle.brand} ${vehicle.model}`.trim() : (vehicle === null || vehicle === void 0 ? void 0 : vehicle.plate) || "—"),
-                React.createElement("div", { className: "text-xs mt-0.5 truncate flex items-center gap-1.5", style: { color: C.textSoft } },
+                React.createElement("div", { style: { fontFamily: "'Geist', system-ui, sans-serif" }, className: "text-lg mt-1 tracking-wide leading-snug break-words" }, vehicle && (vehicle.brand || vehicle.model) ? `${vehicle.brand} ${vehicle.model}`.trim() : (vehicle === null || vehicle === void 0 ? void 0 : vehicle.plate) || "—"),
+                React.createElement("div", { className: "text-xs mt-0.5 break-words flex flex-wrap items-center gap-1.5", style: { color: C.textSoft } },
                     client === null || client === void 0 ? void 0 : client.name,
                     (client === null || client === void 0 ? void 0 : client.isGuest) && React.createElement("span", { className: "text-[9px] px-1.5 py-0.5 rounded-full shrink-0", style: { background: C.surfaceHi, color: C.textMute } }, "ocasional"))),
             React.createElement("span", { className: "shrink-0 text-[10px] font-mono", style: { color: C.textMute } }, fmtDatePE(pf.date))),
@@ -4398,10 +4399,10 @@ function ProformaDetail({ pf, client, vehicle, settings, onClose, onStatusChange
     const subtotal = proformaSubtotal(pf);
     const igv = proformaIgv(pf);
     const total = proformaTotal(pf);
-    const handleDownload = () => {
+    const handleDownload = async () => {
         setError("");
         try {
-            downloadProformaPDF(pf, client, vehicle, settings);
+            await downloadProformaPDF(pf, client, vehicle, settings);
         }
         catch (e) {
             setError((e && e.message) || "No se pudo generar el PDF.");
@@ -4421,12 +4422,12 @@ function ProformaDetail({ pf, client, vehicle, settings, onClose, onStatusChange
     return (React.createElement(Modal, { title: pf.code, onClose: onClose, wide: true },
         React.createElement("div", { className: "flex items-start justify-between gap-3 mb-5" },
             React.createElement("div", { className: "min-w-0 flex-1" },
-                React.createElement("div", { style: { fontFamily: "'Geist', system-ui, sans-serif" }, className: "text-xl truncate" }, vehicle === null || vehicle === void 0 ? void 0 :
+                React.createElement("div", { style: { fontFamily: "'Geist', system-ui, sans-serif" }, className: "text-xl leading-snug break-words" }, vehicle === null || vehicle === void 0 ? void 0 :
                     vehicle.brand,
                     " ", vehicle === null || vehicle === void 0 ? void 0 :
                     vehicle.model,
                     (vehicle === null || vehicle === void 0 ? void 0 : vehicle.year) ? ` · ${vehicle.year}` : ""),
-                React.createElement("div", { className: "text-sm mt-1 font-mono tracking-widest truncate", style: { color: C.textSoft } }, vehicle === null || vehicle === void 0 ? void 0 : vehicle.plate)),
+                React.createElement("div", { className: "text-sm mt-1 font-mono tracking-widest break-words", style: { color: C.textSoft } }, vehicle === null || vehicle === void 0 ? void 0 : vehicle.plate)),
             React.createElement(Badge, { color: st.color, soft: st.soft }, st.label)),
         React.createElement("div", { className: "grid sm:grid-cols-2 gap-4 mb-6" },
             React.createElement(Card, { className: "p-4" },
@@ -4938,7 +4939,7 @@ function VehiculosView({ vehicles, setVehicles, clients, orders, settings }) {
                     "VIN ",
                     v.vin),
                 React.createElement("div", { style: { borderTop: `1px solid ${C.borderSoft}` }, className: "mt-3 pt-3 flex items-center justify-between gap-2" },
-                    React.createElement("span", { className: "text-xs truncate min-w-0 flex items-center gap-1.5", style: { color: C.textSoft } },
+                    React.createElement("span", { className: "text-xs min-w-0 break-words flex flex-wrap items-center gap-1.5", style: { color: C.textSoft } },
                         (_a = findClient(v.clientId)) === null || _a === void 0 ? void 0 : _a.name,
                         findClient(v.clientId) && findClient(v.clientId).occasional && React.createElement(Badge, { color: C.textSoft, soft: C.surfaceHi }, "Ocasional")),
                     React.createElement("div", { className: "flex items-center gap-2 shrink-0" },
@@ -5005,15 +5006,33 @@ function InventarioView({ parts, setParts }) {
         React.createElement("div", { className: "relative" },
             React.createElement(Search, { size: 16, className: "absolute left-3 top-1/2 -translate-y-1/2", style: { color: C.textMute } }),
             React.createElement(Input, { placeholder: "Buscar por nombre o SKU", value: query, onChange: (e) => setQuery(e.target.value), className: "pl-9 sm:max-w-sm" })),
-        React.createElement(Card, { className: "overflow-x-auto" },
-            React.createElement("table", { className: "w-full text-sm min-w-[640px]" },
+        filtered.length === 0 && React.createElement(Card, { className: "p-6 text-center text-sm", style: { color: C.textMute } }, "No hay repuestos que coincidan."),
+        filtered.length > 0 && React.createElement("div", { className: "sm:hidden space-y-2" }, filtered.map((p) => {
+            const low = p.stock <= p.min;
+            return (React.createElement(Card, { key: p.id, className: "p-3.5 space-y-2.5" },
+                React.createElement("div", { className: "flex items-start justify-between gap-3" },
+                    React.createElement("div", { className: "min-w-0" },
+                        React.createElement("div", { className: "text-sm font-medium break-words" }, p.name),
+                        React.createElement("div", { className: "font-mono text-xs break-all mt-0.5", style: { color: C.textMute } }, p.sku)),
+                    React.createElement("span", { className: "font-mono text-sm shrink-0" }, money(p.price))),
+                React.createElement("div", { className: "flex items-center justify-between gap-3" },
+                    React.createElement(Badge, { color: low ? C.danger : C.success, soft: low ? C.dangerSoft : C.successSoft },
+                        p.stock,
+                        " u. ",
+                        low && "· bajo"),
+                    React.createElement("div", { className: "flex gap-1.5" },
+                        React.createElement("button", { onClick: () => adjust(p.id, -1), className: "w-8 h-8 rounded-md flex items-center justify-center text-sm", style: { background: C.surfaceHi } }, "\−"),
+                        React.createElement("button", { onClick: () => adjust(p.id, 1), className: "w-8 h-8 rounded-md flex items-center justify-center text-sm", style: { background: C.surfaceHi } }, "+")))));
+        })),
+        filtered.length > 0 && React.createElement(Card, { className: "hidden sm:block overflow-hidden" },
+            React.createElement("table", { className: "w-full text-sm" },
                 React.createElement("thead", null,
                     React.createElement("tr", { style: { borderBottom: `1px solid ${C.border}` } }, ["Repuesto", "SKU", "Precio", "Stock", ""].map((h) => (React.createElement("th", { key: h, className: "text-left px-5 py-3 text-xs uppercase tracking-wide font-medium", style: { color: C.textMute } }, h))))),
                 React.createElement("tbody", null, filtered.map((p) => {
                     const low = p.stock <= p.min;
                     return (React.createElement("tr", { key: p.id, style: { borderBottom: `1px solid ${C.borderSoft}` } },
-                        React.createElement("td", { className: "px-5 py-3.5 font-medium" }, p.name),
-                        React.createElement("td", { className: "px-5 py-3.5 font-mono text-xs", style: { color: C.textMute } }, p.sku),
+                        React.createElement("td", { className: "px-5 py-3.5 font-medium break-words" }, p.name),
+                        React.createElement("td", { className: "px-5 py-3.5 font-mono text-xs break-all", style: { color: C.textMute } }, p.sku),
                         React.createElement("td", { className: "px-5 py-3.5 font-mono" }, money(p.price)),
                         React.createElement("td", { className: "px-5 py-3.5" },
                             React.createElement(Badge, { color: low ? C.danger : C.success, soft: low ? C.dangerSoft : C.successSoft },
@@ -5067,8 +5086,8 @@ function SolicitudCard({ item, onMarkAtendida, onCreateClient, onDelete }) {
     return (React.createElement(Card, { className: "p-4 space-y-3" },
         React.createElement("div", { className: "flex items-start justify-between gap-3" },
             React.createElement("div", { className: "min-w-0" },
-                React.createElement("div", { className: "text-sm font-semibold truncate" }, item.name),
-                item.vehicle && (React.createElement("div", { className: "text-xs mt-0.5", style: { color: C.textMute } }, item.vehicle))),
+                React.createElement("div", { className: "text-sm font-semibold break-words" }, item.name),
+                item.vehicle && (React.createElement("div", { className: "text-xs mt-0.5 break-words", style: { color: C.textMute } }, item.vehicle))),
             React.createElement(Badge, { color: isNueva ? C.accent : C.success, soft: true }, isNueva ? "Nueva" : "Atendida")),
         item.need && (React.createElement("p", { className: "text-sm", style: { color: C.textSoft } }, item.need)),
         React.createElement("div", { className: "text-xs", style: { color: C.textMute } }, new Date(item.createdAt).toLocaleString("es-PE", { dateStyle: "medium", timeStyle: "short" })),
@@ -5339,8 +5358,8 @@ function MecanicaCard({ entry, onOpen }) {
             React.createElement("img", { src: cover.dataUrl, className: "w-full h-full object-cover" }))) : (React.createElement("div", { className: "w-full h-32 flex items-center justify-center", style: { background: C.surfaceHi } },
             React.createElement(ImageIcon, { size: 22, style: { color: C.textMute } }))),
         React.createElement("div", { className: "px-4 py-3.5" },
-            React.createElement("div", { className: "text-sm font-medium truncate" }, entry.title),
-            entry.note && React.createElement("div", { className: "text-xs mt-0.5 truncate", style: { color: C.textMute } }, entry.note),
+            React.createElement("div", { className: "text-sm font-medium break-words" }, entry.title),
+            entry.note && React.createElement("div", { className: "text-xs mt-0.5 break-words", style: { color: C.textMute } }, entry.note),
             React.createElement("div", { className: "flex items-center gap-1 mt-2 text-xs", style: { color: C.textMute } },
                 React.createElement(Camera, { size: 11 }),
                 ` ${count} foto${count === 1 ? "" : "s"}`))));
@@ -5549,7 +5568,7 @@ function CajaView({ caja: cajaTodos, liquidaciones = [], onLiquidar, onDeshacerL
     const kpis = [
         { label: "Ingresos", value: money(totalIngresos), icon: TrendingUp, color: C.success, soft: C.successSoft },
         { label: "Gastos", value: money(totalGastos), icon: TrendingDown, color: C.danger, soft: C.dangerSoft },
-        { label: "Saldo en caja", value: money(saldo), icon: Wallet, color: C.accent, soft: C.accentSoft },
+        { label: "Saldo en caja", value: money(saldo), icon: Wallet, color: C.accent, soft: C.accentSoft, hero: true },
     ];
     return (React.createElement("div", { className: "space-y-5" },
         React.createElement("div", { className: "flex flex-wrap items-center justify-between gap-3" },
@@ -5592,9 +5611,9 @@ function CajaView({ caja: cajaTodos, liquidaciones = [], onLiquidar, onDeshacerL
                         className: "min-w-0 cursor-pointer flex-1",
                         onClick: function () { setOpenOrderId(o.id); },
                     },
-                        React.createElement("div", { className: "text-sm font-medium truncate" }, (cl && cl.name) || "Cliente"),
+                        React.createElement("div", { className: "text-sm font-medium break-words" }, (cl && cl.name) || "Cliente"),
                         React.createElement("div", { className: "text-xs mt-0.5", style: { color: C.textMute } },
-                            "OT " + o.code + (vh ? " · " + vh.brand + " " + vh.model + " (" + vh.plate + ")" : "") + (o.status === "listo" ? " · Lista" : " · Entregada"))
+                            o.code + (vh ? " · " + vh.brand + " " + vh.model + " (" + vh.plate + ")" : "") + (o.status === "listo" ? " · Lista" : " · Entregada"))
                     ),
                     React.createElement("div", { className: "flex items-center gap-2 shrink-0" },
                         React.createElement("span", { className: "font-mono text-sm font-medium", style: { color: C.warning } }, money(orderSaldo(o))),
@@ -5620,7 +5639,9 @@ function CajaView({ caja: cajaTodos, liquidaciones = [], onLiquidar, onDeshacerL
             { key: "ingreso", label: "Ingresos" },
             { key: "gasto", label: "Gastos" },
         ].map((f) => (React.createElement("button", { key: f.key, onClick: () => setFilter(f.key), className: "px-3.5 py-1.5 rounded-full text-xs font-medium whitespace-nowrap", style: { background: filter === f.key ? C.accentSoft : C.surfaceHi, color: filter === f.key ? C.accentText : C.textSoft } }, f.label)))),
-        React.createElement(Card, { className: "overflow-hidden" }, filtered.length === 0 ? (React.createElement("p", { className: "p-10 text-center text-sm", style: { color: C.textMute } }, "No hay movimientos que coincidan.")) : (filtered.map((m, i) => (React.createElement("div", { key: m.id, onClick: () => { if (m.orderId)
+        React.createElement(Card, { className: "overflow-hidden" }, filtered.length === 0 ? (React.createElement("div", { className: "p-10 flex flex-col items-center text-center gap-3" },
+            React.createElement("div", { className: "w-12 h-12 rounded-2xl flex items-center justify-center", style: { background: C.surfaceHi, border: `1px solid ${C.border}` } }, React.createElement(Wallet, { size: 20, style: { color: C.textMute } })),
+            React.createElement("p", { className: "text-sm max-w-xs", style: { color: C.textMute } }, (cajaBase.length === 0 && liqOrdenadas.length > 0 ? "Todo está liquidado. Los movimientos anteriores están en el historial de abajo." : "No hay movimientos que coincidan.")))) : (filtered.map((m, i) => (React.createElement("div", { key: m.id, onClick: () => { if (m.orderId)
                 setOpenOrderId(m.orderId);
             else if (canEdit && onUpdateMovement && m.source === "manual")
                 setEditingMov(m); }, className: "row-hover flex flex-wrap sm:flex-nowrap items-center gap-x-3 gap-y-2 px-5 py-4", style: {
@@ -5629,8 +5650,8 @@ function CajaView({ caja: cajaTodos, liquidaciones = [], onLiquidar, onDeshacerL
             } },
             React.createElement("div", { className: "w-9 h-9 rounded-lg flex items-center justify-center shrink-0", style: { background: m.type === "ingreso" ? C.successSoft : C.dangerSoft } }, m.type === "ingreso" ? React.createElement(TrendingUp, { size: 15, style: { color: C.success } }) : React.createElement(TrendingDown, { size: 15, style: { color: C.danger } })),
             React.createElement("div", { className: "min-w-0 flex-1 basis-40" },
-                React.createElement("div", { className: "text-sm font-medium truncate flex items-center gap-2" },
-                    React.createElement("span", { className: "truncate" }, m.concept),
+                React.createElement("div", { className: "text-sm font-medium break-words flex flex-wrap items-center gap-x-2 gap-y-1" },
+                    React.createElement("span", { className: "min-w-0 break-words" }, m.concept),
                     React.createElement("span", { className: "shrink-0 text-[10px] px-1.5 py-0.5 rounded-full font-medium", style: { background: (m.box || "taller") === "repuestos" ? "rgba(59,130,246,0.15)" : "rgba(234,88,12,0.15)", color: (m.box || "taller") === "repuestos" ? "#2563EB" : "#EA580C" } }, (m.box || "taller") === "repuestos" ? "Repuestos" : "Taller")),
                 React.createElement("div", { className: "text-xs mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1", style: { color: C.textMute } },
                     React.createElement("span", { className: "shrink-0" }, m.date),
@@ -5680,7 +5701,7 @@ function CajaView({ caja: cajaTodos, liquidaciones = [], onLiquidar, onDeshacerL
                     abierta && (React.createElement("div", { className: "px-5 pb-4 space-y-1.5" },
                         movs.length === 0 && React.createElement("p", { className: "text-xs", style: { color: C.textMute } }, "El detalle de estos movimientos ya no está disponible."),
                         movs.map((m) => (React.createElement("div", { key: m.id, className: "flex items-center justify-between gap-3 text-xs px-3 py-2 rounded-lg", style: { background: C.bg, border: `1px solid ${C.borderSoft}` } },
-                            React.createElement("span", { className: "truncate" }, `${m.date} · ${m.concept}${m.box === "repuestos" ? " (Repuestos)" : " (Taller)"}`),
+                            React.createElement("span", { className: "min-w-0 break-words" }, `${m.date} · ${m.concept}${m.box === "repuestos" ? " (Repuestos)" : " (Taller)"}`),
                             React.createElement("span", { className: "font-mono shrink-0", style: { color: m.type === "ingreso" ? C.success : C.danger } }, `${m.type === "ingreso" ? "+" : "−"}${money(Number(m.amount) || 0)}`)))),
                         canEdit && React.createElement("div", { className: "pt-2 flex flex-wrap gap-2" },
                             nTaller > 0 && React.createElement(Button, {
@@ -5903,23 +5924,37 @@ function NewMovementModal({ onClose, onCreate, onUpdate, initialType, initialBox
     const boxButton = (id, label) => {
         const color = BOX_COLORS[id];
         const on = box === id;
+        // La key cambia al seleccionar: el botón se vuelve a montar y reproduce la animación de elegido.
         return React.createElement("button", {
-            key: id,
+            key: id + (on ? "-on" : "-off"),
             type: "button",
+            "aria-pressed": on,
             onClick: () => { setBox(id); setSavedMsg(""); },
-            className: "flex-1 py-3 rounded-xl text-sm font-semibold transition-colors",
-            style: { background: on ? color + "26" : C.surfaceHi, color: on ? color : C.textSoft, border: on ? `2px solid ${color}` : `1px solid ${C.border}` },
-        }, (on ? "\u2713 " : "") + label);
+            className: "box-pick flex-1 py-3 rounded-xl text-sm font-semibold transition-colors " + (on ? "box-pick-on" : ""),
+            style: { background: on ? color + "1F" : C.surfaceHi, color: on ? C.text : C.textSoft, border: on ? "2px solid " + color : "1px solid " + C.border, boxShadow: on ? "0 0 0 3px " + color + "26" : "none" },
+        }, React.createElement("span", { className: "inline-flex items-center justify-center gap-2" },
+            on
+                ? React.createElement("span", { className: "w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-bold", style: { background: color, color: "#fff" } }, "✓")
+                : React.createElement("span", { className: "w-2 h-2 rounded-full", style: { background: color, opacity: 0.4 } }),
+            label));
     };
     return (React.createElement(Modal, { title: isEdit ? "Editar movimiento" : (type === "ingreso" ? "Nuevo ingreso" : "Nuevo gasto"), onClose: onClose },
         React.createElement("div", { className: "space-y-4" },
             savedMsg && React.createElement("div", { className: "text-xs px-3 py-2 rounded-xl", style: { background: C.successSoft, color: C.success } }, "\u2714 " + savedMsg),
-            React.createElement("div", { className: "flex items-center justify-between gap-3 px-4 py-3 rounded-2xl", style: { background: toneSoft, border: `1px solid ${tone}55` } },
-                React.createElement("div", { className: "text-sm font-semibold", style: { color: tone } }, type === "ingreso" ? "\uFF0B Ingreso \u00B7 dinero que entra" : "\u2212 Gasto \u00B7 dinero que sale"),
-                React.createElement("button", { type: "button", onClick: () => { setType(type === "ingreso" ? "gasto" : "ingreso"); setSavedMsg(""); }, className: "text-xs underline shrink-0", style: { color: C.textMute } }, type === "ingreso" ? "Cambiar a gasto" : "Cambiar a ingreso")),
+            React.createElement("div", { className: "grid grid-cols-2 gap-2" },
+                [["ingreso", "Ingreso", C.success], ["gasto", "Gasto", C.danger]].map(([id, label, col]) => {
+                    const on = type === id;
+                    // Mismo estilo que la caja: borde y fondo del color, check y pulso al elegir (la key remonta el botón).
+                    return React.createElement("button", { key: id + (on ? "-on" : "-off"), type: "button", "aria-pressed": on, onClick: () => { setType(id); setSavedMsg(""); }, className: "box-pick py-3 rounded-xl text-sm font-semibold transition-colors " + (on ? "box-pick-on" : ""), style: { background: on ? col + "1F" : C.surfaceHi, color: on ? C.text : C.textSoft, border: on ? "2px solid " + col : "1px solid " + C.border, boxShadow: on ? "0 0 0 3px " + col + "26" : "none" } },
+                        React.createElement("span", { className: "inline-flex items-center justify-center gap-2" },
+                            on
+                                ? React.createElement("span", { className: "w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-bold", style: { background: col, color: "#fff" } }, "✓")
+                                : React.createElement("span", { className: "w-2 h-2 rounded-full", style: { background: col, opacity: 0.4 } }),
+                            (id === "ingreso" ? "+ " : "- ") + label));
+                })),
             showBoxPicker
                 ? React.createElement("div", null,
-                    React.createElement("div", { className: "text-xs mb-1.5", style: { color: C.textMute } }, "\u00BFEn qu\u00E9 caja?"),
+            React.createElement("div", { className: "text-[13px] font-medium mb-1.5", style: { color: C.textSoft } }, "\¿En qu\é caja?"),
                     React.createElement("div", { className: "flex gap-2" }, boxButton("taller", "Taller"), boxButton("repuestos", "Repuestos")))
                 : React.createElement("div", { className: "flex items-center justify-between gap-3 text-xs", style: { color: C.textMute } },
                     React.createElement("span", null, "Caja: ",
@@ -5942,6 +5977,16 @@ function NewMovementModal({ onClose, onCreate, onUpdate, initialType, initialBox
                             save(false);
                     } },
                 })),
+            React.createElement("div", { className: "flex flex-wrap items-center gap-1.5 -mt-2" },
+                React.createElement("span", { className: "text-[11px] mr-1", style: { color: C.textMute } }, "Monto:"),
+                (type === "ingreso" ? [50, 100, 150, 200] : [10, 20, 50, 100]).map((q) => React.createElement("button", {
+                    key: q,
+                    type: "button",
+                    onClick: () => { setAmount(String(q)); setSavedMsg(""); },
+                    className: "px-3 py-1.5 rounded-lg text-xs font-semibold font-mono transition-colors",
+                    style: { background: amt === q ? toneSoft : C.surfaceHi, color: amt === q ? tone : C.textSoft, border: `1px solid ${amt === q ? tone + "66" : C.border}` },
+                }, "S/ " + q)),
+                amount && React.createElement("button", { type: "button", onClick: () => setAmount(""), className: "px-3 py-1.5 rounded-full text-xs", style: { color: C.textMute, border: `1px solid ${C.border}` } }, "Limpiar")),
             React.createElement(Field, { label: "Concepto" },
                 React.createElement(Input, {
                     ref: conceptRef,
@@ -5951,7 +5996,7 @@ function NewMovementModal({ onClose, onCreate, onUpdate, initialType, initialBox
                     onKeyDown: (e) => { if (e.key === "Enter")
                         save(false); },
                 }),
-                chips.length > 0 && React.createElement("div", { className: "flex flex-wrap gap-1.5 mt-2" }, chips.map((c) => {
+                chips.length > 0 && React.createElement("div", { className: "flex flex-wrap items-center gap-1.5 mt-2" }, React.createElement("span", { className: "text-[11px] mr-1", style: { color: C.textMute } }, "Sugerencias:"), chips.map((c) => {
                     const on = concept.trim().toLowerCase() === c.toLowerCase();
                     return React.createElement("button", {
                         key: c,
@@ -5962,14 +6007,29 @@ function NewMovementModal({ onClose, onCreate, onUpdate, initialType, initialBox
                         style: { background: on ? toneSoft : C.surfaceHi, color: on ? tone : C.textSoft, border: `1px solid ${on ? tone + "66" : C.border}` },
                     }, c);
                 }))),
-            (showDate || (date && date !== todayLocal()))
-                ? React.createElement(Field, { label: "Fecha" }, React.createElement(Input, { type: "date", value: date, onChange: (e) => setDate(e.target.value) }))
-                : React.createElement("button", { type: "button", onClick: () => setShowDate(true), className: "text-xs underline", style: { color: C.textMute } }, "Fecha: hoy \u00B7 cambiar"),
-            !valid && React.createElement("p", { className: "text-xs", style: { color: C.textMute } }, "Falta " + missing.join(" y ")),
+            (() => {
+                const yest = (() => { const d = new Date(); d.setDate(d.getDate() - 1); return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10); })();
+                const isToday = date === todayLocal();
+                const isYest = date === yest;
+                const chip = (on, label, onClick) => React.createElement("button", { key: label, type: "button", onClick, className: "px-3 py-1.5 rounded-full text-xs font-medium", style: { background: on ? C.accentSoft : C.surfaceHi, color: on ? C.accent : C.textSoft, border: `1px solid ${on ? C.accent + "66" : C.border}` } }, label);
+                return React.createElement("div", { className: "flex flex-wrap items-center gap-1.5" },
+                    React.createElement("span", { className: "text-[13px] font-medium mr-1", style: { color: C.textSoft } }, "Fecha"),
+                    chip(isToday, "Hoy", () => { setDate(todayLocal()); setShowDate(false); }),
+                    chip(isYest, "Ayer", () => { setDate(yest); setShowDate(false); }),
+                    chip(!isToday && !isYest, "Otra", () => setShowDate(true)),
+                    (showDate || (!isToday && !isYest)) && React.createElement("input", { type: "date", value: date, onChange: (e) => setDate(e.target.value), className: "px-2 py-1 rounded-lg text-xs", style: { background: C.surfaceHi, color: C.text, border: `1px solid ${C.border}` } }));
+            })(),
+            valid
+                ? React.createElement("div", { className: "flex items-center justify-between gap-3 px-4 py-3 rounded-2xl text-sm", style: { background: C.surfaceHi, border: `1px solid ${C.border}` } },
+                    React.createElement("div", { className: "min-w-0" },
+                        React.createElement("div", { className: "font-semibold break-words", style: { color: tone } }, (type === "ingreso" ? "+ " : "- ") + money(amt)),
+                        React.createElement("div", { className: "text-xs break-words", style: { color: C.textSoft } }, concept.trim())),
+                    React.createElement("div", { className: "text-xs text-right shrink-0", style: { color: C.textMute } }, (box === "repuestos" ? "Caja repuestos" : "Caja taller") + " - " + (date === todayLocal() ? "hoy" : date)))
+                : React.createElement("p", { className: "text-xs", style: { color: C.textMute } }, "Falta " + missing.join(" y ")),
             React.createElement("div", { className: "space-y-2 pt-1" },
-                React.createElement(Button, { onClick: () => save(false), disabled: !valid, className: "w-full" }, isEdit ? "Guardar cambios" : (type === "ingreso" ? "Guardar ingreso" : "Guardar gasto")),
+            React.createElement("button", { type: "button", onClick: () => save(false), disabled: !valid, className: "w-full py-3 rounded-xl text-sm font-semibold transition-all duration-150 hover:brightness-110 active:scale-[0.98] disabled:opacity-40 disabled:hover:brightness-100", style: { background: tone, color: "#fff", boxShadow: `0 6px 18px -8px ${tone}` } }, isEdit ? "Guardar cambios" : (type === "ingreso" ? "Guardar ingreso" : "Guardar gasto")),
                 React.createElement("div", { className: "flex gap-2" },
-                    !isEdit && React.createElement(Button, { variant: "soft", onClick: () => save(true), disabled: !valid, className: "flex-1" }, "Guardar y agregar otro"),
+                    !isEdit && React.createElement("button", { type: "button", onClick: () => save(true), disabled: !valid, className: "flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all duration-150 hover:brightness-110 active:scale-[0.98] disabled:opacity-40 disabled:hover:brightness-100", style: { background: toneSoft, color: tone, border: `1px solid ${tone}55` } }, "Guardar y seguir"),
                     React.createElement(Button, { variant: "ghost", onClick: onClose, className: isEdit ? "w-full" : "flex-1" }, "Cancelar"))))));
 }
 /* ---------------------------------- USUARIOS Y ROLES (Ajustes) ---------------------------------- */
@@ -6202,11 +6262,11 @@ function UsersRolesView({ users, setUsers, roles, setRoles, currentUser, setting
                     return (React.createElement("div", { key: u.id, className: "flex flex-wrap sm:flex-nowrap items-center gap-3 px-3.5 py-3 rounded-xl", style: { background: C.surfaceHi, opacity: u.active === false ? 0.55 : 1 } },
                         React.createElement(UserAvatar, { user: u, role: role, size: 38 }),
                         React.createElement("div", { className: "min-w-0 flex-1" },
-                            React.createElement("div", { className: "text-sm font-medium truncate flex items-center gap-2" },
+                            React.createElement("div", { className: "text-sm font-medium break-words flex flex-wrap items-center gap-2" },
                                 u.name,
                                 " ",
                                 isSelf && React.createElement("span", { className: "text-[10px] px-1.5 py-0.5 rounded-full", style: { background: C.accentSoft, color: C.accentText } }, "T\u00FA")),
-                            React.createElement("div", { className: "text-xs truncate", style: { color: C.textMute } },
+                            React.createElement("div", { className: "text-xs break-words", style: { color: C.textMute } },
                                 (role === null || role === void 0 ? void 0 : role.name) || "Sin rol",
                                 " ",
                                 u.active === false && "· Inactivo")),
@@ -6228,7 +6288,7 @@ function UsersRolesView({ users, setUsers, roles, setRoles, currentUser, setting
                         r.name,
                         " ",
                         r.locked && React.createElement("span", { className: "text-[10px]", style: { color: C.textMute } }, "\u00B7 fijo")),
-                    React.createElement("div", { className: "text-xs truncate", style: { color: C.textMute } }, r.description)),
+                    React.createElement("div", { className: "text-xs break-words", style: { color: C.textMute } }, r.description)),
                 React.createElement(ChevronRight, { size: 15, style: { color: C.textMute }, className: "shrink-0" })))))),
         React.createElement(Card, { className: "p-4 sm:p-6 space-y-4" },
             React.createElement("div", { className: "text-xs uppercase tracking-wide", style: { color: C.textMute } }, "Seguridad"),
@@ -6907,14 +6967,14 @@ function AuthShell({ children, footer, settings }) {
             children),
         footer && React.createElement("div", { className: "relative z-10 mt-6 auth-fade-up", style: { animationDelay: "0.15s" } }, footer)));
 }
-function PinDots({ length, filled, error }) {
+function PinDots({ length, filled, error, success }) {
     return (React.createElement("div", { className: `flex items-center justify-center gap-4 ${error ? "anim-shake" : ""}` }, Array.from({ length }).map((_, i) => {
         const isFilled = i < filled;
-        return React.createElement("span", { key: i, className: isFilled && !error ? "pin-pop" : "", style: {
+        return React.createElement("span", { key: i, className: success ? "pin-ok" : (isFilled && !error ? "pin-pop" : (i === filled && !error && !success ? "pin-next" : "")), style: {
                 width: 14, height: 14, borderRadius: "50%",
-                background: isFilled ? (error ? C.danger : C.accent) : "transparent",
-                border: `2px solid ${isFilled ? (error ? C.danger : C.accent) : C.border}`,
-                boxShadow: isFilled ? `0 0 12px ${error ? C.danger : C.accent}88, 0 0 24px ${error ? C.danger : C.accent}33` : "none",
+                background: success ? C.success : (isFilled ? (error ? C.danger : C.accent) : "transparent"),
+                border: `2px solid ${success ? C.success : (isFilled ? (error ? C.danger : C.accent) : C.border)}`,
+                boxShadow: success ? `0 0 14px ${C.success}99` : (isFilled ? `0 0 12px ${error ? C.danger : C.accent}88, 0 0 24px ${error ? C.danger : C.accent}33` : "none"),
                 transition: "background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease",
                 display: "inline-block",
             } });
@@ -6926,10 +6986,10 @@ function PinPad({ onDigit, onBackspace, disabled }) {
         if (k === "")
             return React.createElement("div", { key: i });
         if (k === "back") {
-            return (React.createElement("button", { key: i, type: "button", disabled: disabled, onClick: onBackspace, className: "h-[56px] rounded-2xl flex items-center justify-center transition-all duration-150 active:scale-90 disabled:opacity-30", style: { background: C.surfaceHi, border: `1px solid ${C.borderSoft}`, color: C.textSoft } },
+            return (React.createElement("button", { key: i, type: "button", disabled: disabled, onClick: onBackspace, className: "pin-key h-[56px] rounded-2xl flex items-center justify-center transition-all duration-150 active:scale-90 disabled:opacity-30", style: { background: C.surfaceHi, border: `1px solid ${C.borderSoft}`, color: C.textSoft } },
                 React.createElement(X, { size: 18 })));
         }
-        return (React.createElement("button", { key: i, type: "button", disabled: disabled, onClick: () => onDigit(k), className: "h-[56px] rounded-2xl text-[20px] font-semibold transition-all duration-150 active:scale-90 disabled:opacity-30 hover:brightness-125", style: { background: C.surfaceHi, border: `1px solid ${C.borderSoft}`, color: C.text, fontFamily: "'Geist Mono', ui-monospace, monospace" } }, k));
+        return (React.createElement("button", { key: i, type: "button", disabled: disabled, onClick: () => onDigit(k), className: "pin-key h-[56px] rounded-2xl text-[20px] font-semibold transition-all duration-150 active:scale-90 disabled:opacity-30", style: { background: C.surfaceHi, border: `1px solid ${C.borderSoft}`, color: C.text, fontFamily: "'Geist Mono', ui-monospace, monospace" } }, k));
     })));
 }
 function UserAvatar({ user, role, size = 44 }) {
@@ -7027,6 +7087,7 @@ function LoginScreen({ users, roles, settings, onLogin }) {
     const locked = lockedUntil > now;
     const [bioBusy, setBioBusy] = useState(false);
     const [bioError, setBioError] = useState(false);
+    const [success, setSuccess] = useState(false);
     const tryBiometric = async (u) => {
         if (!u || !hasBiometricEnrolled(u.id))
             return;
@@ -7048,7 +7109,8 @@ function LoginScreen({ users, roles, settings, onLogin }) {
         setBusy(true);
         const hash = await hashPin(fullPin);
         if (hash === selected.pinHash) {
-            onLogin(selected.id);
+            setSuccess(true);
+            setTimeout(() => onLogin(selected.id), 450);
             return;
         }
         setError(true);
@@ -7104,7 +7166,7 @@ function LoginScreen({ users, roles, settings, onLogin }) {
                 "Demasiados intentos. Espera ",
                 Math.ceil((lockedUntil - now) / 1000),
                 "s")) : (React.createElement(React.Fragment, null,
-                React.createElement(PinDots, { length: 4, filled: pin.length, error: error }),
+                React.createElement(PinDots, { length: 4, filled: pin.length, error: error, success: success }),
                 React.createElement(PinPad, { disabled: busy, onDigit: onDigit, onBackspace: () => setPin(pin.slice(0, -1)) }),
                 hasBiometricEnrolled(selected.id) && (React.createElement("button", { onClick: () => tryBiometric(selected), disabled: bioBusy, className: "w-full flex items-center justify-center gap-2.5 text-[13px] py-3 rounded-2xl transition-all active:scale-[0.98]", style: { background: C.surface, border: `1px solid ${C.border}`, color: bioError ? C.danger : C.textSoft, boxShadow: C.shadow } },
                     React.createElement(Fingerprint, { size: 16 }),
@@ -7118,6 +7180,7 @@ function LockScreen({ user, role, settings, onUnlock, onSwitchUser }) {
     const [busy, setBusy] = useState(false);
     const [bioBusy, setBioBusy] = useState(false);
     const [bioError, setBioError] = useState(false);
+    const [success, setSuccess] = useState(false);
     const bioEnrolled = user ? hasBiometricEnrolled(user.id) : false;
     const tryBiometric = async () => {
         if (!user)
@@ -7150,7 +7213,8 @@ function LockScreen({ user, role, settings, onUnlock, onSwitchUser }) {
             setBusy(true);
             const hash = await hashPin(next);
             if (hash === user.pinHash) {
-                onUnlock();
+                setSuccess(true);
+                setTimeout(() => onUnlock(), 450);
                 return;
             }
             setError(true);
@@ -7172,7 +7236,7 @@ function LockScreen({ user, role, settings, onUnlock, onSwitchUser }) {
                 React.createElement("div", { className: "text-[18px] font-semibold" }, user === null || user === void 0 ? void 0 : user.name),
                 React.createElement("div", { className: "text-[13px] mt-1", style: { color: C.textSoft } }, "Ingresa tu PIN para continuar"))),
         React.createElement("div", { className: "space-y-6 auth-fade-up", style: { animationDelay: "0.12s" } },
-            React.createElement(PinDots, { length: 4, filled: pin.length, error: error }),
+            React.createElement(PinDots, { length: 4, filled: pin.length, error: error, success: success }),
             React.createElement(PinPad, { disabled: busy, onDigit: onDigit, onBackspace: () => setPin(pin.slice(0, -1)) }),
             bioEnrolled && (React.createElement("button", { onClick: tryBiometric, disabled: bioBusy, className: "w-full flex items-center justify-center gap-2.5 text-[13px] py-3 rounded-2xl transition-all active:scale-[0.98]", style: { background: C.surface, border: `1px solid ${C.border}`, color: bioError ? C.danger : C.textSoft, boxShadow: C.shadow } },
                 React.createElement(Fingerprint, { size: 16 }),
@@ -8822,7 +8886,7 @@ function App() {
             }
             return Object.assign({}, o, { status: newStatus, pagos: pagos });
         }));
-        logAudit("estado", "ordenes", "OT " + (live.code || live.id), (live.status || "-") + " → " + newStatus);
+        logAudit("estado", "ordenes", (live.code || live.id), (live.status || "-") + " → " + newStatus);
         if (newStatus === "listo" && live.status !== "listo") {
             const client = clients.find((cl) => cl.id === live.clientId);
             const vehicle = vehicles.find((vh) => vh.id === live.vehicleId);
@@ -8852,7 +8916,7 @@ function App() {
                     addCajaMovement({ type: "ingreso", concept: "Cobro repuestos " + (live.code || "") + " · " + clientName, amount: amtRep, source: "cobro_final", box: "repuestos", orderId: live.id });
                 }
                 if (amtTaller <= 0 && amtRep <= 0) {
-                    addCajaMovement({ type: "ingreso", concept: "OT " + (live.code || "") + " · " + clientName, amount: saldo, source: "cobro_final", box: "taller", orderId: live.id });
+                    addCajaMovement({ type: "ingreso", concept: (live.code || "OT") + " · " + clientName, amount: saldo, source: "cobro_final", box: "taller", orderId: live.id });
                 }
                 if (newStatus !== "listo") playSound("pago");
             }
