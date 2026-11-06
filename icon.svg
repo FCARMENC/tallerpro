@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+<defs><radialGradient id="g" cx="50%" cy="35%" r="75%"><stop offset="0" stop-color="#23262B"/><stop offset="1" stop-color="#15171A"/></radialGradient></defs>
+<rect width="512" height="512" fill="url(#g)"/>
+<g >
+    <path d="M 150 205 L 168 150 Q 178 118 218 114 L 294 114 Q 334 118 344 150 L 362 205 Q 374 212 374 228 L 374 240 Q 374 248 366 248 L 146 248 Q 138 248 138 240 L 138 228 Q 138 212 150 205 Z" fill="#FF6A1A"/>
+    <path d="M 196 158 L 212 130 Q 216 126 222 126 L 290 126 Q 296 126 300 130 L 316 158 Z" fill="#15171A"/>
+    <rect x="158" y="176" width="46" height="16" rx="8" fill="#15171A"/>
+    <rect x="308" y="176" width="46" height="16" rx="8" fill="#15171A"/>
+    <path d="M 314.0 326.0 L 329.1 337.6 L 326.4 348.9 L 307.7 352.3 L 302.9 360.1 L 308.3 378.3 L 299.5 385.9 L 282.3 377.7 L 273.9 381.2 L 267.6 399.1 L 256.0 400.0 L 246.9 383.3 L 238.1 381.2 L 222.4 391.9 L 212.5 385.9 L 215.0 367.0 L 209.1 360.1 L 190.1 359.6 L 185.6 348.9 L 198.7 335.1 L 198.0 326.0 L 182.9 314.4 L 185.6 303.1 L 204.3 299.7 L 209.1 291.9 L 203.7 273.7 L 212.5 266.1 L 229.7 274.3 L 238.1 270.8 L 244.4 252.9 L 256.0 252.0 L 265.1 268.7 L 273.9 270.8 L 289.6 260.1 L 299.5 266.1 L 297.0 285.0 L 302.9 291.9 L 321.9 292.4 L 326.4 303.1 L 313.3 316.9 Z M 278.0 326.0 A 22 22 0 1 0 234.0 326.0 A 22 22 0 1 0 278.0 326.0 Z" fill="#FF6A1A" fill-rule="evenodd"/>
+    <text x="256" y="446" text-anchor="middle" font-family="DejaVu Sans, Arial, sans-serif" font-weight="700" font-size="58" letter-spacing="6" fill="#F5F5F4">EXPERT</text>
+    </g></svg>
