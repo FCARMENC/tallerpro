@@ -5169,8 +5169,12 @@ function PagosProgramadosView({ items, onSave, onDelete, onToggleActivo, readOnl
                     React.createElement("button", { onClick: () => onDelete(item.id), className: "inline-flex items-center justify-center w-7 h-7 rounded-lg", style: { background: C.surfaceHi, border: `1px solid ${C.borderSoft}`, color: C.danger } },
                         React.createElement(Trash2, { size: 13 }))))))))));
 }
-function AvisosBroadcastView({ history, onSend, sending, error, deviceCount, settings, setSettings }) {
+function AvisosBroadcastView({ history, onSend, sending, error, deviceCount, settings, setSettings, devices, roles }) {
     const [text, setText] = useState("");
+    const [dest, setDest] = useState("todos");
+    const deviceList = Object.keys(devices || {}).map(function (t) { return devices[t] || {}; })
+        .sort(function (a, b) { return (b.actualizado || 0) - (a.actualizado || 0); });
+    const roleName = function (id) { const r = (roles || []).find(function (x) { return x.id === id; }); return r ? r.name : "Sin rol"; };
     const savedReminder = settings.recordatorioEquipo || {};
     const [reminderOn, setReminderOn] = useState(!!savedReminder.activo);
     const [reminderMsg, setReminderMsg] = useState(savedReminder.mensaje || "No olvides registrar las \u00f3rdenes y movimientos de hoy en el sistema \uD83D\uDCAA");
@@ -5182,7 +5186,9 @@ function AvisosBroadcastView({ history, onSend, sending, error, deviceCount, set
     const submit = () => {
         if (!text.trim() || sending)
             return;
-        onSend(text).then((res) => { if (res && res.ok) setText(""); });
+        const roleId = dest === "todos" ? null : dest;
+        const rName = roleId ? roleName(roleId) : "Todos";
+        onSend(text, roleId, rName).then((res) => { if (res && res.ok) setText(""); });
     };
     const saveReminder = () => {
         const finalMsg = reminderMsg.trim() || "No olvides registrar las \u00f3rdenes y movimientos de hoy en el sistema \uD83D\uDCAA";
@@ -5201,6 +5207,10 @@ function AvisosBroadcastView({ history, onSend, sending, error, deviceCount, set
             React.createElement("h2", { className: "text-lg font-semibold", style: { color: C.text, fontFamily: "'Geist', system-ui, sans-serif" } }, "Avisos al equipo"),
             React.createElement("p", { className: "text-xs mt-0.5", style: { color: C.textMute } }, `Manda un mensaje como notificaci\u00f3n a todos los celulares con avisos activados${deviceCount ? ` (ahora mismo, ${deviceCount})` : ""}, incluso si tienen la app cerrada.`)),
         React.createElement(Card, { className: "p-4 space-y-3" },
+            React.createElement(Field, { label: "Enviar a" },
+                React.createElement(Select, { value: dest, onChange: (e) => setDest(e.target.value) },
+                    React.createElement("option", { value: "todos" }, "Todos los dispositivos"),
+                    (roles || []).map((r) => React.createElement("option", { key: r.id, value: r.id }, "Solo rol: " + r.name)))),
             React.createElement(TextArea, { rows: 3, value: text, onChange: (e) => setText(e.target.value), placeholder: "Ej: Ma\u00f1ana el taller abre a las 9am por feriado\u2026" }),
             error && React.createElement("div", { className: "px-3 py-2 rounded-lg text-xs", style: { background: C.dangerSoft, color: C.danger } }, error),
             React.createElement(Button, { onClick: submit, disabled: !text.trim() || sending, className: "w-full" },
@@ -5223,6 +5233,15 @@ function AvisosBroadcastView({ history, onSend, sending, error, deviceCount, set
             React.createElement(Field, { label: "Minutos antes de cada cita" },
                 React.createElement(Input, { type: "number", min: 0, max: 180, value: citasMinAntes, onChange: (e) => setCitasMinAntes(e.target.value) })),
             React.createElement(Button, { variant: "subtle", onClick: saveCitas, className: "w-full" }, citasSaved ? "Guardado \u2713" : "Guardar")),
+        React.createElement(Card, { className: "p-4 space-y-2" },
+            React.createElement("p", { className: "text-sm font-medium", style: { color: C.text } }, "Dispositivos registrados (" + deviceList.length + ")"),
+            deviceList.length === 0
+                ? React.createElement("p", { className: "text-[11px]", style: { color: C.textMute } }, "Ningún celular tiene avisos activados todavía.")
+                : deviceList.map(function (d, i) {
+                    return React.createElement("p", { key: i, className: "text-[12px]", style: { color: C.textSoft } },
+                        (d.usuario || "Sin nombre") + " · " + roleName(d.rolId) + (d.plataforma ? " · " + d.plataforma : "") +
+                        (d.actualizado ? " · visto " + new Date(d.actualizado).toLocaleDateString("es-PE", { dateStyle: "medium" }) : ""));
+                })),
         React.createElement("div", { className: "space-y-2" },
             history.length === 0
                 ? React.createElement(Card, { className: "p-6 text-center text-sm", style: { color: C.textMute } }, "Todavía no enviaste ningún aviso.")
@@ -5231,7 +5250,8 @@ function AvisosBroadcastView({ history, onSend, sending, error, deviceCount, set
                         React.createElement("p", { className: "text-sm", style: { color: C.text } }, item.text),
                         React.createElement("p", { className: "text-[11px] mt-1.5", style: { color: C.textMute } },
                             (item.sentAt ? new Date(item.sentAt).toLocaleString("es-PE", { dateStyle: "medium", timeStyle: "short" }) : "")
-                            + (item.sentBy ? " · " + item.sentBy : "")),
+                            + (item.sentBy ? " · " + item.sentBy : "")
+                            + (item.dest && item.dest !== "Todos" ? " · para: " + item.dest : "")),
                         (typeof item.sent === "number")
                             ? React.createElement("p", { className: "text-[11px] mt-1 font-medium", style: { color: item.sent > 0 ? C.success : C.danger } },
                                 item.sent > 0 ? ("Enviado a " + item.sent + " dispositivo" + (item.sent === 1 ? "" : "s")) : "No había ningún dispositivo registrado en ese momento")
@@ -7845,8 +7865,16 @@ function NotificationsBell({ proformas, clients, avisosBroadcast, onEnablePush, 
                     permission === "granted" && (React.createElement("div", { className: "text-[10px] px-1 py-0.5", style: { color: pushReady ? C.success : C.textMute } }, pushReady ? "Avisos activos (app abierta o cerrada)" : "Avisos solo con la app abierta")),
                     permission === "granted" && (React.createElement("button", { type: "button", onClick: async function () {
                         var r = await testPushNotification();
-                        if (r && r.ok)
-                            alert("Prueba enviada. Deberías ver 1–2 avisos (local y/o servidor). Si no llega el del servidor, revisa Vercel / tokens.");
+                        if (r && r.ok) {
+                            const d = (r.data && typeof r.data === "object") ? r.data : {};
+                            const total = typeof d.tokens === "number" ? d.tokens : null;
+                            const sentN = typeof d.sent === "number" ? d.sent : null;
+                            const failN = typeof d.failed === "number" ? d.failed : 0;
+                            if (sentN !== null && total !== null)
+                                alert("Prueba enviada: llegó a " + sentN + " de " + total + " dispositivo(s)." + (failN ? " Fallaron " + failN + " (los que ya no sirven se quitan solos; si siguen fallando, toca Reiniciar registro en ese celular)." : ""));
+                            else
+                                alert("Prueba enviada. Deberías ver 1–2 avisos (local y/o servidor). Si no llega el del servidor, revisa Vercel / tokens.");
+                        }
                         else
                             alert("Prueba local lista. Servidor: " + ((r && r.error) || "falló") + ". Revisa que hayas iniciado sesión con la cuenta del taller y que haya dispositivos registrados.");
                     }, className: "text-left text-[10px] px-1 py-0.5 font-semibold", style: { color: C.accentText } }, "Probar aviso ahora")),
@@ -8327,6 +8355,17 @@ function App() {
     }, [roles]);
     const [auditLog, setAuditLog] = useCloudSync("expertTaller.auditLog", [], db);
     const [fcmTokens, setFcmTokens] = useCloudSync("expertTaller.fcmTokens", [], db);
+    // Dispositivos registrados con su usuario y rol (para avisos dirigidos y la lista de la pantalla Avisos).
+    const [fcmDevices, setFcmDevices] = useState({});
+    const currentUserRef = useRef(null);
+    useEffect(() => {
+        if (!db) return;
+        const unsub = db.collection("tallerData").doc("expertTaller.fcmDevices").onSnapshot(
+            (snap) => setFcmDevices(snap.exists && snap.data().devices ? snap.data().devices : {}),
+            (e) => console.error("Firestore fcmDevices", e)
+        );
+        return () => unsub();
+    }, [db]);
     const [pagosProgramados, setPagosProgramados] = useCloudSync("expertTaller.pagosProgramados", [], db);
     const [avisosBroadcast, setAvisosBroadcast] = useCloudSync("expertTaller.avisosBroadcast", [], db);
     // Mantener snapshot para resúmenes aleatorios y programar notificaciones del día.
@@ -8351,7 +8390,7 @@ function App() {
 
     const [broadcastSending, setBroadcastSending] = useState(false);
     const [broadcastError, setBroadcastError] = useState("");
-    const sendBroadcast = async (text) => {
+    const sendBroadcast = async (text, roleId, roleName) => {
         const trimmed = (text || "").trim();
         if (!trimmed)
             return { ok: false };
@@ -8361,7 +8400,7 @@ function App() {
             const res = await fetch(NOTIFY_ENDPOINT, {
                 method: "POST",
                 headers: await staffAuthHeaders(),
-                body: JSON.stringify({ proformaId: null, title: "\uD83D\uDCE2 Aviso del taller", body: trimmed }),
+                body: JSON.stringify({ proformaId: null, title: "\uD83D\uDCE2 Aviso del taller", body: trimmed, roles: roleId ? [roleId] : null }),
             });
             if (!res.ok) {
                 const data = await res.json().catch(() => ({}));
@@ -8369,7 +8408,7 @@ function App() {
             }
             const data = await res.json().catch(() => ({}));
             const sentN = typeof data.sent === "number" ? data.sent : (typeof data.successCount === "number" ? data.successCount : null);
-            setAvisosBroadcast((prev) => [{ id: "av" + Date.now() + Math.random().toString(36).slice(2, 6), text: trimmed, sentAt: Date.now(), sentBy: (currentUser && currentUser.name) || "", sent: sentN, note: data.note || "" }, ...prev].slice(0, 100));
+            setAvisosBroadcast((prev) => [{ id: "av" + Date.now() + Math.random().toString(36).slice(2, 6), text: trimmed, sentAt: Date.now(), sentBy: (currentUser && currentUser.name) || "", sent: sentN, note: data.note || "", dest: roleName || "Todos", failed: typeof data.failed === "number" ? data.failed : null }, ...prev].slice(0, 100));
             if (sentN === 0) {
                 setBroadcastError("El servidor no envió a ningún dispositivo. En cada celular: campanita → activar avisos (o reiniciar registro).");
                 return { ok: false, sent: 0 };
@@ -8471,44 +8510,31 @@ function App() {
             try { previousMine = window.localStorage.getItem("fcmToken.mine"); } catch (e) { }
             try { window.localStorage.setItem("fcmToken.mine", token); } catch (e) { }
 
-            let nextList = [];
+            // Escritura atómica (arrayUnion/arrayRemove): ya no se reescribe la lista completa desde este
+            // celular, así dos teléfonos que se registran al mismo tiempo no se pisan.
             try {
                 if (db) {
-                    const ref = db.collection("tallerData").doc("expertTaller.fcmTokens");
-                    const snap = await ref.get();
-                    let remote = [];
-                    if (snap.exists) {
-                        const v = snap.data().value;
-                        if (Array.isArray(v)) {
-                            remote = v.map(function (t) {
-                                return typeof t === "string" ? t : (t && t.token) || null;
-                            }).filter(Boolean);
-                        }
-                    }
-                    nextList = remote.filter(function (t) {
-                        return t !== previousMine || t === token;
-                    });
-                    if (nextList.indexOf(token) === -1)
-                        nextList.push(token);
+                    const FV = firebase.firestore.FieldValue;
                     const rev = Date.now();
-                    await ref.set({ value: nextList, updatedAt: rev });
+                    const tokensRef = db.collection("tallerData").doc("expertTaller.fcmTokens");
+                    const devicesRef = db.collection("tallerData").doc("expertTaller.fcmDevices");
+                    if (previousMine && previousMine !== token) {
+                        await tokensRef.set({ value: FV.arrayRemove(previousMine), updatedAt: rev }, { merge: true });
+                        await devicesRef.set({ devices: { [previousMine]: FV.delete() } }, { merge: true }).catch(function () { });
+                    }
+                    await tokensRef.set({ value: FV.arrayUnion(token), updatedAt: rev }, { merge: true });
+                    const me = currentUserRef.current;
+                    let plataforma = "";
+                    try { plataforma = /Android/i.test(navigator.userAgent) ? "Android" : /iPhone|iPad/i.test(navigator.userAgent) ? "iOS" : "PC"; } catch (e) { }
+                    await devicesRef.set({
+                        devices: { [token]: { usuario: (me && me.name) || "", rolId: (me && me.roleId) || "", plataforma: plataforma, actualizado: rev } },
+                        updatedAt: rev,
+                    }, { merge: true });
                     try { window.localStorage.setItem("expertTaller.fcmTokens.rev", String(rev)); } catch (e) { }
                 }
             } catch (cloudErr) {
                 console.warn("No se pudo sincronizar token a la nube", cloudErr);
             }
-
-            setFcmTokens(function (prev) {
-                const base = Array.isArray(prev) ? prev.slice() : [];
-                let list = base.filter(function (t) {
-                    return t !== previousMine || t === token;
-                });
-                if (list.indexOf(token) === -1)
-                    list.push(token);
-                if (nextList.length)
-                    list = nextList.slice();
-                return list;
-            });
             setPushReady(true);
 
             // Avisos con la app abierta (solo se enlaza una vez)
@@ -8559,8 +8585,13 @@ function App() {
     const resetPushRegistration = async () => {
         let previousMine = null;
         try { previousMine = window.localStorage.getItem("fcmToken.mine"); } catch (e) { }
-        if (previousMine) {
-            setFcmTokens((prev) => prev.filter((t) => t !== previousMine));
+        if (previousMine && db) {
+            try {
+                const FV = firebase.firestore.FieldValue;
+                const rev = Date.now();
+                await db.collection("tallerData").doc("expertTaller.fcmTokens").set({ value: FV.arrayRemove(previousMine), updatedAt: rev }, { merge: true });
+                await db.collection("tallerData").doc("expertTaller.fcmDevices").set({ devices: { [previousMine]: FV.delete() } }, { merge: true });
+            } catch (e) { console.warn("No se pudo borrar el registro anterior", e); }
         }
         try { window.localStorage.removeItem("fcmToken.mine"); } catch (e) { }
         setPushReady(false);
@@ -8581,7 +8612,22 @@ function App() {
                     ensurePushToken().catch(function () { });
                 }
             }, HOUR_MS);
-            return function () { clearInterval(refreshId); };
+            // Al volver a la app (desde segundo plano) también revisa el token: si Firebase lo cambió
+            // mientras estaba cerrada, la nube se actualiza enseguida. Máximo una vez cada 5 minutos.
+            let lastResumeSync = 0;
+            const onResume = function () {
+                if (document.visibilityState !== "visible") return;
+                if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
+                const now = Date.now();
+                if (now - lastResumeSync < 5 * 60 * 1000) return;
+                lastResumeSync = now;
+                ensurePushToken().catch(function () { });
+            };
+            document.addEventListener("visibilitychange", onResume);
+            return function () {
+                clearInterval(refreshId);
+                document.removeEventListener("visibilitychange", onResume);
+            };
         }
         // Primera vez (el sistema aún no preguntó): mostrar diálogo como una app normal
         if (Notification.permission === "default") {
@@ -8606,6 +8652,12 @@ function App() {
     const lastActivityRef = useRef(Date.now());
     const currentUser = (session && users.find((u) => u.id === session.userId && u.active !== false)) || null;
     const currentRole = currentUser ? getRole(roles, currentUser.roleId) : null;
+    currentUserRef.current = currentUser;
+    // Al entrar un usuario, este celular se vuelve a registrar con su nombre y rol (para avisos dirigidos).
+    useEffect(() => {
+        if (!currentUser || typeof Notification === "undefined" || Notification.permission !== "granted") return;
+        ensurePushToken().catch(function () { });
+    }, [currentUser && currentUser.id, currentUser && currentUser.roleId]);
     // Registro de auditoría: quién hizo qué y cuándo, para dar confianza cuando hay varios usuarios
     // o un socio con acceso al sistema. Vive en la nube (si hay Firebase conectado) para que sea el
     // mismo historial en todos los dispositivos, y se recorta a los últimos 500 eventos para no
@@ -9181,7 +9233,7 @@ function App() {
                     active === "caja" && (React.createElement(CajaView, { caja: caja, liquidaciones: liquidaciones, onLiquidar: liquidarCaja, onDeshacerLiquidacion: deshacerLiquidacion, onRestaurarCajaLiq: restaurarCajaDeLiquidacion, canEdit: canEditModule(currentRole, "caja"), onAddMovement: addCajaMovement, onRemoveMovement: removeCajaMovement, onUpdateMovement: updateCajaMovement, orders: orders, clients: clients, vehicles: vehicles, onChangeStatus: changeOrderStatus, onRegistrarAbono: registrarAbono, onRegistrarCobroFinal: registrarCobroFinal })),
                     active === "pagos" && (React.createElement(PagosProgramadosView, { items: pagosProgramados, onSave: savePagoProgramado, onDelete: deletePagoProgramado, onToggleActivo: togglePagoProgramadoActivo, readOnly: !canEditModule(currentRole, "pagos") })),
                     active === "solicitudes" && (React.createElement(SolicitudesView, { items: solicitudes, onMarkAtendida: markSolicitudAtendida, onDelete: deleteSolicitud, onCreateClient: createClientFromSolicitud })),
-                    active === "avisos" && (React.createElement(AvisosBroadcastView, { history: avisosBroadcast, onSend: sendBroadcast, sending: broadcastSending, error: broadcastError, deviceCount: fcmTokens.length, settings: settings, setSettings: setSettings })),
+                    active === "avisos" && (React.createElement(AvisosBroadcastView, { history: avisosBroadcast, onSend: sendBroadcast, sending: broadcastSending, error: broadcastError, deviceCount: Object.keys(fcmDevices || {}).length, devices: fcmDevices, roles: roles, settings: settings, setSettings: setSettings })),
                     active === "ajustes" && (React.createElement(AjustesView, { settings: settings, setSettings: setSettings, cloudStatus: cloudStatus, cloudError: cloudError, cloudProjectId: cloudProjectId, db: db, users: users, setUsers: setUsers, roles: roles, setRoles: setRoles, currentUser: currentUser, currentRole: currentRole, themeMode: themeMode, setThemeMode: setThemeMode, soundsEnabled: soundsEnabled, setSoundsEnabled: setSoundsEnabled, dailyTipsEnabled: dailyTipsEnabled, setDailyTipsEnabled: setDailyTipsEnabled, onLock: lockNow, auditLog: auditLog, logAudit: logAudit })))))))));
 }
 </script>
